@@ -165,7 +165,7 @@ export default function Layout({ children, user }) {
       {/* Main content */}
       <div className="flex-1 flex flex-col min-h-screen">
         {/* Mobile header */}
-        <header className="lg:hidden sticky top-0 z-30 theme-bg-secondary/80 backdrop-blur-xl border-b theme-border px-4 py-3">
+        <header className="lg:hidden sticky top-0 z-30 theme-bg-secondary/90 backdrop-blur-xl px-4 py-3" style={{ borderBottom: '1px solid var(--theme-border)' }}>
           <div className="flex items-center justify-between">
             <Button
               variant="ghost"
@@ -176,7 +176,7 @@ export default function Layout({ children, user }) {
               <Menu className="w-6 h-6" />
             </Button>
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-400 to-blue-600 flex items-center justify-center">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center">
                 <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
@@ -185,7 +185,7 @@ export default function Layout({ children, user }) {
             </div>
             <Avatar className="w-8 h-8">
               <AvatarImage src={user?.picture} />
-              <AvatarFallback className="bg-gradient-to-br from-cyan-400 to-blue-600 text-white text-xs">
+              <AvatarFallback className="bg-gradient-to-br from-cyan-500 to-blue-600 text-white text-xs">
                 {user?.name?.charAt(0) || "U"}
               </AvatarFallback>
             </Avatar>
