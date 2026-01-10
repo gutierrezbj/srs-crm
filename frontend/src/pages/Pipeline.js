@@ -244,7 +244,7 @@ export default function Pipeline({ user }) {
                                         </span>
                                         {lead.dias_sin_actividad > 0 && (
                                           <span className={`text-xs ${
-                                            lead.dias_sin_actividad > 7 ? "text-amber-400" : "theme-text-muted"
+                                            lead.dias_sin_actividad > 7 ? "text-amber-500" : "theme-text-muted"
                                           }`}>
                                             {lead.dias_sin_actividad}d
                                           </span>
