@@ -812,6 +812,180 @@ async def get_options(current_user: UserResponse = Depends(get_current_user)):
         "etapas": LEAD_STAGES
     }
 
+# ============== REPORTS ==============
+
+@api_router.get("/reports")
+async def get_reports(
+    fecha_inicio: Optional[str] = None,
+    fecha_fin: Optional[str] = None,
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """Get all reports data with optional date filter"""
+    
+    # Build date filter
+    query = {}
+    if fecha_inicio and fecha_fin:
+        query["fecha_creacion"] = {
+            "$gte": fecha_inicio,
+            "$lte": fecha_fin + "T23:59:59"
+        }
+    
+    leads = await db.leads.find(query, {"_id": 0}).to_list(10000)
+    users = await db.users.find({}, {"_id": 0, "user_id": 1, "name": 1}).to_list(100)
+    users_map = {u["user_id"]: u["name"] for u in users}
+    
+    # 1. Pipeline por etapa
+    pipeline_por_etapa = {}
+    for stage in LEAD_STAGES:
+        stage_leads = [l for l in leads if l.get("etapa") == stage]
+        pipeline_por_etapa[stage] = {
+            "cantidad": len(stage_leads),
+            "valor": sum(l.get("valor_estimado", 0) for l in stage_leads)
+        }
+    
+    # 2. Leads por fuente
+    leads_por_fuente = {}
+    for lead in leads:
+        fuente = lead.get("fuente") or "Sin definir"
+        leads_por_fuente[fuente] = leads_por_fuente.get(fuente, 0) + 1
+    
+    # 3. Leads por sector
+    leads_por_sector = {}
+    for lead in leads:
+        sector = lead.get("sector") or "Sin definir"
+        leads_por_sector[sector] = leads_por_sector.get(sector, 0) + 1
+    
+    # 4. Servicios más demandados
+    servicios_demandados = {}
+    for lead in leads:
+        servicios = lead.get("servicios") or []
+        for servicio in servicios:
+            servicios_demandados[servicio] = servicios_demandados.get(servicio, 0) + 1
+    
+    # 5. Leads por propietario
+    leads_por_propietario = {}
+    for lead in leads:
+        prop_id = lead.get("propietario")
+        prop_name = users_map.get(prop_id, "Sin asignar") if prop_id else "Sin asignar"
+        if prop_name not in leads_por_propietario:
+            leads_por_propietario[prop_name] = {"cantidad": 0, "valor": 0}
+        leads_por_propietario[prop_name]["cantidad"] += 1
+        leads_por_propietario[prop_name]["valor"] += lead.get("valor_estimado", 0)
+    
+    # 6. Motivos de pérdida
+    motivos_perdida = {}
+    for lead in leads:
+        if lead.get("etapa") == "perdido":
+            motivo = lead.get("motivo_perdida") or "Sin especificar"
+            motivos_perdida[motivo] = motivos_perdida.get(motivo, 0) + 1
+    
+    return {
+        "pipeline_por_etapa": pipeline_por_etapa,
+        "leads_por_fuente": leads_por_fuente,
+        "leads_por_sector": leads_por_sector,
+        "servicios_demandados": servicios_demandados,
+        "leads_por_propietario": leads_por_propietario,
+        "motivos_perdida": motivos_perdida,
+        "total_leads": len(leads)
+    }
+
+@api_router.get("/reports/export/{report_type}")
+async def export_report(
+    report_type: str,
+    fecha_inicio: Optional[str] = None,
+    fecha_fin: Optional[str] = None,
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """Export report data to CSV"""
+    
+    # Build date filter
+    query = {}
+    if fecha_inicio and fecha_fin:
+        query["fecha_creacion"] = {
+            "$gte": fecha_inicio,
+            "$lte": fecha_fin + "T23:59:59"
+        }
+    
+    leads = await db.leads.find(query, {"_id": 0}).to_list(10000)
+    users = await db.users.find({}, {"_id": 0, "user_id": 1, "name": 1}).to_list(100)
+    users_map = {u["user_id"]: u["name"] for u in users}
+    
+    output = io.StringIO()
+    
+    if report_type == "pipeline":
+        writer = csv.writer(output)
+        writer.writerow(["Etapa", "Cantidad", "Valor EUR"])
+        for stage in LEAD_STAGES:
+            stage_leads = [l for l in leads if l.get("etapa") == stage]
+            cantidad = len(stage_leads)
+            valor = sum(l.get("valor_estimado", 0) for l in stage_leads)
+            writer.writerow([stage.capitalize(), cantidad, valor])
+    
+    elif report_type == "fuentes":
+        writer = csv.writer(output)
+        writer.writerow(["Fuente", "Cantidad"])
+        fuentes = {}
+        for lead in leads:
+            fuente = lead.get("fuente") or "Sin definir"
+            fuentes[fuente] = fuentes.get(fuente, 0) + 1
+        for fuente, cantidad in sorted(fuentes.items(), key=lambda x: x[1], reverse=True):
+            writer.writerow([fuente, cantidad])
+    
+    elif report_type == "sectores":
+        writer = csv.writer(output)
+        writer.writerow(["Sector", "Cantidad"])
+        sectores = {}
+        for lead in leads:
+            sector = lead.get("sector") or "Sin definir"
+            sectores[sector] = sectores.get(sector, 0) + 1
+        for sector, cantidad in sorted(sectores.items(), key=lambda x: x[1], reverse=True):
+            writer.writerow([sector, cantidad])
+    
+    elif report_type == "servicios":
+        writer = csv.writer(output)
+        writer.writerow(["Servicio", "Leads Interesados"])
+        servicios = {}
+        for lead in leads:
+            for servicio in (lead.get("servicios") or []):
+                servicios[servicio] = servicios.get(servicio, 0) + 1
+        for servicio, cantidad in sorted(servicios.items(), key=lambda x: x[1], reverse=True):
+            writer.writerow([servicio, cantidad])
+    
+    elif report_type == "propietarios":
+        writer = csv.writer(output)
+        writer.writerow(["Propietario", "Cantidad Leads", "Valor EUR"])
+        propietarios = {}
+        for lead in leads:
+            prop_id = lead.get("propietario")
+            prop_name = users_map.get(prop_id, "Sin asignar") if prop_id else "Sin asignar"
+            if prop_name not in propietarios:
+                propietarios[prop_name] = {"cantidad": 0, "valor": 0}
+            propietarios[prop_name]["cantidad"] += 1
+            propietarios[prop_name]["valor"] += lead.get("valor_estimado", 0)
+        for prop, data in sorted(propietarios.items(), key=lambda x: x[1]["valor"], reverse=True):
+            writer.writerow([prop, data["cantidad"], data["valor"]])
+    
+    elif report_type == "perdidas":
+        writer = csv.writer(output)
+        writer.writerow(["Motivo", "Cantidad"])
+        motivos = {}
+        for lead in leads:
+            if lead.get("etapa") == "perdido":
+                motivo = lead.get("motivo_perdida") or "Sin especificar"
+                motivos[motivo] = motivos.get(motivo, 0) + 1
+        for motivo, cantidad in sorted(motivos.items(), key=lambda x: x[1], reverse=True):
+            writer.writerow([motivo, cantidad])
+    
+    else:
+        raise HTTPException(status_code=400, detail="Tipo de reporte no válido")
+    
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=reporte_{report_type}.csv"}
+    )
+
 # ============== USERS (Admin Panel) ==============
 
 @api_router.get("/users", response_model=List[UserResponse])
