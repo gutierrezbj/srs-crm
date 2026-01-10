@@ -179,20 +179,28 @@ async def create_session(request: Request, response: Response):
     
     email = auth_data.get("email", "").lower()
     
-    # Check domain restriction
-    if not email.endswith("@systemrapidsolutions.com"):
-        raise HTTPException(
-            status_code=403, 
-            detail="Solo cuentas @systemrapidsolutions.com permitidas"
-        )
-    
-    # Check if user is in allowed list (case insensitive)
-    allowed_user = ALLOWED_USERS.get(email)
-    if not allowed_user:
-        raise HTTPException(
-            status_code=403,
-            detail="Usuario no autorizado. Contacte al administrador."
-        )
+    # In DEV_MODE, allow any email. In production, restrict to @systemrapidsolutions.com
+    if not DEV_MODE:
+        # Check domain restriction
+        if not email.endswith("@systemrapidsolutions.com"):
+            raise HTTPException(
+                status_code=403, 
+                detail="Solo cuentas @systemrapidsolutions.com permitidas"
+            )
+        
+        # Check if user is in allowed list (case insensitive)
+        allowed_user = ALLOWED_USERS.get(email)
+        if not allowed_user:
+            raise HTTPException(
+                status_code=403,
+                detail="Usuario no autorizado. Contacte al administrador."
+            )
+        user_role = allowed_user["role"]
+        user_name = auth_data.get("name", allowed_user["name"])
+    else:
+        # DEV_MODE: Allow any Google account as admin for testing
+        user_role = "admin"
+        user_name = auth_data.get("name", email.split("@")[0])
     
     # Create or update user
     user_id = f"user_{uuid.uuid4().hex[:12]}"
