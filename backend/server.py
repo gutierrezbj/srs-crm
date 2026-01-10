@@ -690,12 +690,192 @@ async def create_activity(
 
 # ============== IMPORT/EXPORT ROUTES ==============
 
+@api_router.post("/leads/parse")
+async def parse_file(
+    file: UploadFile = File(...),
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """Parse CSV/Excel file and return headers and preview rows"""
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="Archivo requerido")
+    
+    content = await file.read()
+    headers = []
+    rows = []
+    
+    try:
+        if file.filename.endswith('.csv'):
+            decoded = content.decode('utf-8')
+            reader = csv.reader(io.StringIO(decoded))
+            all_rows = list(reader)
+            if all_rows:
+                headers = all_rows[0]
+                rows = all_rows[1:]
+        elif file.filename.endswith(('.xlsx', '.xls')):
+            import openpyxl
+            wb = openpyxl.load_workbook(io.BytesIO(content))
+            ws = wb.active
+            all_rows = list(ws.iter_rows(values_only=True))
+            if all_rows:
+                headers = [str(cell) if cell is not None else "" for cell in all_rows[0]]
+                rows = [[str(cell) if cell is not None else "" for cell in row] for row in all_rows[1:]]
+        else:
+            raise HTTPException(status_code=400, detail="Formato no soportado. Use CSV o Excel.")
+        
+        # Return first 3 rows as preview
+        preview = rows[:3] if len(rows) >= 3 else rows
+        
+        return {
+            "headers": headers,
+            "rows": rows,
+            "preview": preview,
+            "total_rows": len(rows)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error procesando archivo: {str(e)}")
+
+
+class DuplicateCheckRequest(BaseModel):
+    leads: List[dict]
+
+
+@api_router.post("/leads/check-duplicates")
+async def check_duplicates(
+    data: DuplicateCheckRequest,
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """Check for duplicate leads by email or company name"""
+    duplicates = []
+    
+    # Get all existing leads
+    existing_leads = await db.leads.find({}, {"_id": 0}).to_list(10000)
+    existing_emails = {lead.get("email", "").lower(): lead for lead in existing_leads}
+    existing_companies = {}
+    for lead in existing_leads:
+        empresa = lead.get("empresa", "").lower().strip()
+        if empresa:
+            if empresa not in existing_companies:
+                existing_companies[empresa] = []
+            existing_companies[empresa].append(lead)
+    
+    for idx, new_lead in enumerate(data.leads):
+        email = str(new_lead.get("email", "")).lower().strip()
+        empresa = str(new_lead.get("empresa", "")).lower().strip()
+        
+        # Check exact email match
+        if email and email in existing_emails:
+            duplicates.append({
+                "rowIndex": idx,
+                "type": "exact",
+                "newLead": new_lead,
+                "existingLead": existing_emails[email]
+            })
+        # Check company name match (different email)
+        elif empresa and empresa in existing_companies:
+            # Only mark as possible duplicate if different email
+            for existing in existing_companies[empresa]:
+                if existing.get("email", "").lower() != email:
+                    duplicates.append({
+                        "rowIndex": idx,
+                        "type": "possible",
+                        "newLead": new_lead,
+                        "existingLead": existing
+                    })
+                    break
+    
+    return {"duplicates": duplicates}
+
+
+class ImportMappedRequest(BaseModel):
+    leads: List[dict]
+    mapping: dict
+
+
+@api_router.post("/leads/import-mapped")
+async def import_mapped_leads(
+    data: ImportMappedRequest,
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """Import leads with custom column mapping and duplicate handling"""
+    imported = 0
+    updated = 0
+    skipped = 0
+    errors = []
+    
+    for idx, lead_data in enumerate(data.leads):
+        try:
+            action = lead_data.pop("_action", "import")
+            existing_id = lead_data.pop("_existingId", None)
+            
+            if action == "skip":
+                skipped += 1
+                continue
+            
+            # Clean and validate data
+            lead_doc = {
+                "empresa": str(lead_data.get("empresa", "")).strip() or "Sin empresa",
+                "contacto": str(lead_data.get("contacto", "")).strip() or "Sin contacto",
+                "email": str(lead_data.get("email", "")).strip().lower(),
+                "telefono": str(lead_data.get("telefono", "")).strip() if lead_data.get("telefono") else None,
+                "cargo": str(lead_data.get("cargo", "")).strip() if lead_data.get("cargo") else None,
+                "sector": str(lead_data.get("sector", "")).strip() if lead_data.get("sector") else None,
+                "fuente": str(lead_data.get("fuente", "")).strip() if lead_data.get("fuente") else None,
+                "notas": str(lead_data.get("notas", "")).strip() if lead_data.get("notas") else None,
+            }
+            
+            # Handle numeric value
+            try:
+                valor = lead_data.get("valor_estimado", "0")
+                # Remove currency symbols and commas
+                if isinstance(valor, str):
+                    valor = valor.replace("€", "").replace("$", "").replace(",", ".").strip()
+                lead_doc["valor_estimado"] = float(valor) if valor else 0.0
+            except:
+                lead_doc["valor_estimado"] = 0.0
+            
+            # Handle etapa
+            etapa = str(lead_data.get("etapa", "nuevo")).strip().lower()
+            lead_doc["etapa"] = etapa if etapa in LEAD_STAGES else "nuevo"
+            
+            if action == "update" and existing_id:
+                # Update existing lead
+                await db.leads.update_one(
+                    {"lead_id": existing_id},
+                    {"$set": lead_doc}
+                )
+                updated += 1
+            else:
+                # Create new lead
+                lead_id = f"lead_{uuid.uuid4().hex[:12]}"
+                now = datetime.now(timezone.utc)
+                lead_doc.update({
+                    "lead_id": lead_id,
+                    "fecha_creacion": now.isoformat(),
+                    "fecha_ultimo_contacto": now.isoformat(),
+                    "created_by": current_user.user_id,
+                    "servicios": [],
+                    "urgencia": "Sin definir",
+                })
+                await db.leads.insert_one(lead_doc)
+                imported += 1
+                
+        except Exception as e:
+            errors.append(f"Fila {idx + 2}: {str(e)}")
+    
+    return {
+        "imported": imported,
+        "updated": updated,
+        "skipped": skipped,
+        "errors": errors[:10] if errors else []
+    }
+
+
 @api_router.post("/leads/import")
 async def import_leads(
     file: UploadFile = File(...),
     current_user: UserResponse = Depends(get_current_user)
 ):
-    """Import leads from CSV/Excel"""
+    """Import leads from CSV/Excel (legacy endpoint)"""
     if not file.filename:
         raise HTTPException(status_code=400, detail="Archivo requerido")
     
@@ -755,6 +935,73 @@ async def import_leads(
         "imported": imported,
         "errors": errors[:10] if errors else []
     }
+
+# ============== BULK OPERATIONS ==============
+
+class BulkUpdateRequest(BaseModel):
+    lead_ids: List[str]
+    etapa: Optional[str] = None
+    propietario: Optional[str] = None
+
+
+@api_router.post("/leads/bulk-update")
+async def bulk_update_leads(
+    data: BulkUpdateRequest,
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """Bulk update leads stage or owner"""
+    update_fields = {}
+    
+    if data.etapa:
+        if data.etapa not in LEAD_STAGES:
+            raise HTTPException(status_code=400, detail=f"Etapa inválida")
+        update_fields["etapa"] = data.etapa
+    
+    if data.propietario is not None:
+        update_fields["propietario"] = data.propietario if data.propietario else None
+    
+    if not update_fields:
+        raise HTTPException(status_code=400, detail="No hay campos para actualizar")
+    
+    result = await db.leads.update_many(
+        {"lead_id": {"$in": data.lead_ids}},
+        {"$set": update_fields}
+    )
+    
+    return {"updated": result.modified_count}
+
+
+class BulkDeleteRequest(BaseModel):
+    lead_ids: List[str]
+
+
+@api_router.post("/leads/bulk-delete")
+async def bulk_delete_leads(
+    data: BulkDeleteRequest,
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """Bulk delete leads"""
+    result = await db.leads.delete_many({"lead_id": {"$in": data.lead_ids}})
+    
+    # Also delete related activities
+    await db.activities.delete_many({"lead_id": {"$in": data.lead_ids}})
+    
+    return {"deleted": result.deleted_count}
+
+
+@api_router.delete("/leads/delete-all")
+async def delete_all_leads(
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """Delete all leads (admin only)"""
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Solo administradores pueden eliminar todos los leads")
+    
+    result = await db.leads.delete_many({})
+    await db.activities.delete_many({})
+    
+    return {"deleted": result.deleted_count}
+
 
 # ============== ENRICH API (for Apollo.io) ==============
 
