@@ -108,7 +108,7 @@ export default function Layout({ children, user }) {
 
           {/* Navigation */}
           <nav className="flex-1 p-4 space-y-1">
-            {navItems.map((item) => (
+            {allNavItems.map((item) => (
               <NavLink key={item.path} item={item} />
             ))}
           </nav>
