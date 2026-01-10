@@ -297,3 +297,72 @@ code {
 .animate-fadeIn {
     animation: fadeIn 0.3s ease-out forwards;
 }
+
+/* Select/Dropdown styles - Dark mode improved contrast */
+.dark [data-radix-select-viewport] {
+    background-color: #1e293b;
+}
+
+.dark [data-radix-select-content] {
+    background-color: #1e293b;
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+.dark [data-radix-select-item] {
+    color: #e2e8f0;
+}
+
+.dark [data-radix-select-item][data-highlighted] {
+    background-color: #334155;
+    color: #f1f5f9;
+}
+
+.dark [data-radix-select-item][data-state="checked"] {
+    color: #22d3ee;
+}
+
+.dark [data-placeholder] {
+    color: #94a3b8;
+}
+
+.dark select,
+.dark [role="combobox"] {
+    color: #e2e8f0;
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+    color: #64748b;
+}
+
+.dark input,
+.dark textarea {
+    color: #e2e8f0;
+}
+
+/* Recharts custom styles */
+.recharts-default-tooltip {
+    background-color: var(--theme-bg-secondary) !important;
+    border: 1px solid var(--theme-border) !important;
+    border-radius: 8px !important;
+}
+
+.dark .recharts-default-tooltip {
+    background-color: #1e293b !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.light .recharts-default-tooltip {
+    background-color: #ffffff !important;
+    border-color: #e2e8f0 !important;
+}
+
+.recharts-tooltip-label {
+    color: var(--theme-text) !important;
+    font-weight: 600;
+}
+
+.recharts-tooltip-item {
+    color: var(--theme-text-secondary) !important;
+}
+
