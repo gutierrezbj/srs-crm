@@ -59,6 +59,20 @@ CRM interno para gestión de leads/contactos con:
     - Largo plazo → +14 días
     - Sin definir → hoy
   - Muestra día de la semana junto a la fecha
+- [x] Importador CSV/Excel mejorado:
+  - Pantalla de mapeo de columnas con preview de 3 filas
+  - Auto-detección de columnas por nombre
+  - Dropdown para mapear cada columna a campos CRM
+  - Validación de campos obligatorios (Empresa, Email)
+  - Guardar/cargar mapeos para futuras importaciones
+  - Detección de duplicados (email exacto / empresa similar)
+  - Opciones por duplicado: Importar, Omitir, Actualizar
+- [x] Selección múltiple en vista Leads:
+  - Checkbox por lead
+  - Seleccionar todos
+  - Barra de acciones: Eliminar, Cambiar etapa, Asignar propietario
+  - Diálogo de confirmación para eliminar
+- [x] Admin: Botón "Borrar todos los leads" con doble confirmación
 
 ### Fase 2 (Pendiente - P1)
 - [ ] Integración Gmail embebida
