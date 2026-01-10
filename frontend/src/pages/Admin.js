@@ -50,6 +50,9 @@ export default function Admin({ user }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [formData, setFormData] = useState({ email: "", name: "", role: "user" });
+  const [deleteAllDialogOpen, setDeleteAllDialogOpen] = useState(false);
+  const [confirmDeleteText, setConfirmDeleteText] = useState("");
+  const [leadCount, setLeadCount] = useState(0);
 
   useEffect(() => {
     fetchUsers();
