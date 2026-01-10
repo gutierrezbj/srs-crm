@@ -64,8 +64,17 @@ const activityTypes = [
   { value: "nota", label: "Nota", icon: MessageSquare },
   { value: "llamada", label: "Llamada", icon: PhoneCall },
   { value: "email", label: "Email", icon: Mail },
-  { value: "reunion", label: "Reunión", icon: Calendar },
+  { value: "reunion", label: "Reunión", icon: CalendarIcon },
 ];
+
+// Mapping urgency to suggested days
+const URGENCY_DAYS_MAP = {
+  "Inmediata (< 1 mes)": 1,
+  "Corto plazo (1-3 meses)": 3,
+  "Medio plazo (3-6 meses)": 7,
+  "Largo plazo (6+ meses)": 14,
+  "Sin definir": 0,
+};
 
 const initialFormState = {
   empresa: "",
