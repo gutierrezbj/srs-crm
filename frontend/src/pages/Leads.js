@@ -353,18 +353,18 @@ export default function Leads({ user }) {
                     <Button 
                       variant="ghost" 
                       size="icon"
-                      className="opacity-0 group-hover:opacity-100 transition-opacity text-slate-400"
+                      className="opacity-0 group-hover:opacity-100 transition-opacity theme-text-secondary"
                     >
                       <MoreVertical className="w-4 h-4" />
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="bg-slate-900 border-slate-800">
+                  <DropdownMenuContent align="end" className="theme-bg-secondary" style={{ borderColor: 'var(--theme-border)' }}>
                     <DropdownMenuItem 
                       onClick={(e) => {
                         e.stopPropagation();
                         openModal(lead);
                       }}
-                      className="text-slate-300 focus:text-white focus:bg-slate-800"
+                      className="theme-text-secondary focus:theme-text"
                     >
                       Editar
                     </DropdownMenuItem>
@@ -373,7 +373,7 @@ export default function Leads({ user }) {
                         e.stopPropagation();
                         handleDelete(lead.lead_id);
                       }}
-                      className="text-red-400 focus:text-red-300 focus:bg-red-400/10"
+                      className="text-red-500 focus:text-red-600 focus:bg-red-500/10"
                     >
                       Eliminar
                     </DropdownMenuItem>
