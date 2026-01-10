@@ -446,7 +446,7 @@ export default function Leads({ user }) {
             <Checkbox
               checked={allSelected}
               onCheckedChange={toggleSelectAll}
-              className="border-slate-600 data-[state=checked]:bg-cyan-500 data-[state=checked]:border-cyan-500"
+              className="border-slate-600 data-[state=checked]:bg-cyan-500 data-[state=checked]:border-cyan-500 cursor-pointer"
               data-testid="select-all-checkbox"
             />
             <span className="text-sm theme-text-secondary">
