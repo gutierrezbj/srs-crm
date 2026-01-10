@@ -585,13 +585,38 @@ export default function LeadModal({ open, onClose, lead }) {
                     <CalendarClock className="w-4 h-4" />
                     Próximo Seguimiento
                   </Label>
-                  <Input
-                    type="date"
-                    value={formData.proximo_seguimiento}
-                    onChange={(e) => handleChange("proximo_seguimiento", e.target.value)}
-                    data-testid="lead-proximo-seguimiento"
-                    className="bg-slate-950 border-slate-800 focus:border-cyan-400"
-                  />
+                  <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        data-testid="lead-proximo-seguimiento"
+                        className={cn(
+                          "w-full justify-start text-left font-normal bg-slate-950 border-slate-800 hover:bg-slate-900 hover:border-cyan-400",
+                          !formData.proximo_seguimiento && "text-slate-500"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4 text-cyan-400" />
+                        {formData.proximo_seguimiento ? (
+                          <span className="capitalize">
+                            {formatDateWithDay(getSelectedDate())}
+                          </span>
+                        ) : (
+                          <span>Seleccionar fecha...</span>
+                        )}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0 bg-slate-900 border-slate-800" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={getSelectedDate()}
+                        onSelect={handleDateSelect}
+                        initialFocus
+                        locale={es}
+                        disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                        className="bg-slate-900 text-slate-200"
+                      />
+                    </PopoverContent>
+                  </Popover>
                 </div>
                 <div className="space-y-2">
                   <Label className="text-slate-300">Tipo de Acción</Label>
