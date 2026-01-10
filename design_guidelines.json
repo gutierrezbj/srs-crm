@@ -1,0 +1,134 @@
+{
+  "design_system": {
+    "typography": {
+      "font_family": {
+        "primary": "Plus Jakarta Sans, sans-serif",
+        "mono": "JetBrains Mono, monospace"
+      },
+      "weights": {
+        "light": 300,
+        "regular": 400,
+        "medium": 500,
+        "bold": 700
+      },
+      "sizes": {
+        "h1": "text-4xl font-bold tracking-tight",
+        "h2": "text-3xl font-bold tracking-tight",
+        "h3": "text-2xl font-semibold tracking-tight",
+        "body": "text-base font-normal leading-relaxed",
+        "small": "text-sm font-medium text-slate-400",
+        "tiny": "text-xs font-medium uppercase tracking-wider text-slate-500"
+      }
+    },
+    "colors": {
+      "palette": {
+        "background": "#020617",
+        "foreground": "#cbd5e1",
+        "card": "#0f172a",
+        "card_foreground": "#e2e8f0",
+        "popover": "#0f172a",
+        "popover_foreground": "#e2e8f0",
+        "primary": "#22d3ee",
+        "primary_foreground": "#020617",
+        "secondary": "#2563eb",
+        "secondary_foreground": "#ffffff",
+        "muted": "#1e293b",
+        "muted_foreground": "#94a3b8",
+        "accent": "#1e293b",
+        "accent_foreground": "#22d3ee",
+        "destructive": "#ef4444",
+        "destructive_foreground": "#ffffff",
+        "border": "rgba(255,255,255,0.05)",
+        "input": "#1e293b",
+        "ring": "#22d3ee"
+      },
+      "gradients": {
+        "brand": "bg-gradient-to-r from-cyan-400 to-blue-600",
+        "brand_text": "bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-600",
+        "surface_hover": "hover:bg-slate-800/50 transition-colors duration-200"
+      }
+    },
+    "layout": {
+      "spacing": {
+        "container_padding": "p-6 md:p-8 lg:p-12",
+        "section_gap": "gap-8",
+        "component_gap": "gap-4"
+      },
+      "grid": {
+        "dashboard": "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6",
+        "kanban": "flex h-full gap-6 overflow-x-auto pb-4"
+      },
+      "radius": {
+        "default": "rounded-lg",
+        "card": "rounded-xl",
+        "button": "rounded-md"
+      }
+    },
+    "visual_enhancers": {
+      "glassmorphism": "bg-slate-950/70 backdrop-blur-md border border-white/5",
+      "borders": "border border-white/5",
+      "shadows": {
+        "card": "shadow-lg shadow-black/20",
+        "glow": "shadow-[0_0_15px_rgba(34,211,238,0.15)]"
+      },
+      "animations": {
+        "hover_lift": "hover:-translate-y-1 transition-transform duration-200",
+        "fade_in": "animate-in fade-in duration-500"
+      }
+    }
+  },
+  "components": {
+    "buttons": {
+      "primary": "bg-gradient-to-r from-cyan-400 to-blue-600 text-white font-medium hover:opacity-90 transition-opacity shadow-[0_0_20px_rgba(34,211,238,0.3)]",
+      "secondary": "bg-slate-800 text-slate-200 hover:bg-slate-700 border border-white/5",
+      "ghost": "text-slate-400 hover:text-cyan-400 hover:bg-cyan-400/10"
+    },
+    "cards": {
+      "default": "bg-[#0f172a] border border-white/5 rounded-xl p-6 hover:border-cyan-400/20 transition-colors",
+      "metric": "flex flex-col justify-between h-full bg-[#0f172a] border border-white/5 p-6 rounded-xl relative overflow-hidden group"
+    },
+    "inputs": {
+      "default": "bg-slate-950 border-slate-800 focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 placeholder:text-slate-600 text-slate-200"
+    },
+    "kanban": {
+      "column": "bg-slate-900/50 rounded-xl p-4 min-w-[300px] border border-white/5 flex flex-col gap-4",
+      "card": "bg-slate-800 p-4 rounded-lg border border-white/5 hover:border-cyan-400/50 cursor-grab active:cursor-grabbing shadow-sm hover:shadow-md transition-all group relative"
+    }
+  },
+  "assets": {
+    "images": {
+      "login_bg": "https://images.unsplash.com/photo-1589510969447-1c1f09db34e1?crop=entropy&cs=srgb&fm=jpg&q=85",
+      "dashboard_abstract": "https://images.unsplash.com/photo-1719702703328-87e335030324?crop=entropy&cs=srgb&fm=jpg&q=85",
+      "user_avatar_placeholder": "https://api.dicebear.com/7.x/avataaars/svg?seed=Felix"
+    },
+    "icons": {
+      "library": "lucide-react",
+      "preferred_set": ["LayoutDashboard", "Users", "Kanban", "Settings", "LogOut", "Plus", "Search", "Bell", "MoreVertical", "Drone"]
+    }
+  },
+  "instructions_to_main_agent": {
+    "setup": [
+      "Install 'lucide-react' for icons.",
+      "Install 'recharts' for dashboard charts.",
+      "Install '@hello-pangea/dnd' for Kanban drag-and-drop functionality.",
+      "Configure 'tailwind.config.js' with the custom colors provided in 'design_system.colors.palette'.",
+      "Ensure 'index.css' imports the Google Font 'Plus Jakarta Sans'."
+    ],
+    "implementation_rules": [
+      "STRICTLY follow the Dark Mode only requirement. Do not implement a light mode toggle.",
+      "Use the 'Bento Grid' layout for the Dashboard metrics.",
+      "Implement the Kanban board with drag-and-drop capabilities using @hello-pangea/dnd.",
+      "Ensure all interactive elements have 'data-testid' attributes.",
+      "Use the 'Tracing Beam' or subtle glow effects for active states in the sidebar.",
+      "Keep the UI minimalist: avoid clutter, use negative space effectively (p-6 to p-8).",
+      "For the Login page, use the 'login_bg' image with a dark overlay (bg-slate-950/80) to ensure text readability."
+    ],
+    "universal_guidelines": [
+      "Do not use generic centered layouts.",
+      "Create depth through layered design elements (z-index).",
+      "Use glassmorphism effects with backdrop filters where appropriate (e.g., sticky headers, modals).",
+      "Never use AI assistant emojis.",
+      "Always use 'sonner' for toast notifications."
+    ]
+  }
+}
