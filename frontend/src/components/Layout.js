@@ -29,6 +29,7 @@ export default function Layout({ children, user }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { theme, toggleTheme } = useTheme();
 
   const handleLogout = async () => {
     try {
