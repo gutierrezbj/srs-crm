@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
+import { useNavigate } from "react-router-dom";
 import { 
   Users, 
   Phone, 
@@ -11,9 +12,12 @@ import {
   AlertTriangle,
   TrendingUp,
   Euro,
-  Activity
+  Activity,
+  CalendarClock,
+  Building2
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -31,6 +35,7 @@ const stageConfig = {
 export default function Dashboard({ user }) {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchStats();
