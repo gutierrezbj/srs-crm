@@ -433,13 +433,14 @@ export default function LeadModal({ open, onClose, lead }) {
                     Sector
                   </Label>
                   <Select
-                    value={formData.sector}
-                    onValueChange={(value) => handleChange("sector", value)}
+                    value={formData.sector || "none"}
+                    onValueChange={(value) => handleChange("sector", value === "none" ? "" : value)}
                   >
                     <SelectTrigger className="bg-slate-950 border-slate-800" data-testid="lead-sector">
                       <SelectValue placeholder="Seleccionar..." />
                     </SelectTrigger>
                     <SelectContent className="bg-slate-900 border-slate-800">
+                      <SelectItem value="none">Sin seleccionar</SelectItem>
                       {options.sectores?.map((sector) => (
                         <SelectItem key={sector} value={sector}>
                           {sector}
@@ -454,8 +455,8 @@ export default function LeadModal({ open, onClose, lead }) {
                     Fuente del Lead
                   </Label>
                   <Select
-                    value={formData.fuente}
-                    onValueChange={(value) => handleChange("fuente", value)}
+                    value={formData.fuente || "none"}
+                    onValueChange={(value) => handleChange("fuente", value === "none" ? "" : value)}
                   >
                     <SelectTrigger className="bg-slate-950 border-slate-800" data-testid="lead-fuente">
                       <SelectValue placeholder="Seleccionar..." />
