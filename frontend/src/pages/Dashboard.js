@@ -122,7 +122,7 @@ export default function Dashboard({ user }) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-emerald-400" data-testid="won-deals">
+            <div className="text-3xl font-bold text-emerald-500" data-testid="won-deals">
               {stats?.stages_count?.ganado || 0}
             </div>
             <p className="text-xs theme-text-muted mt-1">Deals cerrados</p>
@@ -130,17 +130,15 @@ export default function Dashboard({ user }) {
         </Card>
 
         {/* Leads without activity */}
-        <Card className={`theme-bg-secondary border theme-border hover:border-amber-400/20 transition-colors ${
-          stats?.leads_without_activity > 0 ? "border-amber-400/30" : ""
-        }`}>
+        <Card className="theme-bg-secondary hover:shadow-lg transition-all" style={{ border: '1px solid var(--theme-border)' }}>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium theme-text-secondary flex items-center gap-2">
-              <AlertTriangle className={`w-4 h-4 ${stats?.leads_without_activity > 0 ? "text-amber-400" : ""}`} />
+              <AlertTriangle className={`w-4 h-4 ${stats?.leads_without_activity > 0 ? "text-amber-500" : ""}`} />
               Sin Actividad
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className={`text-3xl font-bold ${stats?.leads_without_activity > 0 ? "text-amber-400" : "theme-text"}`} data-testid="inactive-leads">
+            <div className={`text-3xl font-bold ${stats?.leads_without_activity > 0 ? "text-amber-500" : "theme-text"}`} data-testid="inactive-leads">
               {stats?.leads_without_activity || 0}
             </div>
             <p className="text-xs theme-text-muted mt-1">Más de 7 días</p>
@@ -151,7 +149,7 @@ export default function Dashboard({ user }) {
       {/* Pipeline by Stage */}
       <div>
         <h2 className="text-xl font-semibold theme-text mb-4 flex items-center gap-2">
-          <Activity className="w-5 h-5 text-cyan-400" />
+          <Activity className="w-5 h-5" style={{ color: 'var(--theme-accent)' }} />
           Pipeline por Etapa
         </h2>
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-4">
@@ -162,7 +160,8 @@ export default function Dashboard({ user }) {
             return (
               <Card 
                 key={key} 
-                className={`theme-bg-secondary border theme-border hover:border-cyan-400/20 transition-all hover:-translate-y-1`}
+                className="theme-bg-secondary hover:shadow-lg transition-all hover:-translate-y-1"
+                style={{ border: '1px solid var(--theme-border)' }}
                 data-testid={`stage-${key}`}
               >
                 <CardContent className="p-4 text-center">
