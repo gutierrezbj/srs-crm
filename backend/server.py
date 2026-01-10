@@ -760,11 +760,94 @@ async def get_sectors(current_user: UserResponse = Depends(get_current_user)):
     sectors = await db.leads.distinct("sector")
     return [s for s in sectors if s]
 
+# ============== OPTIONS (Dropdowns) ==============
+
+@api_router.get("/options")
+async def get_options(current_user: UserResponse = Depends(get_current_user)):
+    """Get all dropdown options"""
+    return {
+        "sectores": SECTORES,
+        "servicios": SERVICIOS,
+        "fuentes": FUENTES,
+        "urgencias": URGENCIAS,
+        "motivos_perdida": MOTIVOS_PERDIDA,
+        "tipos_seguimiento": TIPOS_SEGUIMIENTO,
+        "etapas": LEAD_STAGES
+    }
+
+# ============== USERS (Admin Panel) ==============
+
+@api_router.get("/users", response_model=List[UserResponse])
+async def get_users(current_user: UserResponse = Depends(get_current_user)):
+    """Get all users (for propietario dropdown and admin panel)"""
+    users = await db.users.find({}, {"_id": 0}).to_list(100)
+    return users
+
+@api_router.post("/users", response_model=UserResponse)
+async def create_user(user: UserCreate, current_user: UserResponse = Depends(get_current_user)):
+    """Create new user (admin only)"""
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Solo administradores pueden crear usuarios")
+    
+    # Check if email already exists
+    existing = await db.users.find_one({"email": user.email.lower()}, {"_id": 0})
+    if existing:
+        raise HTTPException(status_code=400, detail="El email ya está registrado")
+    
+    user_id = f"user_{uuid.uuid4().hex[:12]}"
+    new_user = {
+        "user_id": user_id,
+        "email": user.email.lower(),
+        "name": user.name,
+        "picture": None,
+        "role": user.role,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.users.insert_one(new_user)
+    return UserResponse(**new_user)
+
+@api_router.put("/users/{user_id}", response_model=UserResponse)
+async def update_user(user_id: str, user_update: UserUpdate, current_user: UserResponse = Depends(get_current_user)):
+    """Update user (admin only)"""
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Solo administradores pueden editar usuarios")
+    
+    existing = await db.users.find_one({"user_id": user_id}, {"_id": 0})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    
+    update_data = {k: v for k, v in user_update.model_dump().items() if v is not None}
+    
+    if update_data:
+        await db.users.update_one({"user_id": user_id}, {"$set": update_data})
+    
+    updated = await db.users.find_one({"user_id": user_id}, {"_id": 0})
+    return UserResponse(**updated)
+
+@api_router.delete("/users/{user_id}")
+async def delete_user(user_id: str, current_user: UserResponse = Depends(get_current_user)):
+    """Delete user (admin only)"""
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Solo administradores pueden eliminar usuarios")
+    
+    if user_id == current_user.user_id:
+        raise HTTPException(status_code=400, detail="No puedes eliminarte a ti mismo")
+    
+    result = await db.users.delete_one({"user_id": user_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    
+    # Also delete user sessions
+    await db.user_sessions.delete_many({"user_id": user_id})
+    
+    return {"message": "Usuario eliminado"}
+
 # ============== ROOT ==============
 
 @api_router.get("/")
 async def root():
-    return {"message": "System Rapid Solutions CRM API", "version": "1.0.0"}
+    return {"message": "System Rapid Solutions CRM API", "version": "1.1.0"}
 
 # Include the router
 app.include_router(api_router)
