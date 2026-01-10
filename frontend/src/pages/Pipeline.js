@@ -23,13 +23,13 @@ const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
 const stages = [
-  { id: "nuevo", label: "Nuevo", icon: Users, color: "border-t-slate-500", headerBg: "bg-slate-500/10" },
-  { id: "contactado", label: "Contactado", icon: Phone, color: "border-t-blue-500", headerBg: "bg-blue-500/10" },
-  { id: "calificado", label: "Calificado", icon: CheckCircle2, color: "border-t-cyan-500", headerBg: "bg-cyan-500/10" },
-  { id: "propuesta", label: "Propuesta", icon: FileText, color: "border-t-purple-500", headerBg: "bg-purple-500/10" },
-  { id: "negociacion", label: "Negociación", icon: Handshake, color: "border-t-amber-500", headerBg: "bg-amber-500/10" },
-  { id: "ganado", label: "Ganado", icon: Trophy, color: "border-t-emerald-500", headerBg: "bg-emerald-500/10" },
-  { id: "perdido", label: "Perdido", icon: XCircle, color: "border-t-red-500", headerBg: "bg-red-500/10" },
+  { id: "nuevo", label: "Nuevo", icon: Users, borderColor: "#64748b", headerClass: "kanban-header-nuevo" },
+  { id: "contactado", label: "Contactado", icon: Phone, borderColor: "#2563eb", headerClass: "kanban-header-contactado" },
+  { id: "calificado", label: "Calificado", icon: CheckCircle2, borderColor: "#0891b2", headerClass: "kanban-header-calificado" },
+  { id: "propuesta", label: "Propuesta", icon: FileText, borderColor: "#7c3aed", headerClass: "kanban-header-propuesta" },
+  { id: "negociacion", label: "Negociación", icon: Handshake, borderColor: "#d97706", headerClass: "kanban-header-negociacion" },
+  { id: "ganado", label: "Ganado", icon: Trophy, borderColor: "#059669", headerClass: "kanban-header-ganado" },
+  { id: "perdido", label: "Perdido", icon: XCircle, borderColor: "#dc2626", headerClass: "kanban-header-perdido" },
 ];
 
 export default function Pipeline({ user }) {
