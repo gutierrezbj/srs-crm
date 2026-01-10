@@ -12,7 +12,7 @@ import io
 import csv
 
 class CRMAPITester:
-    def __init__(self, base_url="https://dronesys-crm.preview.emergentagent.com"):
+    def __init__(self, base_url="https://rapid-crm-1.preview.emergentagent.com"):
         self.base_url = base_url
         self.api_url = f"{base_url}/api"
         self.session_token = "test_session_1768065365846"  # Updated session token

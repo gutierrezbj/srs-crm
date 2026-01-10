@@ -33,7 +33,7 @@ print('User ID: ' + userId);
 SESSION_TOKEN=$(mongosh --quiet --eval "use('test_database'); db.user_sessions.findOne({}, {session_token: 1, _id: 0}).session_token")
 
 # Test auth endpoint
-API_URL="https://dronesys-crm.preview.emergentagent.com"
+API_URL="https://rapid-crm-1.preview.emergentagent.com"
 
 curl -X GET "$API_URL/api/auth/me" \
   -H "Authorization: Bearer $SESSION_TOKEN"
@@ -64,7 +64,7 @@ await page.context.add_cookies([{
     "secure": True,
     "sameSite": "None"
 }])
-await page.goto("https://dronesys-crm.preview.emergentagent.com/dashboard")
+await page.goto("https://rapid-crm-1.preview.emergentagent.com/dashboard")
 ```
 
 ## Quick Debug
