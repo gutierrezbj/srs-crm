@@ -391,3 +391,77 @@ code {
     color: var(--theme-text-secondary) !important;
 }
 
+/* Calendar/DatePicker custom styles */
+.dark .rdp {
+    --rdp-background-color: #1e293b;
+    --rdp-accent-color: #22d3ee;
+    --rdp-accent-color-dark: #0891b2;
+}
+
+.dark .rdp-months {
+    background-color: #0f172a;
+}
+
+.dark .rdp-caption_label {
+    color: #e2e8f0;
+    font-weight: 600;
+}
+
+.dark .rdp-head_cell {
+    color: #94a3b8;
+    font-weight: 500;
+}
+
+.dark .rdp-cell {
+    color: #e2e8f0;
+}
+
+.dark .rdp-day {
+    color: #e2e8f0;
+}
+
+.dark .rdp-day:hover:not([disabled]):not(.rdp-day_selected) {
+    background-color: #334155;
+}
+
+.dark .rdp-day_selected {
+    background-color: #22d3ee !important;
+    color: #0f172a !important;
+    font-weight: 600;
+}
+
+.dark .rdp-day_today:not(.rdp-day_selected) {
+    background-color: #334155;
+    border: 1px solid #22d3ee;
+}
+
+.dark .rdp-day_outside {
+    color: #475569;
+}
+
+.dark .rdp-day_disabled {
+    color: #334155;
+}
+
+.dark .rdp-nav_button {
+    color: #94a3b8;
+    background-color: transparent;
+    border: 1px solid #334155;
+}
+
+.dark .rdp-nav_button:hover {
+    background-color: #334155;
+    color: #e2e8f0;
+}
+
+/* Light mode calendar */
+.light .rdp-day_selected {
+    background-color: #0891b2 !important;
+    color: white !important;
+}
+
+.light .rdp-day_today:not(.rdp-day_selected) {
+    background-color: #e0f2fe;
+    border: 1px solid #0891b2;
+}
+
