@@ -11,7 +11,8 @@ import {
   XCircle,
   Euro,
   AlertCircle,
-  GripVertical
+  GripVertical,
+  UserCircle
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -22,13 +23,13 @@ const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
 const stages = [
-  { id: "nuevo", label: "Nuevo", icon: Users, color: "border-slate-500", headerBg: "bg-slate-500/10" },
-  { id: "contactado", label: "Contactado", icon: Phone, color: "border-blue-500", headerBg: "bg-blue-500/10" },
-  { id: "calificado", label: "Calificado", icon: CheckCircle2, color: "border-cyan-500", headerBg: "bg-cyan-500/10" },
-  { id: "propuesta", label: "Propuesta", icon: FileText, color: "border-purple-500", headerBg: "bg-purple-500/10" },
-  { id: "negociacion", label: "Negociación", icon: Handshake, color: "border-amber-500", headerBg: "bg-amber-500/10" },
-  { id: "ganado", label: "Ganado", icon: Trophy, color: "border-emerald-500", headerBg: "bg-emerald-500/10" },
-  { id: "perdido", label: "Perdido", icon: XCircle, color: "border-red-500", headerBg: "bg-red-500/10" },
+  { id: "nuevo", label: "Nuevo", icon: Users, color: "border-t-slate-500", headerBg: "bg-slate-500/10" },
+  { id: "contactado", label: "Contactado", icon: Phone, color: "border-t-blue-500", headerBg: "bg-blue-500/10" },
+  { id: "calificado", label: "Calificado", icon: CheckCircle2, color: "border-t-cyan-500", headerBg: "bg-cyan-500/10" },
+  { id: "propuesta", label: "Propuesta", icon: FileText, color: "border-t-purple-500", headerBg: "bg-purple-500/10" },
+  { id: "negociacion", label: "Negociación", icon: Handshake, color: "border-t-amber-500", headerBg: "bg-amber-500/10" },
+  { id: "ganado", label: "Ganado", icon: Trophy, color: "border-t-emerald-500", headerBg: "bg-emerald-500/10" },
+  { id: "perdido", label: "Perdido", icon: XCircle, color: "border-t-red-500", headerBg: "bg-red-500/10" },
 ];
 
 export default function Pipeline({ user }) {
@@ -60,15 +61,20 @@ export default function Pipeline({ user }) {
   const handleDragEnd = async (result) => {
     const { destination, source, draggableId } = result;
 
+    // No destination or same position
     if (!destination) return;
     if (destination.droppableId === source.droppableId && destination.index === source.index) return;
 
     const newStage = destination.droppableId;
     const leadId = draggableId;
 
+    // Find the lead being moved
+    const movedLead = leads.find((l) => l.lead_id === leadId);
+    if (!movedLead) return;
+
     // Optimistic update
-    setLeads((prev) =>
-      prev.map((lead) =>
+    setLeads((prevLeads) =>
+      prevLeads.map((lead) =>
         lead.lead_id === leadId ? { ...lead, etapa: newStage } : lead
       )
     );
@@ -79,11 +85,18 @@ export default function Pipeline({ user }) {
         {},
         { withCredentials: true }
       );
-      toast.success(`Lead movido a ${stages.find(s => s.id === newStage)?.label}`);
+      
+      const stageLabel = stages.find(s => s.id === newStage)?.label || newStage;
+      toast.success(`${movedLead.empresa} → ${stageLabel}`);
     } catch (error) {
       // Revert on error
-      fetchLeads();
+      setLeads((prevLeads) =>
+        prevLeads.map((lead) =>
+          lead.lead_id === leadId ? { ...lead, etapa: source.droppableId } : lead
+        )
+      );
       toast.error("Error al actualizar etapa");
+      console.error("Error updating stage:", error);
     }
   };
 
@@ -122,13 +135,13 @@ export default function Pipeline({ user }) {
     <div data-testid="pipeline-page" className="h-full">
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-white">Pipeline</h1>
-        <p className="text-slate-400 text-sm">Arrastra los leads entre etapas</p>
+        <h1 className="text-2xl font-bold theme-text">Pipeline</h1>
+        <p className="theme-text-secondary text-sm">Arrastra los leads entre etapas</p>
       </div>
 
       {/* Kanban Board */}
       <DragDropContext onDragEnd={handleDragEnd}>
-        <div className="flex gap-4 overflow-x-auto pb-4 kanban-column">
+        <div className="flex gap-4 overflow-x-auto pb-4" style={{ minHeight: "calc(100vh - 220px)" }}>
           {stages.map((stage) => {
             const stageLeads = getLeadsByStage(stage.id);
             const stageTotal = getStageTotal(stage.id);
@@ -137,22 +150,22 @@ export default function Pipeline({ user }) {
             return (
               <div
                 key={stage.id}
-                className="flex-shrink-0 w-72"
+                className="flex-shrink-0 w-72 flex flex-col"
                 data-testid={`pipeline-column-${stage.id}`}
               >
                 {/* Column Header */}
-                <div className={`rounded-t-xl p-4 ${stage.headerBg} border-t-2 ${stage.color}`}>
+                <div className={`rounded-t-xl p-4 ${stage.headerBg} border-t-4 ${stage.color}`}>
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
-                      <Icon className="w-4 h-4 text-white" />
-                      <span className="font-semibold text-white text-sm">{stage.label}</span>
+                      <Icon className="w-4 h-4 theme-text" />
+                      <span className="font-semibold theme-text text-sm">{stage.label}</span>
                     </div>
-                    <Badge variant="secondary" className="bg-white/10 text-white">
+                    <Badge variant="secondary" className="bg-white/10 theme-text">
                       {stageLeads.length}
                     </Badge>
                   </div>
                   {stage.id !== "perdido" && (
-                    <div className="text-xs text-slate-300">
+                    <div className="text-xs theme-text-secondary">
                       {formatCurrency(stageTotal)}
                     </div>
                   )}
@@ -164,12 +177,13 @@ export default function Pipeline({ user }) {
                     <div
                       ref={provided.innerRef}
                       {...provided.droppableProps}
-                      className={`bg-slate-900/30 border border-white/5 border-t-0 rounded-b-xl p-2 min-h-[400px] transition-colors ${
+                      className={`flex-1 theme-bg-tertiary border theme-border border-t-0 rounded-b-xl p-2 transition-colors ${
                         snapshot.isDraggingOver ? "bg-cyan-400/5 border-cyan-400/20" : ""
                       }`}
+                      style={{ minHeight: "200px" }}
                     >
                       {stageLeads.length === 0 ? (
-                        <div className="text-center py-8 text-slate-600 text-sm">
+                        <div className="text-center py-8 theme-text-muted text-sm">
                           Sin leads
                         </div>
                       ) : (
@@ -187,35 +201,44 @@ export default function Pipeline({ user }) {
                                 className={`mb-2 ${snapshot.isDragging ? "opacity-90" : ""}`}
                                 data-testid={`pipeline-card-${lead.lead_id}`}
                               >
-                                <Card className={`bg-slate-800 border-white/5 p-3 cursor-pointer hover:border-cyan-400/30 transition-all group ${
+                                <Card className={`theme-bg-secondary border theme-border p-3 cursor-pointer hover:border-cyan-400/30 transition-all group ${
                                   snapshot.isDragging ? "shadow-xl shadow-cyan-400/10 ring-2 ring-cyan-400/30" : ""
                                 }`}>
                                   <div className="flex items-start gap-2">
                                     <div
                                       {...provided.dragHandleProps}
-                                      className="mt-1 text-slate-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                                      className="mt-1 theme-text-muted opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing"
                                     >
                                       <GripVertical className="w-4 h-4" />
                                     </div>
                                     <div className="flex-1 min-w-0">
                                       <div className="flex items-center justify-between mb-1">
-                                        <h4 className="font-medium text-white text-sm truncate">
+                                        <h4 className="font-medium theme-text text-sm truncate">
                                           {lead.empresa}
                                         </h4>
                                         {lead.dias_sin_actividad > 7 && stage.id !== "ganado" && stage.id !== "perdido" && (
                                           <AlertCircle className="w-4 h-4 text-amber-400 flex-shrink-0" />
                                         )}
                                       </div>
-                                      <p className="text-xs text-slate-400 truncate mb-2">
+                                      <p className="text-xs theme-text-secondary truncate mb-2">
                                         {lead.contacto}
                                       </p>
+                                      
+                                      {/* Propietario */}
+                                      {lead.propietario_nombre && (
+                                        <div className="flex items-center gap-1 mb-2">
+                                          <UserCircle className="w-3 h-3 text-cyan-400" />
+                                          <span className="text-xs text-cyan-400">{lead.propietario_nombre}</span>
+                                        </div>
+                                      )}
+                                      
                                       <div className="flex items-center justify-between">
                                         <span className="text-xs font-medium text-cyan-400">
                                           {formatCurrency(lead.valor_estimado)}
                                         </span>
                                         {lead.dias_sin_actividad > 0 && (
                                           <span className={`text-xs ${
-                                            lead.dias_sin_actividad > 7 ? "text-amber-400" : "text-slate-500"
+                                            lead.dias_sin_actividad > 7 ? "text-amber-400" : "theme-text-muted"
                                           }`}>
                                             {lead.dias_sin_actividad}d
                                           </span>
