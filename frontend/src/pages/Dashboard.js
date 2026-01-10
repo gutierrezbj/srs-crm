@@ -93,25 +93,25 @@ export default function Dashboard({ user }) {
         </Card>
 
         {/* Total Leads */}
-        <Card className="bg-slate-900/50 border-white/5 hover:border-cyan-400/20 transition-colors">
+        <Card className="theme-bg-secondary border theme-border hover:border-cyan-400/20 transition-colors">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-slate-400 flex items-center gap-2">
+            <CardTitle className="text-sm font-medium theme-text-secondary flex items-center gap-2">
               <TrendingUp className="w-4 h-4" />
               Total Leads
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-white" data-testid="total-leads">
+            <div className="text-3xl font-bold theme-text" data-testid="total-leads">
               {stats?.total_leads || 0}
             </div>
-            <p className="text-xs text-slate-500 mt-1">En el sistema</p>
+            <p className="text-xs theme-text-muted mt-1">En el sistema</p>
           </CardContent>
         </Card>
 
         {/* Won Deals */}
-        <Card className="bg-slate-900/50 border-white/5 hover:border-emerald-400/20 transition-colors">
+        <Card className="theme-bg-secondary border theme-border hover:border-emerald-400/20 transition-colors">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-slate-400 flex items-center gap-2">
+            <CardTitle className="text-sm font-medium theme-text-secondary flex items-center gap-2">
               <Trophy className="w-4 h-4 text-emerald-400" />
               Ganados
             </CardTitle>
@@ -120,32 +120,32 @@ export default function Dashboard({ user }) {
             <div className="text-3xl font-bold text-emerald-400" data-testid="won-deals">
               {stats?.stages_count?.ganado || 0}
             </div>
-            <p className="text-xs text-slate-500 mt-1">Deals cerrados</p>
+            <p className="text-xs theme-text-muted mt-1">Deals cerrados</p>
           </CardContent>
         </Card>
 
         {/* Leads without activity */}
-        <Card className={`bg-slate-900/50 border-white/5 hover:border-amber-400/20 transition-colors ${
+        <Card className={`theme-bg-secondary border theme-border hover:border-amber-400/20 transition-colors ${
           stats?.leads_without_activity > 0 ? "border-amber-400/30" : ""
         }`}>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-slate-400 flex items-center gap-2">
+            <CardTitle className="text-sm font-medium theme-text-secondary flex items-center gap-2">
               <AlertTriangle className={`w-4 h-4 ${stats?.leads_without_activity > 0 ? "text-amber-400" : ""}`} />
               Sin Actividad
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className={`text-3xl font-bold ${stats?.leads_without_activity > 0 ? "text-amber-400" : "text-white"}`} data-testid="inactive-leads">
+            <div className={`text-3xl font-bold ${stats?.leads_without_activity > 0 ? "text-amber-400" : "theme-text"}`} data-testid="inactive-leads">
               {stats?.leads_without_activity || 0}
             </div>
-            <p className="text-xs text-slate-500 mt-1">Más de 7 días</p>
+            <p className="text-xs theme-text-muted mt-1">Más de 7 días</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Pipeline by Stage */}
       <div>
-        <h2 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
+        <h2 className="text-xl font-semibold theme-text mb-4 flex items-center gap-2">
           <Activity className="w-5 h-5 text-cyan-400" />
           Pipeline por Etapa
         </h2>
@@ -157,7 +157,7 @@ export default function Dashboard({ user }) {
             return (
               <Card 
                 key={key} 
-                className={`bg-slate-900/50 border-white/5 hover:border-cyan-400/20 transition-all hover:-translate-y-1`}
+                className={`theme-bg-secondary border theme-border hover:border-cyan-400/20 transition-all hover:-translate-y-1`}
                 data-testid={`stage-${key}`}
               >
                 <CardContent className="p-4 text-center">
