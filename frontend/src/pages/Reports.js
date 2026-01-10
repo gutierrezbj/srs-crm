@@ -125,6 +125,11 @@ export default function Reports({ user }) {
     }
   };
 
+  useEffect(() => {
+    fetchReports();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fechaInicio, fechaFin]);
+
   const handleExport = async (reportType) => {
     try {
       const response = await axios.get(
