@@ -15,7 +15,7 @@ class CRMAPITester:
     def __init__(self, base_url="https://dronesys-crm.preview.emergentagent.com"):
         self.base_url = base_url
         self.api_url = f"{base_url}/api"
-        self.session_token = "test_session_1768064971588"  # From MongoDB setup
+        self.session_token = "test_session_1768065365846"  # Updated session token
         self.headers = {
             'Content-Type': 'application/json',
             'Authorization': f'Bearer {self.session_token}'
