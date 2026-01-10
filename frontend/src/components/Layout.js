@@ -54,10 +54,10 @@ export default function Layout({ children, user }) {
         className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 group ${
           isActive
             ? "bg-gradient-to-r from-cyan-400/10 to-blue-600/10 text-cyan-400 border-l-2 border-cyan-400"
-            : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+            : "theme-text-secondary hover:text-cyan-500 hover:bg-cyan-400/10"
         }`}
       >
-        <Icon className={`w-5 h-5 ${isActive ? "text-cyan-400" : "group-hover:text-slate-200"}`} />
+        <Icon className={`w-5 h-5 ${isActive ? "text-cyan-400" : "group-hover:text-cyan-500"}`} />
         <span className="font-medium">{item.name}</span>
         {isActive && <ChevronRight className="w-4 h-4 ml-auto" />}
       </button>
