@@ -180,32 +180,59 @@ export default function Dashboard({ user }) {
 
       {/* Quick Info Cards */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Seguimientos del día */}
+        <Card className="theme-bg-secondary border theme-border">
+          <CardHeader>
+            <CardTitle className="text-lg font-semibold theme-text flex items-center gap-2">
+              <CalendarClock className="w-5 h-5 text-cyan-400" />
+              Seguimientos de Hoy
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {stats?.seguimientos_hoy?.length > 0 ? (
+              <div className="space-y-3">
+                {stats.seguimientos_hoy.map((seg, idx) => (
+                  <div
+                    key={idx}
+                    onClick={() => navigate("/leads")}
+                    className="flex items-center gap-3 p-3 rounded-lg theme-bg-tertiary border theme-border cursor-pointer hover:border-cyan-400/30 transition-colors"
+                  >
+                    <div className="w-10 h-10 rounded-lg bg-cyan-400/10 flex items-center justify-center">
+                      <Building2 className="w-5 h-5 text-cyan-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium theme-text truncate">{seg.empresa}</p>
+                      <p className="text-sm theme-text-secondary truncate">{seg.contacto}</p>
+                    </div>
+                    <Badge className="bg-cyan-400/20 text-cyan-400 border-none">
+                      {seg.tipo_seguimiento || "Llamada"}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 theme-text-muted">
+                <CalendarClock className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                <p>Sin seguimientos programados para hoy</p>
+                <p className="text-xs mt-1">Añade fechas de seguimiento a tus leads</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         {/* Recent Activity Placeholder */}
         <Card className="theme-bg-secondary border theme-border">
           <CardHeader>
-            <CardTitle className="text-lg font-semibold theme-text">Actividad Reciente</CardTitle>
+            <CardTitle className="text-lg font-semibold theme-text flex items-center gap-2">
+              <Activity className="w-5 h-5 text-cyan-400" />
+              Actividad Reciente
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-center py-8 theme-text-muted">
               <Activity className="w-12 h-12 mx-auto mb-3 opacity-30" />
               <p>Las actividades recientes aparecerán aquí</p>
               <p className="text-xs mt-1">Añade notas y actividades a tus leads</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Calendar Placeholder */}
-        <Card className="theme-bg-secondary border theme-border">
-          <CardHeader>
-            <CardTitle className="text-lg font-semibold theme-text">Próximos Seguimientos</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-center py-8 theme-text-muted">
-              <svg className="w-12 h-12 mx-auto mb-3 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-              <p>Integración con Calendar</p>
-              <p className="text-xs mt-1">Disponible en Fase 2</p>
             </div>
           </CardContent>
         </Card>
