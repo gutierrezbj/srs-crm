@@ -291,7 +291,7 @@ export default function Leads({ user }) {
         <Card className="theme-bg-secondary p-12 text-center" style={{ border: '1px solid var(--theme-border)' }}>
           <Building2 className="w-12 h-12 mx-auto mb-4 theme-text-muted" />
           <h3 className="text-lg font-medium theme-text mb-2">No hay leads</h3>
-          <p className="text-slate-400 mb-4">
+          <p className="theme-text-secondary mb-4">
             {hasFilters ? "No se encontraron leads con los filtros aplicados" : "Comienza añadiendo tu primer lead"}
           </p>
           {!hasFilters && (
@@ -306,42 +306,43 @@ export default function Leads({ user }) {
           {leads.map((lead) => (
             <Card
               key={lead.lead_id}
-              className="bg-slate-900/50 border-white/5 p-4 hover:border-cyan-400/20 transition-colors cursor-pointer group"
+              className="theme-bg-secondary p-4 hover:shadow-lg transition-all cursor-pointer group"
+              style={{ border: '1px solid var(--theme-border)' }}
               onClick={() => openModal(lead)}
               data-testid={`lead-card-${lead.lead_id}`}
             >
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-3 mb-2">
-                    <h3 className="font-semibold text-white truncate">{lead.empresa}</h3>
+                    <h3 className="font-semibold theme-text truncate">{lead.empresa}</h3>
                     <Badge 
-                      className={`${stageConfig[lead.etapa]?.color || "bg-slate-500"} text-white text-xs`}
+                      className={`${stageConfig[lead.etapa]?.className || "stage-nuevo"} text-xs`}
                     >
                       {stageConfig[lead.etapa]?.label || lead.etapa}
                     </Badge>
                     {lead.dias_sin_actividad > 7 && lead.etapa !== "ganado" && lead.etapa !== "perdido" && (
-                      <Badge variant="outline" className="border-amber-400/50 text-amber-400 text-xs">
+                      <Badge variant="outline" className="border-amber-500 text-amber-500 text-xs">
                         <AlertCircle className="w-3 h-3 mr-1" />
                         {lead.dias_sin_actividad}d sin actividad
                       </Badge>
                     )}
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-2 text-sm">
-                    <div className="flex items-center gap-2 text-slate-400">
+                    <div className="flex items-center gap-2 theme-text-secondary">
                       <User className="w-4 h-4" />
                       <span className="truncate">{lead.contacto}</span>
                     </div>
-                    <div className="flex items-center gap-2 text-slate-400">
+                    <div className="flex items-center gap-2 theme-text-secondary">
                       <Mail className="w-4 h-4" />
                       <span className="truncate">{lead.email}</span>
                     </div>
                     {lead.telefono && (
-                      <div className="flex items-center gap-2 text-slate-400">
+                      <div className="flex items-center gap-2 theme-text-secondary">
                         <Phone className="w-4 h-4" />
                         <span>{lead.telefono}</span>
                       </div>
                     )}
-                    <div className="flex items-center gap-2 text-cyan-400 font-medium">
+                    <div className="flex items-center gap-2 font-medium" style={{ color: 'var(--theme-currency)' }}>
                       <Euro className="w-4 h-4" />
                       <span>{formatCurrency(lead.valor_estimado)}</span>
                     </div>
