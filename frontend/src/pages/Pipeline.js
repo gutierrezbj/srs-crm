@@ -180,10 +180,10 @@ export default function Pipeline({ user }) {
                     <div
                       ref={provided.innerRef}
                       {...provided.droppableProps}
-                      className={`flex-1 theme-bg-tertiary border theme-border border-t-0 rounded-b-xl p-2 transition-colors ${
-                        snapshot.isDraggingOver ? "bg-cyan-400/5 border-cyan-400/20" : ""
+                      className={`flex-1 theme-bg-tertiary border-t-0 rounded-b-xl p-2 transition-colors ${
+                        snapshot.isDraggingOver ? "ring-2 ring-cyan-500/30" : ""
                       }`}
-                      style={{ minHeight: "200px" }}
+                      style={{ minHeight: "200px", borderColor: 'var(--theme-border)', borderWidth: '1px', borderStyle: 'solid', borderTopWidth: 0 }}
                     >
                       {stageLeads.length === 0 ? (
                         <div className="text-center py-8 theme-text-muted text-sm">
@@ -204,9 +204,12 @@ export default function Pipeline({ user }) {
                                 className={`mb-2 ${snapshot.isDragging ? "opacity-90" : ""}`}
                                 data-testid={`pipeline-card-${lead.lead_id}`}
                               >
-                                <Card className={`theme-bg-secondary border theme-border p-3 cursor-pointer hover:border-cyan-400/30 transition-all group ${
-                                  snapshot.isDragging ? "shadow-xl shadow-cyan-400/10 ring-2 ring-cyan-400/30" : ""
-                                }`}>
+                                <Card 
+                                  className={`theme-bg-secondary p-3 cursor-pointer hover:shadow-md transition-all group ${
+                                    snapshot.isDragging ? "shadow-xl ring-2 ring-cyan-500/30" : ""
+                                  }`}
+                                  style={{ border: '1px solid var(--theme-border)' }}
+                                >
                                   <div className="flex items-start gap-2">
                                     <div
                                       {...provided.dragHandleProps}
@@ -220,7 +223,7 @@ export default function Pipeline({ user }) {
                                           {lead.empresa}
                                         </h4>
                                         {lead.dias_sin_actividad > 7 && stage.id !== "ganado" && stage.id !== "perdido" && (
-                                          <AlertCircle className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                                          <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0" />
                                         )}
                                       </div>
                                       <p className="text-xs theme-text-secondary truncate mb-2">
@@ -230,13 +233,13 @@ export default function Pipeline({ user }) {
                                       {/* Propietario */}
                                       {lead.propietario_nombre && (
                                         <div className="flex items-center gap-1 mb-2">
-                                          <UserCircle className="w-3 h-3 text-cyan-400" />
-                                          <span className="text-xs text-cyan-400">{lead.propietario_nombre}</span>
+                                          <UserCircle className="w-3 h-3" style={{ color: 'var(--theme-accent)' }} />
+                                          <span className="text-xs" style={{ color: 'var(--theme-accent)' }}>{lead.propietario_nombre}</span>
                                         </div>
                                       )}
                                       
                                       <div className="flex items-center justify-between">
-                                        <span className="text-xs font-medium text-cyan-400">
+                                        <span className="text-xs font-medium" style={{ color: 'var(--theme-currency)' }}>
                                           {formatCurrency(lead.valor_estimado)}
                                         </span>
                                         {lead.dias_sin_actividad > 0 && (
