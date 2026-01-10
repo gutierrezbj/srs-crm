@@ -134,6 +134,23 @@ export default function Admin({ user }) {
     }
   };
 
+  const handleDeleteAllLeads = async () => {
+    if (confirmDeleteText !== "ELIMINAR TODOS") {
+      toast.error("Por favor escribe 'ELIMINAR TODOS' para confirmar");
+      return;
+    }
+
+    try {
+      const response = await axios.delete(`${API}/leads/delete-all`, { withCredentials: true });
+      toast.success(`${response.data.deleted} leads eliminados`);
+      setDeleteAllDialogOpen(false);
+      setConfirmDeleteText("");
+      fetchLeadCount();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || "Error al eliminar leads");
+    }
+  };
+
   if (user?.role !== "admin") {
     return (
       <div className="flex items-center justify-center h-64">
