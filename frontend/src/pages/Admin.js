@@ -135,8 +135,8 @@ export default function Admin({ user }) {
   };
 
   const handleDeleteAllLeads = async () => {
-    if (confirmDeleteText !== "ELIMINAR TODOS") {
-      toast.error("Por favor escribe 'ELIMINAR TODOS' para confirmar");
+    if (confirmDeleteText !== "ELIMINAR") {
+      toast.error("Por favor escribe 'ELIMINAR' para confirmar");
       return;
     }
 
