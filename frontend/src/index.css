@@ -19,23 +19,23 @@ code {
     /* Dark mode (default) */
     :root, .dark {
         --background: 222.2 84% 4.9%;
-        --foreground: 210 40% 80%;
+        --foreground: 210 40% 98%;
         --card: 222.2 47.4% 11.2%;
         --card-foreground: 210 40% 98%;
-        --popover: 222.2 47.4% 11.2%;
+        --popover: 217 33% 17%;
         --popover-foreground: 210 40% 98%;
         --primary: 187 80% 53%;
         --primary-foreground: 222.2 84% 4.9%;
         --secondary: 217.2 91.2% 59.8%;
         --secondary-foreground: 210 40% 98%;
         --muted: 217.2 32.6% 17.5%;
-        --muted-foreground: 215 20.2% 65.1%;
-        --accent: 217.2 32.6% 17.5%;
-        --accent-foreground: 187 80% 53%;
+        --muted-foreground: 215 25% 63%;
+        --accent: 217.2 33% 25%;
+        --accent-foreground: 210 40% 98%;
         --destructive: 0 84.2% 60.2%;
         --destructive-foreground: 210 40% 98%;
         --border: 217.2 32.6% 17.5%;
-        --input: 217.2 32.6% 17.5%;
+        --input: 217.2 32.6% 20%;
         --ring: 187 80% 53%;
         --radius: 0.5rem;
         
@@ -43,10 +43,10 @@ code {
         --theme-bg: #020617;
         --theme-bg-secondary: #0f172a;
         --theme-bg-tertiary: #1e293b;
-        --theme-text: #cbd5e1;
+        --theme-text: #e2e8f0;
         --theme-text-secondary: #94a3b8;
         --theme-text-muted: #64748b;
-        --theme-border: rgba(255, 255, 255, 0.05);
+        --theme-border: rgba(255, 255, 255, 0.08);
         --theme-accent: #22d3ee;
         --theme-accent-dark: #06b6d4;
         --theme-currency: #22d3ee;
