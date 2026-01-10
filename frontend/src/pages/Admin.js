@@ -264,6 +264,36 @@ export default function Admin({ user }) {
         </CardContent>
       </Card>
 
+      {/* Danger Zone */}
+      <Card className="border-red-500/30 bg-red-500/5">
+        <CardHeader>
+          <CardTitle className="text-lg font-semibold text-red-400 flex items-center gap-2">
+            <AlertTriangle className="w-5 h-5" />
+            Zona Peligrosa
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between p-4 rounded-lg border border-red-500/30 bg-red-500/5">
+            <div>
+              <h4 className="font-medium text-slate-200">Eliminar todos los leads</h4>
+              <p className="text-sm text-slate-400">
+                Esta acción eliminará permanentemente {leadCount} leads y no se puede deshacer.
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              onClick={() => setDeleteAllDialogOpen(true)}
+              disabled={leadCount === 0}
+              className="border-red-500/50 text-red-400 hover:bg-red-500/20 hover:border-red-500"
+              data-testid="delete-all-leads-btn"
+            >
+              <Database className="w-4 h-4 mr-2" />
+              Borrar todos los leads
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* User Modal */}
       <Dialog open={modalOpen} onOpenChange={closeModal}>
         <DialogContent className="bg-slate-900 border-white/10">
