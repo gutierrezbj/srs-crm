@@ -462,6 +462,7 @@ export default function LeadModal({ open, onClose, lead }) {
                       <SelectValue placeholder="Seleccionar..." />
                     </SelectTrigger>
                     <SelectContent className="bg-slate-900 border-slate-800">
+                      <SelectItem value="none">Sin seleccionar</SelectItem>
                       {options.fuentes?.map((fuente) => (
                         <SelectItem key={fuente} value={fuente}>
                           {fuente}
@@ -479,7 +480,7 @@ export default function LeadModal({ open, onClose, lead }) {
                     Urgencia
                   </Label>
                   <Select
-                    value={formData.urgencia}
+                    value={formData.urgencia || "Sin definir"}
                     onValueChange={(value) => handleChange("urgencia", value)}
                   >
                     <SelectTrigger className="bg-slate-950 border-slate-800" data-testid="lead-urgencia">
@@ -501,13 +502,14 @@ export default function LeadModal({ open, onClose, lead }) {
                       Motivo de Pérdida
                     </Label>
                     <Select
-                      value={formData.motivo_perdida}
-                      onValueChange={(value) => handleChange("motivo_perdida", value)}
+                      value={formData.motivo_perdida || "none"}
+                      onValueChange={(value) => handleChange("motivo_perdida", value === "none" ? "" : value)}
                     >
                       <SelectTrigger className="bg-slate-950 border-slate-800" data-testid="lead-motivo-perdida">
                         <SelectValue placeholder="Seleccionar..." />
                       </SelectTrigger>
                       <SelectContent className="bg-slate-900 border-slate-800">
+                        <SelectItem value="none">Sin seleccionar</SelectItem>
                         {options.motivos_perdida?.map((motivo) => (
                           <SelectItem key={motivo} value={motivo}>
                             {motivo}
