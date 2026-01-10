@@ -103,8 +103,24 @@ export default function LeadModal({ open, onClose, lead }) {
   const [activeTab, setActiveTab] = useState("info");
   const [options, setOptions] = useState({});
   const [users, setUsers] = useState([]);
+  const [calendarOpen, setCalendarOpen] = useState(false);
 
   const isEditing = !!lead;
+
+  // Calculate suggested date based on urgency
+  const getSuggestedDate = useCallback((urgency) => {
+    const days = URGENCY_DAYS_MAP[urgency];
+    if (days === undefined || days === 0) {
+      return new Date(); // Today for "Sin definir"
+    }
+    return addDays(new Date(), days);
+  }, []);
+
+  // Format date with day of week
+  const formatDateWithDay = (date) => {
+    if (!date) return "";
+    return format(date, "EEEE d 'de' MMMM", { locale: es });
+  };
 
   useEffect(() => {
     fetchOptions();
