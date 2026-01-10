@@ -533,9 +533,14 @@ async def create_lead(lead: LeadCreate, current_user: UserResponse = Depends(get
     lead_id = f"lead_{uuid.uuid4().hex[:12]}"
     now = datetime.now(timezone.utc)
     
+    lead_dict = lead.model_dump()
+    # Ensure servicios is a list
+    if not lead_dict.get("servicios"):
+        lead_dict["servicios"] = []
+    
     lead_doc = {
         "lead_id": lead_id,
-        **lead.model_dump(),
+        **lead_dict,
         "fecha_creacion": now.isoformat(),
         "fecha_ultimo_contacto": now.isoformat(),
         "created_by": current_user.user_id
@@ -546,6 +551,13 @@ async def create_lead(lead: LeadCreate, current_user: UserResponse = Depends(get
     lead_doc["dias_sin_actividad"] = 0
     lead_doc["fecha_creacion"] = now
     lead_doc["fecha_ultimo_contacto"] = now
+    
+    # Get propietario name
+    if lead_doc.get("propietario"):
+        owner = await db.users.find_one({"user_id": lead_doc["propietario"]}, {"_id": 0, "name": 1})
+        lead_doc["propietario_nombre"] = owner["name"] if owner else None
+    else:
+        lead_doc["propietario_nombre"] = None
     
     return Lead(**lead_doc)
 
