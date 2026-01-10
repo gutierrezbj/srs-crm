@@ -40,13 +40,13 @@ const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
 const stageConfig = {
-  nuevo: { label: "Nuevo", color: "bg-slate-500" },
-  contactado: { label: "Contactado", color: "bg-blue-500" },
-  calificado: { label: "Calificado", color: "bg-cyan-500" },
-  propuesta: { label: "Propuesta", color: "bg-purple-500" },
-  negociacion: { label: "Negociación", color: "bg-amber-500" },
-  ganado: { label: "Ganado", color: "bg-emerald-500" },
-  perdido: { label: "Perdido", color: "bg-red-500" },
+  nuevo: { label: "Nuevo", className: "stage-nuevo" },
+  contactado: { label: "Contactado", className: "stage-contactado" },
+  calificado: { label: "Calificado", className: "stage-calificado" },
+  propuesta: { label: "Propuesta", className: "stage-propuesta" },
+  negociacion: { label: "Negociación", className: "stage-negociacion" },
+  ganado: { label: "Ganado", className: "stage-ganado" },
+  perdido: { label: "Perdido", className: "stage-perdido" },
 };
 
 export default function Leads({ user }) {
