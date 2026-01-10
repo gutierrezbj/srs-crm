@@ -179,8 +179,8 @@ export default function Leads({ user }) {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white">Leads</h1>
-          <p className="text-slate-400 text-sm">{leads.length} contactos en total</p>
+          <h1 className="text-2xl font-bold theme-text">Leads</h1>
+          <p className="theme-text-secondary text-sm">{leads.length} contactos en total</p>
         </div>
         <div className="flex items-center gap-2">
           <input
@@ -195,7 +195,8 @@ export default function Leads({ user }) {
             size="sm"
             onClick={() => document.getElementById("import-file")?.click()}
             data-testid="import-btn"
-            className="border-white/10 text-slate-300 hover:bg-slate-800"
+            className="theme-text-secondary hover:theme-text"
+            style={{ borderColor: 'var(--theme-border)' }}
           >
             <Upload className="w-4 h-4 mr-2" />
             Importar
@@ -205,7 +206,8 @@ export default function Leads({ user }) {
             size="sm"
             onClick={handleExport}
             data-testid="export-btn"
-            className="border-white/10 text-slate-300 hover:bg-slate-800"
+            className="theme-text-secondary hover:theme-text"
+            style={{ borderColor: 'var(--theme-border)' }}
           >
             <Download className="w-4 h-4 mr-2" />
             Exportar
@@ -222,10 +224,10 @@ export default function Leads({ user }) {
       </div>
 
       {/* Filters */}
-      <Card className="bg-slate-900/50 border-white/5 p-4">
+      <Card className="theme-bg-secondary p-4" style={{ border: '1px solid var(--theme-border)' }}>
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 theme-text-muted" />
             <Input
               placeholder="Buscar por empresa, contacto o email..."
               value={search}
