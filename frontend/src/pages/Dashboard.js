@@ -68,10 +68,10 @@ export default function Dashboard({ user }) {
     <div data-testid="dashboard-page" className="space-y-8">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-white mb-2">
+        <h1 className="text-3xl font-bold theme-text mb-2">
           Hola, {user?.name?.split(" ")[0] || "Usuario"}
         </h1>
-        <p className="text-slate-400">Resumen de tu pipeline de ventas</p>
+        <p className="theme-text-secondary">Resumen de tu pipeline de ventas</p>
       </div>
 
       {/* Main KPIs */}
@@ -79,7 +79,7 @@ export default function Dashboard({ user }) {
         {/* Total Pipeline Value */}
         <Card className="bg-gradient-to-br from-cyan-400/10 to-blue-600/10 border-cyan-400/20 hover:border-cyan-400/40 transition-colors">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-slate-400 flex items-center gap-2">
+            <CardTitle className="text-sm font-medium theme-text-secondary flex items-center gap-2">
               <Euro className="w-4 h-4" />
               Valor del Pipeline
             </CardTitle>
@@ -88,7 +88,7 @@ export default function Dashboard({ user }) {
             <div className="text-3xl font-bold gradient-text" data-testid="pipeline-value">
               {formatCurrency(stats?.total_pipeline || 0)}
             </div>
-            <p className="text-xs text-slate-500 mt-1">En oportunidades activas</p>
+            <p className="text-xs theme-text-muted mt-1">En oportunidades activas</p>
           </CardContent>
         </Card>
 
