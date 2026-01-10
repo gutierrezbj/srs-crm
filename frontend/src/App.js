@@ -163,12 +163,14 @@ function AppRouter() {
 
 function App() {
   return (
-    <div className="App">
-      <BrowserRouter>
-        <AppRouter />
-        <Toaster position="top-right" theme="dark" />
-      </BrowserRouter>
-    </div>
+    <ThemeProvider>
+      <div className="App">
+        <BrowserRouter>
+          <AppRouter />
+          <Toaster position="top-right" />
+        </BrowserRouter>
+      </div>
+    </ThemeProvider>
   );
 }
 
