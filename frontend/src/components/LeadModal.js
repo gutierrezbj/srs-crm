@@ -539,13 +539,14 @@ export default function LeadModal({ open, onClose, lead }) {
                 <div className="space-y-2">
                   <Label className="text-slate-300">Tipo de Acción</Label>
                   <Select
-                    value={formData.tipo_seguimiento}
-                    onValueChange={(value) => handleChange("tipo_seguimiento", value)}
+                    value={formData.tipo_seguimiento || "none"}
+                    onValueChange={(value) => handleChange("tipo_seguimiento", value === "none" ? "" : value)}
                   >
                     <SelectTrigger className="bg-slate-950 border-slate-800" data-testid="lead-tipo-seguimiento">
                       <SelectValue placeholder="Seleccionar..." />
                     </SelectTrigger>
                     <SelectContent className="bg-slate-900 border-slate-800">
+                      <SelectItem value="none">Sin seleccionar</SelectItem>
                       {options.tipos_seguimiento?.map((tipo) => (
                         <SelectItem key={tipo} value={tipo}>
                           {tipo}
