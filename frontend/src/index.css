@@ -39,7 +39,7 @@ code {
         --ring: 187 80% 53%;
         --radius: 0.5rem;
         
-        /* Custom theme colors */
+        /* Custom theme colors - Dark */
         --theme-bg: #020617;
         --theme-bg-secondary: #0f172a;
         --theme-bg-tertiary: #1e293b;
@@ -47,38 +47,44 @@ code {
         --theme-text-secondary: #94a3b8;
         --theme-text-muted: #64748b;
         --theme-border: rgba(255, 255, 255, 0.05);
+        --theme-accent: #22d3ee;
+        --theme-accent-dark: #06b6d4;
+        --theme-currency: #22d3ee;
     }
 
-    /* Light mode */
+    /* Light mode - Improved contrast */
     .light {
-        --background: 0 0% 100%;
+        --background: 210 40% 98%;
         --foreground: 222.2 84% 4.9%;
-        --card: 0 0% 98%;
+        --card: 0 0% 100%;
         --card-foreground: 222.2 84% 4.9%;
         --popover: 0 0% 100%;
         --popover-foreground: 222.2 84% 4.9%;
-        --primary: 187 80% 40%;
+        --primary: 187 79% 42%;
         --primary-foreground: 0 0% 100%;
         --secondary: 217.2 91.2% 50%;
         --secondary-foreground: 0 0% 100%;
         --muted: 210 40% 96%;
-        --muted-foreground: 215 20% 45%;
+        --muted-foreground: 215 25% 35%;
         --accent: 210 40% 96%;
-        --accent-foreground: 187 80% 40%;
+        --accent-foreground: 187 79% 42%;
         --destructive: 0 84.2% 60.2%;
         --destructive-foreground: 0 0% 100%;
         --border: 214 32% 91%;
         --input: 214 32% 91%;
-        --ring: 187 80% 40%;
+        --ring: 187 79% 42%;
         
-        /* Custom theme colors */
+        /* Custom theme colors - Light (WCAG AA compliant) */
         --theme-bg: #f8fafc;
         --theme-bg-secondary: #ffffff;
         --theme-bg-tertiary: #f1f5f9;
-        --theme-text: #1e293b;
+        --theme-text: #0f172a;
         --theme-text-secondary: #475569;
-        --theme-text-muted: #94a3b8;
-        --theme-border: rgba(0, 0, 0, 0.08);
+        --theme-text-muted: #64748b;
+        --theme-border: #e2e8f0;
+        --theme-accent: #06b6d4;
+        --theme-accent-dark: #0891b2;
+        --theme-currency: #0891b2;
     }
 }
 
@@ -114,6 +120,12 @@ code {
 .theme-border {
     border-color: var(--theme-border);
 }
+.theme-accent {
+    color: var(--theme-accent);
+}
+.theme-currency {
+    color: var(--theme-currency);
+}
 
 /* Custom scrollbar - Dark */
 .dark ::-webkit-scrollbar {
@@ -147,27 +159,55 @@ code {
     background: #94a3b8;
 }
 
-/* Gradient text utility */
-.gradient-text {
-    @apply bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-600;
+/* Gradient text utility - Theme aware */
+.dark .gradient-text {
+    background: linear-gradient(to right, #22d3ee, #2563eb);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+.light .gradient-text {
+    background: linear-gradient(to right, #0891b2, #2563eb);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
 }
 
-/* Gradient button */
+/* Gradient button - Same for both themes */
 .btn-gradient {
-    @apply bg-gradient-to-r from-cyan-400 to-blue-600 text-white font-medium hover:opacity-90 transition-opacity shadow-[0_0_20px_rgba(34,211,238,0.3)];
+    background: linear-gradient(to right, #06b6d4, #2563eb);
+    color: white;
+    font-weight: 500;
+    transition: all 0.2s;
+    box-shadow: 0 0 20px rgba(6, 182, 212, 0.3);
+}
+.btn-gradient:hover {
+    opacity: 0.9;
+}
+.btn-gradient:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 
-/* Glass effect */
+/* Glass effect - Theme aware */
 .dark .glass {
-    @apply bg-slate-950/70 backdrop-blur-md border border-white/5;
+    background: rgba(15, 23, 42, 0.7);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
 }
 .light .glass {
-    @apply bg-white/70 backdrop-blur-md border border-black/5;
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(12px);
+    border: 1px solid #e2e8f0;
 }
 
 /* Card hover effect */
 .card-hover {
-    @apply hover:border-cyan-400/20 transition-colors duration-200;
+    transition: all 0.2s ease;
+}
+.card-hover:hover {
+    border-color: var(--theme-accent);
+    transform: translateY(-2px);
 }
 
 /* Kanban specific styles */
@@ -175,12 +215,25 @@ code {
     min-height: calc(100vh - 200px);
 }
 
-/* Animation for drag */
-.dragging {
-    @apply opacity-50 scale-105;
-}
+/* Stage badges - Light mode specific (more saturated) */
+.light .stage-nuevo { background-color: #64748b; color: white; }
+.light .stage-contactado { background-color: #2563eb; color: white; }
+.light .stage-calificado { background-color: #0891b2; color: white; }
+.light .stage-propuesta { background-color: #7c3aed; color: white; }
+.light .stage-negociacion { background-color: #d97706; color: white; }
+.light .stage-ganado { background-color: #059669; color: white; }
+.light .stage-perdido { background-color: #dc2626; color: white; }
 
-/* Toast customization */
+/* Stage badges - Dark mode */
+.dark .stage-nuevo { background-color: rgba(100, 116, 139, 0.3); color: #94a3b8; }
+.dark .stage-contactado { background-color: rgba(59, 130, 246, 0.3); color: #60a5fa; }
+.dark .stage-calificado { background-color: rgba(34, 211, 238, 0.3); color: #22d3ee; }
+.dark .stage-propuesta { background-color: rgba(168, 85, 247, 0.3); color: #a855f7; }
+.dark .stage-negociacion { background-color: rgba(251, 191, 36, 0.3); color: #fbbf24; }
+.dark .stage-ganado { background-color: rgba(52, 211, 153, 0.3); color: #34d399; }
+.dark .stage-perdido { background-color: rgba(248, 113, 113, 0.3); color: #f87171; }
+
+/* Toast customization - Theme aware */
 .dark [data-sonner-toaster] {
     --normal-bg: #1e293b;
     --normal-text: #e2e8f0;
@@ -188,6 +241,59 @@ code {
 }
 .light [data-sonner-toaster] {
     --normal-bg: #ffffff;
-    --normal-text: #1e293b;
-    --normal-border: rgba(0, 0, 0, 0.08);
+    --normal-text: #0f172a;
+    --normal-border: #e2e8f0;
+}
+
+/* Input focus states - Light mode */
+.light input:focus,
+.light textarea:focus,
+.light select:focus {
+    border-color: #06b6d4 !important;
+    box-shadow: 0 0 0 2px rgba(6, 182, 212, 0.2);
+}
+
+/* Card styling - Light mode */
+.light .card-light {
+    background: white;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+/* Sidebar - Light mode specific */
+.light .sidebar-light {
+    background: #f1f5f9;
+    border-right: 1px solid #e2e8f0;
+}
+
+/* Navigation active state - Light mode */
+.light .nav-active {
+    background: linear-gradient(to right, rgba(6, 182, 212, 0.15), rgba(37, 99, 235, 0.15));
+    color: #0891b2;
+    border-left: 2px solid #06b6d4;
+}
+
+/* Kanban column header backgrounds - Light mode */
+.light .kanban-header-nuevo { background-color: rgba(100, 116, 139, 0.15); border-top-color: #64748b; }
+.light .kanban-header-contactado { background-color: rgba(37, 99, 235, 0.15); border-top-color: #2563eb; }
+.light .kanban-header-calificado { background-color: rgba(8, 145, 178, 0.15); border-top-color: #0891b2; }
+.light .kanban-header-propuesta { background-color: rgba(124, 58, 237, 0.15); border-top-color: #7c3aed; }
+.light .kanban-header-negociacion { background-color: rgba(217, 119, 6, 0.15); border-top-color: #d97706; }
+.light .kanban-header-ganado { background-color: rgba(5, 150, 105, 0.15); border-top-color: #059669; }
+.light .kanban-header-perdido { background-color: rgba(220, 38, 38, 0.15); border-top-color: #dc2626; }
+
+/* Animation classes */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.animate-fadeIn {
+    animation: fadeIn 0.3s ease-out forwards;
 }
