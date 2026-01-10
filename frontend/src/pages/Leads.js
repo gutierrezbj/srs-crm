@@ -467,17 +467,12 @@ export default function Leads({ user }) {
               >
                 <div className="flex items-start gap-4">
                   {/* Checkbox */}
-                  <div 
-                    className="pt-1"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleSelect(lead.lead_id);
-                    }}
-                  >
+                  <div className="pt-1 cursor-pointer">
                     <Checkbox
                       checked={selectedIds.has(lead.lead_id)}
                       onCheckedChange={() => toggleSelect(lead.lead_id)}
-                      className="border-slate-600 data-[state=checked]:bg-cyan-500 data-[state=checked]:border-cyan-500"
+                      onClick={(e) => e.stopPropagation()}
+                      className="border-slate-600 data-[state=checked]:bg-cyan-500 data-[state=checked]:border-cyan-500 cursor-pointer"
                     />
                   </div>
 
