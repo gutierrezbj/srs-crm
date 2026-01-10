@@ -126,7 +126,7 @@ export default function Pipeline({ user }) {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-cyan-400 animate-pulse">Cargando pipeline...</div>
+        <div style={{ color: 'var(--theme-accent)' }} className="animate-pulse">Cargando pipeline...</div>
       </div>
     );
   }
@@ -154,18 +154,21 @@ export default function Pipeline({ user }) {
                 data-testid={`pipeline-column-${stage.id}`}
               >
                 {/* Column Header */}
-                <div className={`rounded-t-xl p-4 ${stage.headerBg} border-t-4 ${stage.color}`}>
+                <div 
+                  className={`rounded-t-xl p-4 ${stage.headerClass}`}
+                  style={{ borderTop: `4px solid ${stage.borderColor}` }}
+                >
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
                       <Icon className="w-4 h-4 theme-text" />
                       <span className="font-semibold theme-text text-sm">{stage.label}</span>
                     </div>
-                    <Badge variant="secondary" className="bg-white/10 theme-text">
+                    <Badge variant="secondary" className="theme-bg-secondary theme-text" style={{ border: '1px solid var(--theme-border)' }}>
                       {stageLeads.length}
                     </Badge>
                   </div>
                   {stage.id !== "perdido" && (
-                    <div className="text-xs theme-text-secondary">
+                    <div className="text-xs" style={{ color: 'var(--theme-currency)' }}>
                       {formatCurrency(stageTotal)}
                     </div>
                   )}
