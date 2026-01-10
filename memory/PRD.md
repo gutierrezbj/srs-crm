@@ -50,6 +50,15 @@ CRM interno para gestión de leads/contactos con:
   - Texto seleccionado: Slate 200 (#e2e8f0)
   - Fondo dropdown: Slate 800 (#1e293b)
   - Hover opciones: Slate 700 (#334155)
+- [x] Mejora campo Próximo Seguimiento:
+  - Date picker visual (calendario clickeable)
+  - Auto-sugerencia de fecha basada en Urgencia:
+    - Inmediata → +1 día (mañana)
+    - Corto plazo → +3 días
+    - Medio plazo → +7 días
+    - Largo plazo → +14 días
+    - Sin definir → hoy
+  - Muestra día de la semana junto a la fecha
 
 ### Fase 2 (Pendiente - P1)
 - [ ] Integración Gmail embebida
