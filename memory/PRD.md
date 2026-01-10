@@ -4,7 +4,7 @@
 - **Proyecto**: CRM Minimalista para System Rapid Solutions
 - **Cliente**: Empresa de servicios IT y Drones
 - **Fecha inicio**: Enero 2025
-- **Versión actual**: 1.1
+- **Versión actual**: 1.2
 - **Stack**: FastAPI + React + MongoDB
 
 ## Problem Statement Original
@@ -41,12 +41,23 @@ CRM interno para gestión de leads/contactos con:
 - [x] Seguimientos del día en Dashboard
 - [x] Panel Admin (gestión usuarios)
 
-### Fase 2 (Pendiente)
+### Fase 1.2 (Completada - 10 Enero 2025)
+- [x] Módulo de Reportes completo con 6 gráficos
+- [x] Filtro de rango de fechas (Este mes, Trimestre, Año, Personalizado)
+- [x] Exportación CSV por reporte
+- [x] Contraste dropdowns modo oscuro corregido
+  - Placeholder: Slate 400 (#94a3b8)
+  - Texto seleccionado: Slate 200 (#e2e8f0)
+  - Fondo dropdown: Slate 800 (#1e293b)
+  - Hover opciones: Slate 700 (#334155)
+
+### Fase 2 (Pendiente - P1)
 - [ ] Integración Gmail embebida
 - [ ] Integración Google Calendar embebida
 - [ ] Mini calendario en sidebar
 
 ## Lo Implementado
+
 ### Backend Endpoints
 - GET /api/ - Info API
 - POST /api/auth/session - OAuth exchange
@@ -70,13 +81,24 @@ CRM interno para gestión de leads/contactos con:
 - POST /api/users - Crear usuario
 - PUT /api/users/{id} - Actualizar usuario
 - DELETE /api/users/{id} - Eliminar usuario
+- **GET /api/reports** - Datos agregados para reportes
+- **GET /api/reports/export/{type}** - Exportar reporte a CSV
 
 ### Frontend Pages
 - /login - Login con Google OAuth
 - /dashboard - Dashboard con KPIs y seguimientos
 - /leads - Lista de leads
 - /pipeline - Kanban board
+- **/reports - Módulo de reportes con 6 gráficos**
 - /admin - Gestión de usuarios (solo admin)
+
+### Reportes Disponibles (Fase 1.2)
+1. Pipeline por Etapa (gráfico de barras horizontal + tabla)
+2. Leads por Fuente (gráfico de dona)
+3. Leads por Sector (gráfico de barras)
+4. Servicios Demandados (gráfico de barras horizontal)
+5. Leads por Propietario (gráfico de barras + tabla)
+6. Motivos de Pérdida (gráfico de dona)
 
 ### Campos del Lead
 - empresa, contacto, email, telefono, cargo
@@ -92,7 +114,18 @@ CRM interno para gestión de leads/contactos con:
 - proximo_seguimiento (fecha)
 - tipo_seguimiento (dropdown)
 
+## Testing Status
+- Backend: 15/15 tests pasados
+- Frontend: 100% funcional
+- Test file: /app/tests/test_reports_api.py
+
 ## Next Action Items
-1. Fase 2: Integración Gmail API
-2. Fase 2: Integración Calendar API
+1. **Fase 2 - P1**: Integración Gmail API (ver/enviar emails desde ficha de lead)
+2. **Fase 2 - P1**: Integración Google Calendar API (agenda y eventos vinculados)
 3. Notificaciones automáticas de seguimientos
+
+## Backlog / Future
+- Mini calendario en sidebar
+- Dashboard de productividad por vendedor
+- Reportes automatizados por email
+- Integraciones adicionales (WhatsApp, Teams)
