@@ -56,6 +56,7 @@ export default function Admin({ user }) {
 
   useEffect(() => {
     fetchUsers();
+    fetchLeadCount();
   }, []);
 
   const fetchUsers = async () => {
@@ -66,6 +67,15 @@ export default function Admin({ user }) {
       toast.error("Error al cargar usuarios");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchLeadCount = async () => {
+    try {
+      const response = await axios.get(`${API}/leads`, { withCredentials: true });
+      setLeadCount(response.data.length);
+    } catch (error) {
+      console.error("Error fetching lead count:", error);
     }
   };
 
