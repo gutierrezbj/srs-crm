@@ -334,14 +334,14 @@ export default function LeadModal({ open, onClose, lead }) {
                     Propietario
                   </Label>
                   <Select
-                    value={formData.propietario}
-                    onValueChange={(value) => handleChange("propietario", value)}
+                    value={formData.propietario || "none"}
+                    onValueChange={(value) => handleChange("propietario", value === "none" ? "" : value)}
                   >
                     <SelectTrigger className="bg-slate-950 border-slate-800" data-testid="lead-propietario">
                       <SelectValue placeholder="Seleccionar..." />
                     </SelectTrigger>
                     <SelectContent className="bg-slate-900 border-slate-800">
-                      <SelectItem value="">Sin asignar</SelectItem>
+                      <SelectItem value="none">Sin asignar</SelectItem>
                       {users.map((user) => (
                         <SelectItem key={user.user_id} value={user.user_id}>
                           {user.name}
