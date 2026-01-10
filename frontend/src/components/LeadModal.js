@@ -1,5 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
+import { format, addDays } from "date-fns";
+import { es } from "date-fns/locale";
 import { 
   Building2, 
   User, 
@@ -13,7 +15,7 @@ import {
   Clock,
   MessageSquare,
   PhoneCall,
-  Calendar,
+  Calendar as CalendarIcon,
   UserCircle,
   Zap,
   Target,
@@ -40,7 +42,10 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
