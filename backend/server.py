@@ -156,7 +156,7 @@ class LeadCreate(LeadBase):
 class LeadUpdate(BaseModel):
     empresa: Optional[str] = None
     contacto: Optional[str] = None
-    email: Optional[EmailStr] = None
+    email: Optional[str] = None  # Changed from EmailStr
     telefono: Optional[str] = None
     cargo: Optional[str] = None
     sector: Optional[str] = None
