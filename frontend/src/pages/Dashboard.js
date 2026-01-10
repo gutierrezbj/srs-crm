@@ -164,8 +164,8 @@ export default function Dashboard({ user }) {
                   <div className={`w-10 h-10 rounded-lg ${config.bg} flex items-center justify-center mx-auto mb-3`}>
                     <Icon className={`w-5 h-5 ${config.color}`} />
                   </div>
-                  <div className="text-2xl font-bold text-white mb-1">{count}</div>
-                  <p className="text-xs text-slate-500">{config.label}</p>
+                  <div className="text-2xl font-bold theme-text mb-1">{count}</div>
+                  <p className="text-xs theme-text-muted">{config.label}</p>
                 </CardContent>
               </Card>
             );
@@ -176,12 +176,12 @@ export default function Dashboard({ user }) {
       {/* Quick Info Cards */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Recent Activity Placeholder */}
-        <Card className="bg-slate-900/50 border-white/5">
+        <Card className="theme-bg-secondary border theme-border">
           <CardHeader>
-            <CardTitle className="text-lg font-semibold text-white">Actividad Reciente</CardTitle>
+            <CardTitle className="text-lg font-semibold theme-text">Actividad Reciente</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-center py-8 text-slate-500">
+            <div className="text-center py-8 theme-text-muted">
               <Activity className="w-12 h-12 mx-auto mb-3 opacity-30" />
               <p>Las actividades recientes aparecerán aquí</p>
               <p className="text-xs mt-1">Añade notas y actividades a tus leads</p>
@@ -190,12 +190,12 @@ export default function Dashboard({ user }) {
         </Card>
 
         {/* Calendar Placeholder */}
-        <Card className="bg-slate-900/50 border-white/5">
+        <Card className="theme-bg-secondary border theme-border">
           <CardHeader>
-            <CardTitle className="text-lg font-semibold text-white">Próximos Seguimientos</CardTitle>
+            <CardTitle className="text-lg font-semibold theme-text">Próximos Seguimientos</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-center py-8 text-slate-500">
+            <div className="text-center py-8 theme-text-muted">
               <svg className="w-12 h-12 mx-auto mb-3 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
