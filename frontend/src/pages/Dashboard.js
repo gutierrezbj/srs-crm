@@ -180,10 +180,10 @@ export default function Dashboard({ user }) {
       {/* Quick Info Cards */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Seguimientos del día */}
-        <Card className="theme-bg-secondary border theme-border">
+        <Card className="theme-bg-secondary" style={{ border: '1px solid var(--theme-border)' }}>
           <CardHeader>
             <CardTitle className="text-lg font-semibold theme-text flex items-center gap-2">
-              <CalendarClock className="w-5 h-5 text-cyan-400" />
+              <CalendarClock className="w-5 h-5" style={{ color: 'var(--theme-accent)' }} />
               Seguimientos de Hoy
             </CardTitle>
           </CardHeader>
@@ -194,16 +194,17 @@ export default function Dashboard({ user }) {
                   <div
                     key={idx}
                     onClick={() => navigate("/leads")}
-                    className="flex items-center gap-3 p-3 rounded-lg theme-bg-tertiary border theme-border cursor-pointer hover:border-cyan-400/30 transition-colors"
+                    className="flex items-center gap-3 p-3 rounded-lg theme-bg-tertiary cursor-pointer hover:shadow-md transition-all"
+                    style={{ border: '1px solid var(--theme-border)' }}
                   >
-                    <div className="w-10 h-10 rounded-lg bg-cyan-400/10 flex items-center justify-center">
-                      <Building2 className="w-5 h-5 text-cyan-400" />
+                    <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: 'var(--theme-accent)', opacity: 0.15 }}>
+                      <Building2 className="w-5 h-5" style={{ color: 'var(--theme-accent-dark)' }} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="font-medium theme-text truncate">{seg.empresa}</p>
                       <p className="text-sm theme-text-secondary truncate">{seg.contacto}</p>
                     </div>
-                    <Badge className="bg-cyan-400/20 text-cyan-400 border-none">
+                    <Badge className="stage-calificado">
                       {seg.tipo_seguimiento || "Llamada"}
                     </Badge>
                   </div>
@@ -220,10 +221,10 @@ export default function Dashboard({ user }) {
         </Card>
 
         {/* Recent Activity Placeholder */}
-        <Card className="theme-bg-secondary border theme-border">
+        <Card className="theme-bg-secondary" style={{ border: '1px solid var(--theme-border)' }}>
           <CardHeader>
             <CardTitle className="text-lg font-semibold theme-text flex items-center gap-2">
-              <Activity className="w-5 h-5 text-cyan-400" />
+              <Activity className="w-5 h-5" style={{ color: 'var(--theme-accent)' }} />
               Actividad Reciente
             </CardTitle>
           </CardHeader>
