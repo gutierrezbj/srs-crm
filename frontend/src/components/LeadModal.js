@@ -538,7 +538,7 @@ export default function LeadModal({ open, onClose, lead }) {
                   </Label>
                   <Select
                     value={formData.urgencia || "Sin definir"}
-                    onValueChange={(value) => handleChange("urgencia", value)}
+                    onValueChange={handleUrgencyChange}
                   >
                     <SelectTrigger className="bg-slate-950 border-slate-800" data-testid="lead-urgencia">
                       <SelectValue />
