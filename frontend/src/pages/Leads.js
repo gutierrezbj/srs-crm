@@ -233,18 +233,20 @@ export default function Leads({ user }) {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               data-testid="search-input"
-              className="pl-10 bg-slate-950 border-slate-800 focus:border-cyan-400"
+              className="pl-10 theme-bg-tertiary"
+              style={{ borderColor: 'var(--theme-border)' }}
             />
           </div>
           <div className="flex gap-2">
             <Select value={stageFilter} onValueChange={setStageFilter}>
               <SelectTrigger 
-                className="w-[150px] bg-slate-950 border-slate-800"
+                className="w-[150px] theme-bg-tertiary"
+                style={{ borderColor: 'var(--theme-border)' }}
                 data-testid="stage-filter"
               >
                 <SelectValue placeholder="Etapa" />
               </SelectTrigger>
-              <SelectContent className="bg-slate-900 border-slate-800">
+              <SelectContent className="theme-bg-secondary" style={{ borderColor: 'var(--theme-border)' }}>
                 <SelectItem value="all">Todas las etapas</SelectItem>
                 {Object.entries(stageConfig).map(([key, config]) => (
                   <SelectItem key={key} value={key}>{config.label}</SelectItem>
@@ -253,12 +255,13 @@ export default function Leads({ user }) {
             </Select>
             <Select value={sectorFilter} onValueChange={setSectorFilter}>
               <SelectTrigger 
-                className="w-[150px] bg-slate-950 border-slate-800"
+                className="w-[150px] theme-bg-tertiary"
+                style={{ borderColor: 'var(--theme-border)' }}
                 data-testid="sector-filter"
               >
                 <SelectValue placeholder="Sector" />
               </SelectTrigger>
-              <SelectContent className="bg-slate-900 border-slate-800">
+              <SelectContent className="theme-bg-secondary" style={{ borderColor: 'var(--theme-border)' }}>
                 <SelectItem value="all">Todos los sectores</SelectItem>
                 {sectors.map((sector) => (
                   <SelectItem key={sector} value={sector}>{sector}</SelectItem>
@@ -270,7 +273,7 @@ export default function Leads({ user }) {
                 variant="ghost"
                 size="icon"
                 onClick={clearFilters}
-                className="text-slate-400 hover:text-white"
+                className="theme-text-secondary hover:theme-text"
               >
                 <X className="w-4 h-4" />
               </Button>
@@ -282,12 +285,12 @@ export default function Leads({ user }) {
       {/* Leads List */}
       {loading ? (
         <div className="flex items-center justify-center h-64">
-          <div className="text-cyan-400 animate-pulse">Cargando leads...</div>
+          <div style={{ color: 'var(--theme-accent)' }} className="animate-pulse">Cargando leads...</div>
         </div>
       ) : leads.length === 0 ? (
-        <Card className="bg-slate-900/50 border-white/5 p-12 text-center">
-          <Building2 className="w-12 h-12 mx-auto mb-4 text-slate-600" />
-          <h3 className="text-lg font-medium text-white mb-2">No hay leads</h3>
+        <Card className="theme-bg-secondary p-12 text-center" style={{ border: '1px solid var(--theme-border)' }}>
+          <Building2 className="w-12 h-12 mx-auto mb-4 theme-text-muted" />
+          <h3 className="text-lg font-medium theme-text mb-2">No hay leads</h3>
           <p className="text-slate-400 mb-4">
             {hasFilters ? "No se encontraron leads con los filtros aplicados" : "Comienza añadiendo tu primer lead"}
           </p>
