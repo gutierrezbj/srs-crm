@@ -154,13 +154,13 @@ export default function Layout({ children, user }) {
       {/* Main content */}
       <div className="flex-1 flex flex-col min-h-screen">
         {/* Mobile header */}
-        <header className="lg:hidden sticky top-0 z-30 bg-slate-950/80 backdrop-blur-xl border-b border-white/5 px-4 py-3">
+        <header className="lg:hidden sticky top-0 z-30 theme-bg-secondary/80 backdrop-blur-xl border-b theme-border px-4 py-3">
           <div className="flex items-center justify-between">
             <Button
               variant="ghost"
               size="icon"
               onClick={() => setSidebarOpen(true)}
-              className="text-slate-400"
+              className="theme-text-secondary"
             >
               <Menu className="w-6 h-6" />
             </Button>
@@ -170,7 +170,7 @@ export default function Layout({ children, user }) {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
               </div>
-              <span className="font-semibold text-white text-sm">SRS CRM</span>
+              <span className="font-semibold theme-text text-sm">SRS CRM</span>
             </div>
             <Avatar className="w-8 h-8">
               <AvatarImage src={user?.picture} />
