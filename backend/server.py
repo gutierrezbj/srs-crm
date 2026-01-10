@@ -211,18 +211,18 @@ async def create_session(request: Request, response: Response):
         await db.users.update_one(
             {"email": email},
             {"$set": {
-                "name": auth_data.get("name", allowed_user["name"]),
+                "name": user_name,
                 "picture": auth_data.get("picture"),
-                "role": allowed_user["role"]
+                "role": user_role
             }}
         )
     else:
         new_user = {
             "user_id": user_id,
             "email": email,
-            "name": auth_data.get("name", allowed_user["name"]),
+            "name": user_name,
             "picture": auth_data.get("picture"),
-            "role": allowed_user["role"],
+            "role": user_role,
             "created_at": datetime.now(timezone.utc).isoformat()
         }
         await db.users.insert_one(new_user)
