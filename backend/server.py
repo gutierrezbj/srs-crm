@@ -33,7 +33,70 @@ api_router = APIRouter(prefix="/api")
 # Lead stages
 LEAD_STAGES = ["nuevo", "contactado", "calificado", "propuesta", "negociacion", "ganado", "perdido"]
 
-# Allowed users
+# Dropdown options
+SECTORES = [
+    "IT / Soporte técnico",
+    "Fotovoltaica / Energía",
+    "Drones / Inspección",
+    "Telecomunicaciones",
+    "Retail",
+    "Banca / Finanzas",
+    "Industria / Manufactura",
+    "Logística",
+    "Otro"
+]
+
+SERVICIOS = [
+    "Soporte IT Remoto",
+    "Soporte IT Presencial",
+    "Smart Hands / Remote Hands",
+    "Managed Services (MSP)",
+    "Inspección con Drones",
+    "Termografía",
+    "Topografía / Fotogrametría",
+    "Cableado Estructurado",
+    "Consultoría ENS",
+    "Formación / Cursos",
+    "Otro"
+]
+
+FUENTES = [
+    "Apollo",
+    "Web",
+    "Referido",
+    "Feria / Evento",
+    "LinkedIn",
+    "Licitación",
+    "Otro"
+]
+
+URGENCIAS = [
+    "Inmediata (< 1 mes)",
+    "Corto plazo (1-3 meses)",
+    "Medio plazo (3-6 meses)",
+    "Largo plazo (6+ meses)",
+    "Sin definir"
+]
+
+MOTIVOS_PERDIDA = [
+    "Precio",
+    "Timing",
+    "Competencia",
+    "No responde",
+    "No califica",
+    "Otro"
+]
+
+TIPOS_SEGUIMIENTO = [
+    "Llamada",
+    "Email",
+    "Reunión",
+    "Demo",
+    "Propuesta",
+    "Otro"
+]
+
+# Allowed users (initial, can be managed via admin panel)
 ALLOWED_USERS = {
     "juancho@systemrapidsolutions.com": {"name": "JuanCho", "role": "admin"},
     "andros@systemrapidsolutions.com": {"name": "Andros", "role": "user"},
@@ -59,6 +122,15 @@ class UserResponse(BaseModel):
     picture: Optional[str] = None
     role: str
 
+class UserCreate(BaseModel):
+    email: EmailStr
+    name: str
+    role: str = "user"
+
+class UserUpdate(BaseModel):
+    name: Optional[str] = None
+    role: Optional[str] = None
+
 class LeadBase(BaseModel):
     empresa: str
     contacto: str
@@ -69,6 +141,14 @@ class LeadBase(BaseModel):
     valor_estimado: float = 0.0
     etapa: str = "nuevo"
     notas: Optional[str] = None
+    # New fields
+    propietario: Optional[str] = None  # user_id del propietario
+    servicios: Optional[List[str]] = []  # Multiple services
+    fuente: Optional[str] = None
+    urgencia: Optional[str] = "Sin definir"
+    motivo_perdida: Optional[str] = None
+    proximo_seguimiento: Optional[str] = None  # ISO date
+    tipo_seguimiento: Optional[str] = None
 
 class LeadCreate(LeadBase):
     pass
@@ -83,6 +163,13 @@ class LeadUpdate(BaseModel):
     valor_estimado: Optional[float] = None
     etapa: Optional[str] = None
     notas: Optional[str] = None
+    propietario: Optional[str] = None
+    servicios: Optional[List[str]] = None
+    fuente: Optional[str] = None
+    urgencia: Optional[str] = None
+    motivo_perdida: Optional[str] = None
+    proximo_seguimiento: Optional[str] = None
+    tipo_seguimiento: Optional[str] = None
 
 class Lead(LeadBase):
     model_config = ConfigDict(extra="ignore")
@@ -91,6 +178,7 @@ class Lead(LeadBase):
     fecha_ultimo_contacto: Optional[datetime] = None
     dias_sin_actividad: int = 0
     created_by: str
+    propietario_nombre: Optional[str] = None
 
 class ActivityBase(BaseModel):
     tipo: str  # nota, llamada, email, reunion
