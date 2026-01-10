@@ -4,6 +4,7 @@
 - **Proyecto**: CRM Minimalista para System Rapid Solutions
 - **Cliente**: Empresa de servicios IT y Drones
 - **Fecha inicio**: Enero 2025
+- **Versión actual**: 1.1
 - **Stack**: FastAPI + React + MongoDB
 
 ## Problem Statement Original
@@ -15,22 +16,30 @@ CRM interno para gestión de leads/contactos con:
 - Integración Google OAuth (solo @systemrapidsolutions.com)
 - 3 usuarios: JuanCho (admin), Andros, Adriana
 
-## User Personas
-1. **JuanCho (Admin)**: Control total del CRM, gestión de configuración
-2. **Andros (User)**: Gestión de leads comerciales IT
-3. **Adriana (User)**: Gestión de leads comerciales drones
-
 ## Core Requirements (Estáticos)
-### Fase 1 (Implementada)
-- [x] Dashboard con KPIs (pipeline value, total leads, ganados, sin actividad)
+### Fase 1 (Completada)
+- [x] Dashboard con KPIs
 - [x] CRUD Leads completo
 - [x] Pipeline Kanban con drag & drop
 - [x] Importación CSV/Excel
 - [x] Exportación CSV
-- [x] API para Apollo.io (/api/leads/enrich)
-- [x] Timeline de actividades por lead
-- [x] Google OAuth con Emergent (solo @systemrapidsolutions.com)
+- [x] API para Apollo.io
+- [x] Timeline de actividades
+- [x] Google OAuth con Emergent
 - [x] Roles: admin, user
+- [x] Light/Dark mode
+
+### Fase 1.1 (Completada)
+- [x] Drag & drop corregido
+- [x] Propietario del lead (dropdown)
+- [x] Sector (dropdown con opciones)
+- [x] Servicios de interés (dropdown múltiple)
+- [x] Fuente del lead (dropdown)
+- [x] Urgencia del cliente (dropdown)
+- [x] Motivo de pérdida (solo si perdido)
+- [x] Próximo seguimiento (fecha + tipo)
+- [x] Seguimientos del día en Dashboard
+- [x] Panel Admin (gestión usuarios)
 
 ### Fase 2 (Pendiente)
 - [ ] Integración Gmail embebida
@@ -38,73 +47,52 @@ CRM interno para gestión de leads/contactos con:
 - [ ] Mini calendario en sidebar
 
 ## Lo Implementado
-### Backend (/app/backend/server.py)
-- GET /api/ - Info de la API
-- POST /api/auth/session - Exchange session OAuth
+### Backend Endpoints
+- GET /api/ - Info API
+- POST /api/auth/session - OAuth exchange
 - GET /api/auth/me - Usuario actual
-- POST /api/auth/logout - Cerrar sesión
-- GET /api/leads - Listar leads (con filtros)
+- POST /api/auth/logout - Logout
+- GET /api/leads - Listar leads
 - POST /api/leads - Crear lead
-- GET /api/leads/stats - Stats para dashboard
-- GET /api/leads/export - Exportar CSV
-- POST /api/leads/import - Importar CSV/Excel
+- GET /api/leads/stats - Stats dashboard
+- GET /api/leads/export - Export CSV
+- POST /api/leads/import - Import CSV/Excel
 - GET /api/leads/{id} - Obtener lead
 - PUT /api/leads/{id} - Actualizar lead
 - PATCH /api/leads/{id}/stage - Cambiar etapa
 - DELETE /api/leads/{id} - Eliminar lead
-- GET /api/leads/{id}/activities - Actividades del lead
-- POST /api/leads/{id}/activities - Añadir actividad
-- POST /api/leads/enrich - API para Apollo.io
-- GET /api/sectors - Sectores únicos
+- GET /api/leads/{id}/activities - Actividades
+- POST /api/leads/{id}/activities - Nueva actividad
+- POST /api/leads/enrich - API Apollo.io
+- GET /api/sectors - Sectores
+- GET /api/options - Dropdown options
+- GET /api/users - Lista usuarios
+- POST /api/users - Crear usuario
+- PUT /api/users/{id} - Actualizar usuario
+- DELETE /api/users/{id} - Eliminar usuario
 
-### Frontend
-- /login - Página de login con Google OAuth
-- /dashboard - Dashboard con KPIs y métricas
-- /leads - Lista de leads con filtros y búsqueda
-- /pipeline - Kanban board con drag & drop
-- LeadModal - Modal para crear/editar leads y ver actividades
-- Layout - Sidebar con navegación
+### Frontend Pages
+- /login - Login con Google OAuth
+- /dashboard - Dashboard con KPIs y seguimientos
+- /leads - Lista de leads
+- /pipeline - Kanban board
+- /admin - Gestión de usuarios (solo admin)
 
-## Backlog Priorizado
-### P0 (Crítico) - COMPLETADO
-- [x] CRUD Leads básico
-- [x] Dashboard funcional
-- [x] Pipeline Kanban
-
-### P1 (Alta prioridad) - PENDIENTE
-- [ ] Gmail API integration
-- [ ] Google Calendar API integration
-- [ ] Notificaciones de leads sin actividad
-
-### P2 (Media prioridad)
-- [ ] Reportes avanzados
-- [ ] Búsqueda avanzada con más filtros
-- [ ] Duplicados automáticos
-
-## Arquitectura
-```
-/app
-├── backend/
-│   ├── server.py         # FastAPI app con todos los endpoints
-│   ├── requirements.txt  # Dependencias Python
-│   └── .env             # Variables de entorno
-└── frontend/
-    ├── src/
-    │   ├── App.js        # Router principal con OAuth
-    │   ├── pages/
-    │   │   ├── Login.js
-    │   │   ├── Dashboard.js
-    │   │   ├── Leads.js
-    │   │   └── Pipeline.js
-    │   └── components/
-    │       ├── Layout.js
-    │       └── LeadModal.js
-    ├── package.json
-    └── .env
-```
+### Campos del Lead
+- empresa, contacto, email, telefono, cargo
+- sector (dropdown)
+- valor_estimado
+- etapa
+- notas
+- propietario (dropdown usuarios)
+- servicios (múltiple selección)
+- fuente (dropdown)
+- urgencia (dropdown)
+- motivo_perdida (solo si perdido)
+- proximo_seguimiento (fecha)
+- tipo_seguimiento (dropdown)
 
 ## Next Action Items
-1. Configurar Google Cloud Console para Gmail y Calendar APIs
-2. Implementar integración Gmail en ficha de lead
-3. Implementar integración Calendar en sidebar y ficha de lead
-4. Añadir notificaciones automáticas de leads sin actividad
+1. Fase 2: Integración Gmail API
+2. Fase 2: Integración Calendar API
+3. Notificaciones automáticas de seguimientos
