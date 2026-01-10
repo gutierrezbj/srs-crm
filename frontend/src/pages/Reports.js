@@ -109,10 +109,6 @@ export default function Reports({ user }) {
     };
   }, [dateRange, customStart, customEnd]);
 
-  useEffect(() => {
-    fetchReports();
-  }, [fechaInicio, fechaFin]);
-
   const fetchReports = async () => {
     setLoading(true);
     try {
