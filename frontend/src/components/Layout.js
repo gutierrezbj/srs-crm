@@ -10,7 +10,8 @@ import {
   X,
   ChevronRight,
   Sun,
-  Moon
+  Moon,
+  Shield
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -25,11 +26,20 @@ const navItems = [
   { name: "Pipeline", path: "/pipeline", icon: Kanban },
 ];
 
+const adminNavItems = [
+  { name: "Admin", path: "/admin", icon: Shield },
+];
+
 export default function Layout({ children, user }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { theme, toggleTheme } = useTheme();
+
+  // Combine nav items based on user role
+  const allNavItems = user?.role === "admin" 
+    ? [...navItems, ...adminNavItems]
+    : navItems;
 
   const handleLogout = async () => {
     try {
