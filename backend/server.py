@@ -512,6 +512,16 @@ async def get_lead(lead_id: str, current_user: UserResponse = Depends(get_curren
         lead["fecha_ultimo_contacto"] = datetime.fromisoformat(lead["fecha_ultimo_contacto"])
     lead["dias_sin_actividad"] = calculate_days_without_activity(lead.get("fecha_ultimo_contacto"))
     
+    # Get propietario name
+    if lead.get("propietario"):
+        owner = await db.users.find_one({"user_id": lead["propietario"]}, {"_id": 0, "name": 1})
+        lead["propietario_nombre"] = owner["name"] if owner else None
+    else:
+        lead["propietario_nombre"] = None
+    
+    if not lead.get("servicios"):
+        lead["servicios"] = []
+    
     return Lead(**lead)
 
 @api_router.post("/leads", response_model=Lead)
