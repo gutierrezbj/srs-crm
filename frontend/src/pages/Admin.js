@@ -393,22 +393,28 @@ export default function Admin({ user }) {
           <AlertDialogHeader>
             <AlertDialogTitle className="text-white flex items-center gap-2">
               <AlertTriangle className="w-5 h-5 text-red-500" />
-              ¿Eliminar TODOS los leads?
+              ¿Estás seguro?
             </AlertDialogTitle>
-            <AlertDialogDescription className="text-slate-400">
-              <span className="block mb-4">
-                Esta acción eliminará permanentemente <strong className="text-red-400">{leadCount} leads</strong> y todo su historial de actividades.
+            <AlertDialogDescription className="text-slate-400 space-y-4">
+              <p className="text-red-400 font-medium">
+                Esta acción eliminará TODOS los leads permanentemente.
+              </p>
+              <p>
+                Se eliminarán <strong className="text-white">{leadCount} leads</strong> y todo su historial de actividades.
                 Esta acción NO se puede deshacer.
-              </span>
-              <span className="block mb-2 text-slate-300">
-                Para confirmar, escribe <strong className="text-red-400">ELIMINAR TODOS</strong> abajo:
-              </span>
-              <Input
-                value={confirmDeleteText}
-                onChange={(e) => setConfirmDeleteText(e.target.value)}
-                placeholder="ELIMINAR TODOS"
-                className="bg-slate-950 border-slate-800 mt-2"
-              />
+              </p>
+              <div className="pt-2">
+                <p className="text-slate-300 mb-2">
+                  Para confirmar, escribe <strong className="text-red-400">ELIMINAR</strong>:
+                </p>
+                <Input
+                  value={confirmDeleteText}
+                  onChange={(e) => setConfirmDeleteText(e.target.value.toUpperCase())}
+                  placeholder="ELIMINAR"
+                  className="bg-slate-950 border-slate-800 text-center font-mono"
+                  autoComplete="off"
+                />
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -417,9 +423,10 @@ export default function Admin({ user }) {
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteAllLeads}
-              disabled={confirmDeleteText !== "ELIMINAR TODOS"}
-              className="bg-red-600 hover:bg-red-700 text-white disabled:opacity-50"
+              disabled={confirmDeleteText !== "ELIMINAR"}
+              className="bg-red-600 hover:bg-red-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
             >
+              <Trash2 className="w-4 h-4 mr-2" />
               Eliminar todos los leads
             </AlertDialogAction>
           </AlertDialogFooter>
