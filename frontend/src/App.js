@@ -8,6 +8,7 @@ import Leads from "@/pages/Leads";
 import Pipeline from "@/pages/Pipeline";
 import Layout from "@/components/Layout";
 import { Toaster } from "@/components/ui/sonner";
+import { ThemeProvider } from "@/context/ThemeContext";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
