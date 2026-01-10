@@ -82,10 +82,10 @@ export default function Dashboard({ user }) {
       {/* Main KPIs */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {/* Total Pipeline Value */}
-        <Card className="bg-gradient-to-br from-cyan-400/10 to-blue-600/10 border-cyan-400/20 hover:border-cyan-400/40 transition-colors">
+        <Card className="theme-bg-secondary hover:shadow-lg transition-all" style={{ border: '1px solid var(--theme-border)' }}>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium theme-text-secondary flex items-center gap-2">
-              <Euro className="w-4 h-4" />
+              <Euro className="w-4 h-4" style={{ color: 'var(--theme-accent)' }} />
               Valor del Pipeline
             </CardTitle>
           </CardHeader>
@@ -98,10 +98,10 @@ export default function Dashboard({ user }) {
         </Card>
 
         {/* Total Leads */}
-        <Card className="theme-bg-secondary border theme-border hover:border-cyan-400/20 transition-colors">
+        <Card className="theme-bg-secondary hover:shadow-lg transition-all" style={{ border: '1px solid var(--theme-border)' }}>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium theme-text-secondary flex items-center gap-2">
-              <TrendingUp className="w-4 h-4" />
+              <TrendingUp className="w-4 h-4" style={{ color: 'var(--theme-accent)' }} />
               Total Leads
             </CardTitle>
           </CardHeader>
@@ -114,10 +114,10 @@ export default function Dashboard({ user }) {
         </Card>
 
         {/* Won Deals */}
-        <Card className="theme-bg-secondary border theme-border hover:border-emerald-400/20 transition-colors">
+        <Card className="theme-bg-secondary hover:shadow-lg transition-all" style={{ border: '1px solid var(--theme-border)' }}>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium theme-text-secondary flex items-center gap-2">
-              <Trophy className="w-4 h-4 text-emerald-400" />
+              <Trophy className="w-4 h-4 text-emerald-500" />
               Ganados
             </CardTitle>
           </CardHeader>
