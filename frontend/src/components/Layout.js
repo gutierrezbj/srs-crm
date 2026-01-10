@@ -65,7 +65,7 @@ export default function Layout({ children, user }) {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 flex">
+    <div className="min-h-screen theme-bg flex">
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div 
@@ -76,13 +76,13 @@ export default function Layout({ children, user }) {
 
       {/* Sidebar */}
       <aside
-        className={`fixed lg:static inset-y-0 left-0 z-50 w-64 bg-slate-900/80 backdrop-blur-xl border-r border-white/5 transform transition-transform duration-300 ease-in-out ${
+        className={`fixed lg:static inset-y-0 left-0 z-50 w-64 theme-bg-secondary backdrop-blur-xl border-r theme-border transform transition-transform duration-300 ease-in-out ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         }`}
       >
         <div className="flex flex-col h-full">
           {/* Logo */}
-          <div className="p-6 border-b border-white/5">
+          <div className="p-6 border-b theme-border">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-cyan-400 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-400/20">
                 <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -90,8 +90,8 @@ export default function Layout({ children, user }) {
                 </svg>
               </div>
               <div>
-                <h1 className="font-bold text-white text-sm">System Rapid</h1>
-                <p className="text-xs text-slate-500">CRM</p>
+                <h1 className="font-bold theme-text text-sm">System Rapid</h1>
+                <p className="text-xs theme-text-muted">CRM</p>
               </div>
             </div>
           </div>
