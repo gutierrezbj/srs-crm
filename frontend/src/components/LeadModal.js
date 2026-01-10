@@ -186,6 +186,33 @@ export default function LeadModal({ open, onClose, lead }) {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
+  // Handle urgency change with date auto-suggestion
+  const handleUrgencyChange = (urgency) => {
+    const suggestedDate = getSuggestedDate(urgency);
+    setFormData((prev) => ({
+      ...prev,
+      urgencia: urgency,
+      proximo_seguimiento: format(suggestedDate, "yyyy-MM-dd"),
+    }));
+  };
+
+  // Handle date selection from calendar
+  const handleDateSelect = (date) => {
+    if (date) {
+      setFormData((prev) => ({
+        ...prev,
+        proximo_seguimiento: format(date, "yyyy-MM-dd"),
+      }));
+      setCalendarOpen(false);
+    }
+  };
+
+  // Get selected date as Date object
+  const getSelectedDate = () => {
+    if (!formData.proximo_seguimiento) return undefined;
+    return new Date(formData.proximo_seguimiento + "T00:00:00");
+  };
+
   const handleServiceToggle = (service) => {
     setFormData((prev) => {
       const current = prev.servicios || [];
