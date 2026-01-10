@@ -572,7 +572,12 @@ async def update_lead(
     if not existing:
         raise HTTPException(status_code=404, detail="Lead no encontrado")
     
-    update_data = {k: v for k, v in lead_update.model_dump().items() if v is not None}
+    update_data = {}
+    for k, v in lead_update.model_dump().items():
+        if v is not None:
+            update_data[k] = v
+        elif k == "servicios" and lead_update.servicios is not None:
+            update_data[k] = lead_update.servicios  # Allow empty list
     
     if "etapa" in update_data and update_data["etapa"] not in LEAD_STAGES:
         raise HTTPException(status_code=400, detail=f"Etapa inválida. Usar: {LEAD_STAGES}")
@@ -587,6 +592,16 @@ async def update_lead(
     if updated.get("fecha_ultimo_contacto") and isinstance(updated["fecha_ultimo_contacto"], str):
         updated["fecha_ultimo_contacto"] = datetime.fromisoformat(updated["fecha_ultimo_contacto"])
     updated["dias_sin_actividad"] = calculate_days_without_activity(updated.get("fecha_ultimo_contacto"))
+    
+    # Get propietario name
+    if updated.get("propietario"):
+        owner = await db.users.find_one({"user_id": updated["propietario"]}, {"_id": 0, "name": 1})
+        updated["propietario_nombre"] = owner["name"] if owner else None
+    else:
+        updated["propietario_nombre"] = None
+    
+    if not updated.get("servicios"):
+        updated["servicios"] = []
     
     return Lead(**updated)
 
