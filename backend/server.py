@@ -376,6 +376,7 @@ def calculate_days_without_activity(fecha_ultimo_contacto: Optional[datetime]) -
 async def get_leads(
     etapa: Optional[str] = None,
     sector: Optional[str] = None,
+    propietario: Optional[str] = None,
     search: Optional[str] = None,
     current_user: UserResponse = Depends(get_current_user)
 ):
@@ -386,6 +387,8 @@ async def get_leads(
         query["etapa"] = etapa
     if sector:
         query["sector"] = sector
+    if propietario:
+        query["propietario"] = propietario
     if search:
         query["$or"] = [
             {"empresa": {"$regex": search, "$options": "i"}},
@@ -395,12 +398,24 @@ async def get_leads(
     
     leads = await db.leads.find(query, {"_id": 0}).sort("fecha_creacion", -1).to_list(1000)
     
+    # Get all users for propietario_nombre lookup
+    users = await db.users.find({}, {"_id": 0, "user_id": 1, "name": 1}).to_list(100)
+    users_map = {u["user_id"]: u["name"] for u in users}
+    
     for lead in leads:
         if isinstance(lead.get("fecha_creacion"), str):
             lead["fecha_creacion"] = datetime.fromisoformat(lead["fecha_creacion"])
         if lead.get("fecha_ultimo_contacto") and isinstance(lead["fecha_ultimo_contacto"], str):
             lead["fecha_ultimo_contacto"] = datetime.fromisoformat(lead["fecha_ultimo_contacto"])
         lead["dias_sin_actividad"] = calculate_days_without_activity(lead.get("fecha_ultimo_contacto"))
+        # Add propietario name
+        if lead.get("propietario"):
+            lead["propietario_nombre"] = users_map.get(lead["propietario"], "")
+        else:
+            lead["propietario_nombre"] = None
+        # Ensure servicios is a list
+        if not lead.get("servicios"):
+            lead["servicios"] = []
     
     return leads
 
@@ -408,11 +423,13 @@ async def get_leads(
 async def get_leads_stats(current_user: UserResponse = Depends(get_current_user)):
     """Get dashboard statistics"""
     leads = await db.leads.find({}, {"_id": 0}).to_list(1000)
+    today = datetime.now(timezone.utc).date()
     
     # Count by stage
     stages_count = {stage: 0 for stage in LEAD_STAGES}
     total_pipeline = 0.0
     leads_without_activity = 0
+    seguimientos_hoy = []
     
     for lead in leads:
         etapa = lead.get("etapa", "nuevo")
@@ -424,12 +441,29 @@ async def get_leads_stats(current_user: UserResponse = Depends(get_current_user)
         dias = calculate_days_without_activity(lead.get("fecha_ultimo_contacto"))
         if dias > 7 and etapa not in ["ganado", "perdido"]:
             leads_without_activity += 1
+        
+        # Check for seguimientos today
+        proximo = lead.get("proximo_seguimiento")
+        if proximo:
+            try:
+                fecha_seg = datetime.fromisoformat(proximo.replace("Z", "+00:00")).date() if isinstance(proximo, str) else proximo.date()
+                if fecha_seg == today:
+                    seguimientos_hoy.append({
+                        "lead_id": lead.get("lead_id"),
+                        "empresa": lead.get("empresa"),
+                        "contacto": lead.get("contacto"),
+                        "tipo_seguimiento": lead.get("tipo_seguimiento", "Llamada"),
+                        "proximo_seguimiento": proximo
+                    })
+            except:
+                pass
     
     return {
         "stages_count": stages_count,
         "total_pipeline": total_pipeline,
         "leads_without_activity": leads_without_activity,
-        "total_leads": len(leads)
+        "total_leads": len(leads),
+        "seguimientos_hoy": seguimientos_hoy
     }
 
 @api_router.get("/leads/export")
