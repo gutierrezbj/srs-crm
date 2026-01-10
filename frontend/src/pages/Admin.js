@@ -353,6 +353,48 @@ export default function Admin({ user }) {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Delete All Leads Dialog */}
+      <AlertDialog open={deleteAllDialogOpen} onOpenChange={(open) => {
+        setDeleteAllDialogOpen(open);
+        if (!open) setConfirmDeleteText("");
+      }}>
+        <AlertDialogContent className="bg-slate-900 border-white/10">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-white flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-red-500" />
+              ¿Eliminar TODOS los leads?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-slate-400">
+              <span className="block mb-4">
+                Esta acción eliminará permanentemente <strong className="text-red-400">{leadCount} leads</strong> y todo su historial de actividades.
+                Esta acción NO se puede deshacer.
+              </span>
+              <span className="block mb-2 text-slate-300">
+                Para confirmar, escribe <strong className="text-red-400">ELIMINAR TODOS</strong> abajo:
+              </span>
+              <Input
+                value={confirmDeleteText}
+                onChange={(e) => setConfirmDeleteText(e.target.value)}
+                placeholder="ELIMINAR TODOS"
+                className="bg-slate-950 border-slate-800 mt-2"
+              />
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="border-white/10 text-slate-300 hover:bg-slate-800">
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteAllLeads}
+              disabled={confirmDeleteText !== "ELIMINAR TODOS"}
+              className="bg-red-600 hover:bg-red-700 text-white disabled:opacity-50"
+            >
+              Eliminar todos los leads
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
