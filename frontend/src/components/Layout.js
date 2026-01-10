@@ -104,8 +104,8 @@ export default function Layout({ children, user }) {
           </nav>
 
           {/* User section */}
-          <div className="p-4 border-t border-white/5">
-            <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-slate-800/50 dark:bg-slate-800/50 light:bg-slate-200/50 mb-3">
+          <div className="p-4 border-t theme-border">
+            <div className="flex items-center gap-3 px-3 py-2 rounded-lg theme-bg-tertiary mb-3">
               <Avatar className="w-9 h-9">
                 <AvatarImage src={user?.picture} />
                 <AvatarFallback className="bg-gradient-to-br from-cyan-400 to-blue-600 text-white text-sm">
@@ -113,8 +113,8 @@ export default function Layout({ children, user }) {
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{user?.name}</p>
-                <p className="text-xs text-slate-500 truncate">{user?.role === "admin" ? "Administrador" : "Usuario"}</p>
+                <p className="text-sm font-medium theme-text truncate">{user?.name}</p>
+                <p className="text-xs theme-text-muted truncate">{user?.role === "admin" ? "Administrador" : "Usuario"}</p>
               </div>
             </div>
             
@@ -123,7 +123,7 @@ export default function Layout({ children, user }) {
               onClick={toggleTheme}
               variant="ghost"
               data-testid="theme-toggle-btn"
-              className="w-full justify-start text-slate-400 hover:text-cyan-400 hover:bg-cyan-400/10 mb-2"
+              className="w-full justify-start theme-text-secondary hover:text-cyan-400 hover:bg-cyan-400/10 mb-2"
             >
               {theme === "dark" ? (
                 <>
@@ -142,7 +142,7 @@ export default function Layout({ children, user }) {
               onClick={handleLogout}
               variant="ghost"
               data-testid="logout-btn"
-              className="w-full justify-start text-slate-400 hover:text-red-400 hover:bg-red-400/10"
+              className="w-full justify-start theme-text-secondary hover:text-red-400 hover:bg-red-400/10"
             >
               <LogOut className="w-4 h-4 mr-2" />
               Cerrar sesión
