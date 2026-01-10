@@ -79,17 +79,7 @@ const ProtectedRoute = ({ children }) => {
 
     const checkAuth = async () => {
       try {
-        // For testing: try Authorization header if cookie fails
-        let response;
-        try {
-          response = await axios.get(`${API}/auth/me`);
-        } catch (cookieError) {
-          // Fallback to Authorization header for testing
-          const testToken = "test_session_1768065365846";
-          response = await axios.get(`${API}/auth/me`, {
-            headers: { Authorization: `Bearer ${testToken}` }
-          });
-        }
+        const response = await axios.get(`${API}/auth/me`);
         setUser(response.data);
         setIsAuthenticated(true);
       } catch (error) {
