@@ -16,7 +16,8 @@ code {
 }
 
 @layer base {
-    :root {
+    /* Dark mode (default) */
+    :root, .dark {
         --background: 222.2 84% 4.9%;
         --foreground: 210 40% 80%;
         --card: 222.2 47.4% 11.2%;
@@ -36,12 +37,48 @@ code {
         --border: 217.2 32.6% 17.5%;
         --input: 217.2 32.6% 17.5%;
         --ring: 187 80% 53%;
-        --chart-1: 187 80% 53%;
-        --chart-2: 217.2 91.2% 59.8%;
-        --chart-3: 197 37% 24%;
-        --chart-4: 43 74% 66%;
-        --chart-5: 27 87% 67%;
         --radius: 0.5rem;
+        
+        /* Custom theme colors */
+        --theme-bg: #020617;
+        --theme-bg-secondary: #0f172a;
+        --theme-bg-tertiary: #1e293b;
+        --theme-text: #cbd5e1;
+        --theme-text-secondary: #94a3b8;
+        --theme-text-muted: #64748b;
+        --theme-border: rgba(255, 255, 255, 0.05);
+    }
+
+    /* Light mode */
+    .light {
+        --background: 0 0% 100%;
+        --foreground: 222.2 84% 4.9%;
+        --card: 0 0% 98%;
+        --card-foreground: 222.2 84% 4.9%;
+        --popover: 0 0% 100%;
+        --popover-foreground: 222.2 84% 4.9%;
+        --primary: 187 80% 40%;
+        --primary-foreground: 0 0% 100%;
+        --secondary: 217.2 91.2% 50%;
+        --secondary-foreground: 0 0% 100%;
+        --muted: 210 40% 96%;
+        --muted-foreground: 215 20% 45%;
+        --accent: 210 40% 96%;
+        --accent-foreground: 187 80% 40%;
+        --destructive: 0 84.2% 60.2%;
+        --destructive-foreground: 0 0% 100%;
+        --border: 214 32% 91%;
+        --input: 214 32% 91%;
+        --ring: 187 80% 40%;
+        
+        /* Custom theme colors */
+        --theme-bg: #f8fafc;
+        --theme-bg-secondary: #ffffff;
+        --theme-bg-tertiary: #f1f5f9;
+        --theme-text: #1e293b;
+        --theme-text-secondary: #475569;
+        --theme-text-muted: #94a3b8;
+        --theme-border: rgba(0, 0, 0, 0.08);
     }
 }
 
@@ -50,27 +87,64 @@ code {
         @apply border-border;
     }
     body {
-        @apply bg-[#020617] text-slate-300;
+        background-color: var(--theme-bg);
+        color: var(--theme-text);
     }
 }
 
-/* Custom scrollbar */
-::-webkit-scrollbar {
+/* Theme-aware utility classes */
+.theme-bg {
+    background-color: var(--theme-bg);
+}
+.theme-bg-secondary {
+    background-color: var(--theme-bg-secondary);
+}
+.theme-bg-tertiary {
+    background-color: var(--theme-bg-tertiary);
+}
+.theme-text {
+    color: var(--theme-text);
+}
+.theme-text-secondary {
+    color: var(--theme-text-secondary);
+}
+.theme-text-muted {
+    color: var(--theme-text-muted);
+}
+.theme-border {
+    border-color: var(--theme-border);
+}
+
+/* Custom scrollbar - Dark */
+.dark ::-webkit-scrollbar {
     width: 8px;
     height: 8px;
 }
-
-::-webkit-scrollbar-track {
+.dark ::-webkit-scrollbar-track {
     background: #0f172a;
 }
-
-::-webkit-scrollbar-thumb {
+.dark ::-webkit-scrollbar-thumb {
     background: #334155;
     border-radius: 4px;
 }
-
-::-webkit-scrollbar-thumb:hover {
+.dark ::-webkit-scrollbar-thumb:hover {
     background: #475569;
+}
+
+/* Custom scrollbar - Light */
+.light ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+.light ::-webkit-scrollbar-track {
+    background: #f1f5f9;
+}
+.light ::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+}
+.light ::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
 }
 
 /* Gradient text utility */
@@ -84,8 +158,11 @@ code {
 }
 
 /* Glass effect */
-.glass {
+.dark .glass {
     @apply bg-slate-950/70 backdrop-blur-md border border-white/5;
+}
+.light .glass {
+    @apply bg-white/70 backdrop-blur-md border border-black/5;
 }
 
 /* Card hover effect */
@@ -101,4 +178,16 @@ code {
 /* Animation for drag */
 .dragging {
     @apply opacity-50 scale-105;
+}
+
+/* Toast customization */
+.dark [data-sonner-toaster] {
+    --normal-bg: #1e293b;
+    --normal-text: #e2e8f0;
+    --normal-border: rgba(255, 255, 255, 0.05);
+}
+.light [data-sonner-toaster] {
+    --normal-bg: #ffffff;
+    --normal-text: #1e293b;
+    --normal-border: rgba(0, 0, 0, 0.08);
 }
