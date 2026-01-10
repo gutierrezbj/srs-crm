@@ -40,6 +40,9 @@ ALLOWED_USERS = {
     "adriana@systemrapidsolutions.com": {"name": "Adriana", "role": "user"},
 }
 
+# Development mode - set to False for production
+DEV_MODE = os.environ.get('DEV_MODE', 'true').lower() == 'true'
+
 class UserBase(BaseModel):
     model_config = ConfigDict(extra="ignore")
     user_id: str
