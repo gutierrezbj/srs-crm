@@ -90,7 +90,13 @@ CRM interno para gestión de leads/contactos con:
 - POST /api/leads - Crear lead
 - GET /api/leads/stats - Stats dashboard
 - GET /api/leads/export - Export CSV
-- POST /api/leads/import - Import CSV/Excel
+- POST /api/leads/import - Import CSV/Excel (legacy)
+- **POST /api/leads/parse** - Parsear archivo y devolver headers/rows
+- **POST /api/leads/check-duplicates** - Verificar duplicados por email/empresa
+- **POST /api/leads/import-mapped** - Importar con mapeo personalizado
+- **POST /api/leads/bulk-update** - Actualizar múltiples leads (etapa/propietario)
+- **POST /api/leads/bulk-delete** - Eliminar múltiples leads
+- **DELETE /api/leads/delete-all** - Eliminar todos los leads (admin only)
 - GET /api/leads/{id} - Obtener lead
 - PUT /api/leads/{id} - Actualizar lead
 - PATCH /api/leads/{id}/stage - Cambiar etapa
