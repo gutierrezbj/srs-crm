@@ -749,39 +749,69 @@ async def check_duplicates(
     
     # Get all existing leads
     existing_leads = await db.leads.find({}, {"_id": 0}).to_list(10000)
-    existing_emails = {lead.get("email", "").lower(): lead for lead in existing_leads}
-    existing_companies = {}
+    
+    # Build indexes for fast lookup
+    # Email index (only for non-empty emails)
+    existing_by_email = {}
     for lead in existing_leads:
-        empresa = lead.get("empresa", "").lower().strip()
+        email = str(lead.get("email", "")).lower().strip()
+        # Normalize email: remove extra spaces, take first email if multiple
+        email = email.split()[0] if email else ""  # Take first part if spaces
+        email = email.split("/")[0].strip() if "/" in email else email  # Take first if "email / email"
+        if email and "@" in email:
+            existing_by_email[email] = lead
+    
+    # Company index (normalized)
+    existing_by_company = {}
+    for lead in existing_leads:
+        empresa = str(lead.get("empresa", "")).lower().strip()
         if empresa:
-            if empresa not in existing_companies:
-                existing_companies[empresa] = []
-            existing_companies[empresa].append(lead)
+            existing_by_company[empresa] = lead
     
     for idx, new_lead in enumerate(data.leads):
-        email = str(new_lead.get("email", "")).lower().strip()
+        # Normalize new lead's email
+        raw_email = str(new_lead.get("email", "")).lower().strip()
+        email = raw_email.split()[0] if raw_email else ""
+        email = email.split("/")[0].strip() if "/" in email else email
+        has_valid_email = email and "@" in email
+        
+        # Normalize new lead's company
         empresa = str(new_lead.get("empresa", "")).lower().strip()
         
-        # Check exact email match
-        if email and email in existing_emails:
+        duplicate_found = False
+        
+        # Strategy 1: Match by email (if both have valid emails)
+        if has_valid_email and email in existing_by_email:
             duplicates.append({
                 "rowIndex": idx,
                 "type": "exact",
                 "newLead": new_lead,
-                "existingLead": existing_emails[email]
+                "existingLead": existing_by_email[email]
             })
-        # Check company name match (different email)
-        elif empresa and empresa in existing_companies:
-            # Only mark as possible duplicate if different email
-            for existing in existing_companies[empresa]:
-                if existing.get("email", "").lower() != email:
-                    duplicates.append({
-                        "rowIndex": idx,
-                        "type": "possible",
-                        "newLead": new_lead,
-                        "existingLead": existing
-                    })
-                    break
+            duplicate_found = True
+        
+        # Strategy 2: Match by company name (if email is empty/invalid OR same company different email)
+        if not duplicate_found and empresa and empresa in existing_by_company:
+            existing = existing_by_company[empresa]
+            existing_email = str(existing.get("email", "")).lower().strip()
+            
+            # If new lead has no valid email, or existing has no valid email, or they're different
+            # This catches: empty emails, same company different contact
+            if not has_valid_email or not existing_email or "@" not in existing_email:
+                duplicates.append({
+                    "rowIndex": idx,
+                    "type": "exact",  # Same company = exact duplicate
+                    "newLead": new_lead,
+                    "existingLead": existing
+                })
+            else:
+                # Both have emails but different - possible duplicate (different contact same company)
+                duplicates.append({
+                    "rowIndex": idx,
+                    "type": "possible",
+                    "newLead": new_lead,
+                    "existingLead": existing
+                })
     
     return {"duplicates": duplicates}
 
