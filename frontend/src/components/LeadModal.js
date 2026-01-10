@@ -14,7 +14,11 @@ import {
   MessageSquare,
   PhoneCall,
   Calendar,
-  Send
+  UserCircle,
+  Zap,
+  Target,
+  AlertTriangle,
+  CalendarClock
 } from "lucide-react";
 import {
   Dialog,
@@ -35,6 +39,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -67,6 +72,13 @@ const initialFormState = {
   valor_estimado: 0,
   etapa: "nuevo",
   notas: "",
+  propietario: "",
+  servicios: [],
+  fuente: "",
+  urgencia: "Sin definir",
+  motivo_perdida: "",
+  proximo_seguimiento: "",
+  tipo_seguimiento: "",
 };
 
 export default function LeadModal({ open, onClose, lead }) {
@@ -75,8 +87,15 @@ export default function LeadModal({ open, onClose, lead }) {
   const [newActivity, setNewActivity] = useState({ tipo: "nota", descripcion: "" });
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("info");
+  const [options, setOptions] = useState({});
+  const [users, setUsers] = useState([]);
 
   const isEditing = !!lead;
+
+  useEffect(() => {
+    fetchOptions();
+    fetchUsers();
+  }, []);
 
   useEffect(() => {
     if (lead) {
@@ -90,6 +109,13 @@ export default function LeadModal({ open, onClose, lead }) {
         valor_estimado: lead.valor_estimado || 0,
         etapa: lead.etapa || "nuevo",
         notas: lead.notas || "",
+        propietario: lead.propietario || "",
+        servicios: lead.servicios || [],
+        fuente: lead.fuente || "",
+        urgencia: lead.urgencia || "Sin definir",
+        motivo_perdida: lead.motivo_perdida || "",
+        proximo_seguimiento: lead.proximo_seguimiento ? lead.proximo_seguimiento.split("T")[0] : "",
+        tipo_seguimiento: lead.tipo_seguimiento || "",
       });
       fetchActivities(lead.lead_id);
     } else {
@@ -98,6 +124,24 @@ export default function LeadModal({ open, onClose, lead }) {
     }
     setActiveTab("info");
   }, [lead, open]);
+
+  const fetchOptions = async () => {
+    try {
+      const response = await axios.get(`${API}/options`, { withCredentials: true });
+      setOptions(response.data);
+    } catch (error) {
+      console.error("Error fetching options:", error);
+    }
+  };
+
+  const fetchUsers = async () => {
+    try {
+      const response = await axios.get(`${API}/users`, { withCredentials: true });
+      setUsers(response.data);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+    }
+  };
 
   const fetchActivities = async (leadId) => {
     try {
@@ -112,16 +156,32 @@ export default function LeadModal({ open, onClose, lead }) {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
+  const handleServiceToggle = (service) => {
+    setFormData((prev) => {
+      const current = prev.servicios || [];
+      if (current.includes(service)) {
+        return { ...prev, servicios: current.filter((s) => s !== service) };
+      } else {
+        return { ...prev, servicios: [...current, service] };
+      }
+    });
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
 
     try {
+      const dataToSend = {
+        ...formData,
+        proximo_seguimiento: formData.proximo_seguimiento ? new Date(formData.proximo_seguimiento).toISOString() : null,
+      };
+
       if (isEditing) {
-        await axios.put(`${API}/leads/${lead.lead_id}`, formData, { withCredentials: true });
+        await axios.put(`${API}/leads/${lead.lead_id}`, dataToSend, { withCredentials: true });
         toast.success("Lead actualizado");
       } else {
-        await axios.post(`${API}/leads`, formData, { withCredentials: true });
+        await axios.post(`${API}/leads`, dataToSend, { withCredentials: true });
         toast.success("Lead creado");
       }
       onClose();
@@ -171,7 +231,7 @@ export default function LeadModal({ open, onClose, lead }) {
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="bg-slate-900 border-white/10 max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="bg-slate-900 border-white/10 max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold text-white flex items-center gap-2">
             <Building2 className="w-5 h-5 text-cyan-400" />
@@ -184,6 +244,9 @@ export default function LeadModal({ open, onClose, lead }) {
             <TabsTrigger value="info" className="data-[state=active]:bg-slate-700">
               Información
             </TabsTrigger>
+            <TabsTrigger value="details" className="data-[state=active]:bg-slate-700">
+              Detalles
+            </TabsTrigger>
             {isEditing && (
               <TabsTrigger value="activity" className="data-[state=active]:bg-slate-700">
                 Actividad
@@ -191,7 +254,7 @@ export default function LeadModal({ open, onClose, lead }) {
             )}
           </TabsList>
 
-          {/* Info Tab */}
+          {/* Info Tab - Basic fields */}
           <TabsContent value="info" className="mt-4">
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
@@ -267,16 +330,25 @@ export default function LeadModal({ open, onClose, lead }) {
                 </div>
                 <div className="space-y-2">
                   <Label className="text-slate-300 flex items-center gap-2">
-                    <Tag className="w-4 h-4" />
-                    Sector
+                    <UserCircle className="w-4 h-4" />
+                    Propietario
                   </Label>
-                  <Input
-                    value={formData.sector}
-                    onChange={(e) => handleChange("sector", e.target.value)}
-                    placeholder="Ej: Tecnología, Construcción..."
-                    data-testid="lead-sector"
-                    className="bg-slate-950 border-slate-800 focus:border-cyan-400"
-                  />
+                  <Select
+                    value={formData.propietario}
+                    onValueChange={(value) => handleChange("propietario", value)}
+                  >
+                    <SelectTrigger className="bg-slate-950 border-slate-800" data-testid="lead-propietario">
+                      <SelectValue placeholder="Seleccionar..." />
+                    </SelectTrigger>
+                    <SelectContent className="bg-slate-900 border-slate-800">
+                      <SelectItem value="">Sin asignar</SelectItem>
+                      {users.map((user) => (
+                        <SelectItem key={user.user_id} value={user.user_id}>
+                          {user.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 
@@ -302,10 +374,7 @@ export default function LeadModal({ open, onClose, lead }) {
                     value={formData.etapa}
                     onValueChange={(value) => handleChange("etapa", value)}
                   >
-                    <SelectTrigger 
-                      className="bg-slate-950 border-slate-800"
-                      data-testid="lead-etapa"
-                    >
+                    <SelectTrigger className="bg-slate-950 border-slate-800" data-testid="lead-etapa">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="bg-slate-900 border-slate-800">
@@ -329,7 +398,7 @@ export default function LeadModal({ open, onClose, lead }) {
                   onChange={(e) => handleChange("notas", e.target.value)}
                   placeholder="Información adicional..."
                   data-testid="lead-notas"
-                  className="bg-slate-950 border-slate-800 focus:border-cyan-400 min-h-[100px]"
+                  className="bg-slate-950 border-slate-800 focus:border-cyan-400 min-h-[80px]"
                 />
               </div>
 
@@ -349,6 +418,180 @@ export default function LeadModal({ open, onClose, lead }) {
                   className="btn-gradient"
                 >
                   {loading ? "Guardando..." : isEditing ? "Guardar Cambios" : "Crear Lead"}
+                </Button>
+              </div>
+            </form>
+          </TabsContent>
+
+          {/* Details Tab - New fields */}
+          <TabsContent value="details" className="mt-4">
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-slate-300 flex items-center gap-2">
+                    <Tag className="w-4 h-4" />
+                    Sector
+                  </Label>
+                  <Select
+                    value={formData.sector}
+                    onValueChange={(value) => handleChange("sector", value)}
+                  >
+                    <SelectTrigger className="bg-slate-950 border-slate-800" data-testid="lead-sector">
+                      <SelectValue placeholder="Seleccionar..." />
+                    </SelectTrigger>
+                    <SelectContent className="bg-slate-900 border-slate-800">
+                      {options.sectores?.map((sector) => (
+                        <SelectItem key={sector} value={sector}>
+                          {sector}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-slate-300 flex items-center gap-2">
+                    <Zap className="w-4 h-4" />
+                    Fuente del Lead
+                  </Label>
+                  <Select
+                    value={formData.fuente}
+                    onValueChange={(value) => handleChange("fuente", value)}
+                  >
+                    <SelectTrigger className="bg-slate-950 border-slate-800" data-testid="lead-fuente">
+                      <SelectValue placeholder="Seleccionar..." />
+                    </SelectTrigger>
+                    <SelectContent className="bg-slate-900 border-slate-800">
+                      {options.fuentes?.map((fuente) => (
+                        <SelectItem key={fuente} value={fuente}>
+                          {fuente}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-slate-300 flex items-center gap-2">
+                    <Target className="w-4 h-4" />
+                    Urgencia
+                  </Label>
+                  <Select
+                    value={formData.urgencia}
+                    onValueChange={(value) => handleChange("urgencia", value)}
+                  >
+                    <SelectTrigger className="bg-slate-950 border-slate-800" data-testid="lead-urgencia">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-slate-900 border-slate-800">
+                      {options.urgencias?.map((urg) => (
+                        <SelectItem key={urg} value={urg}>
+                          {urg}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {formData.etapa === "perdido" && (
+                  <div className="space-y-2">
+                    <Label className="text-slate-300 flex items-center gap-2">
+                      <AlertTriangle className="w-4 h-4 text-red-400" />
+                      Motivo de Pérdida
+                    </Label>
+                    <Select
+                      value={formData.motivo_perdida}
+                      onValueChange={(value) => handleChange("motivo_perdida", value)}
+                    >
+                      <SelectTrigger className="bg-slate-950 border-slate-800" data-testid="lead-motivo-perdida">
+                        <SelectValue placeholder="Seleccionar..." />
+                      </SelectTrigger>
+                      <SelectContent className="bg-slate-900 border-slate-800">
+                        {options.motivos_perdida?.map((motivo) => (
+                          <SelectItem key={motivo} value={motivo}>
+                            {motivo}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </div>
+
+              {/* Próximo Seguimiento */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-slate-300 flex items-center gap-2">
+                    <CalendarClock className="w-4 h-4" />
+                    Próximo Seguimiento
+                  </Label>
+                  <Input
+                    type="date"
+                    value={formData.proximo_seguimiento}
+                    onChange={(e) => handleChange("proximo_seguimiento", e.target.value)}
+                    data-testid="lead-proximo-seguimiento"
+                    className="bg-slate-950 border-slate-800 focus:border-cyan-400"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-slate-300">Tipo de Acción</Label>
+                  <Select
+                    value={formData.tipo_seguimiento}
+                    onValueChange={(value) => handleChange("tipo_seguimiento", value)}
+                  >
+                    <SelectTrigger className="bg-slate-950 border-slate-800" data-testid="lead-tipo-seguimiento">
+                      <SelectValue placeholder="Seleccionar..." />
+                    </SelectTrigger>
+                    <SelectContent className="bg-slate-900 border-slate-800">
+                      {options.tipos_seguimiento?.map((tipo) => (
+                        <SelectItem key={tipo} value={tipo}>
+                          {tipo}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Servicios de Interés */}
+              <div className="space-y-3">
+                <Label className="text-slate-300 flex items-center gap-2">
+                  <Zap className="w-4 h-4" />
+                  Servicios de Interés
+                </Label>
+                <div className="grid grid-cols-2 gap-2 p-3 bg-slate-950 rounded-lg border border-slate-800">
+                  {options.servicios?.map((servicio) => (
+                    <label
+                      key={servicio}
+                      className="flex items-center gap-2 cursor-pointer hover:bg-slate-900 p-2 rounded"
+                    >
+                      <Checkbox
+                        checked={formData.servicios?.includes(servicio)}
+                        onCheckedChange={() => handleServiceToggle(servicio)}
+                        className="border-slate-600 data-[state=checked]:bg-cyan-500 data-[state=checked]:border-cyan-500"
+                      />
+                      <span className="text-sm text-slate-300">{servicio}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={onClose}
+                  className="border-white/10 text-slate-300 hover:bg-slate-800"
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={loading}
+                  data-testid="lead-submit-details"
+                  className="btn-gradient"
+                >
+                  {loading ? "Guardando..." : "Guardar Cambios"}
                 </Button>
               </div>
             </form>
