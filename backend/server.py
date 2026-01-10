@@ -520,38 +520,6 @@ async def create_activity(
 
 # ============== IMPORT/EXPORT ROUTES ==============
 
-@api_router.get("/leads/export")
-async def export_leads(current_user: UserResponse = Depends(get_current_user)):
-    """Export leads to CSV"""
-    leads = await db.leads.find({}, {"_id": 0}).to_list(1000)
-    
-    output = io.StringIO()
-    writer = csv.DictWriter(output, fieldnames=[
-        "empresa", "contacto", "email", "telefono", "cargo", 
-        "sector", "valor_estimado", "etapa", "notas"
-    ])
-    writer.writeheader()
-    
-    for lead in leads:
-        writer.writerow({
-            "empresa": lead.get("empresa", ""),
-            "contacto": lead.get("contacto", ""),
-            "email": lead.get("email", ""),
-            "telefono": lead.get("telefono", ""),
-            "cargo": lead.get("cargo", ""),
-            "sector": lead.get("sector", ""),
-            "valor_estimado": lead.get("valor_estimado", 0),
-            "etapa": lead.get("etapa", "nuevo"),
-            "notas": lead.get("notas", "")
-        })
-    
-    output.seek(0)
-    return StreamingResponse(
-        iter([output.getvalue()]),
-        media_type="text/csv",
-        headers={"Content-Disposition": "attachment; filename=leads_export.csv"}
-    )
-
 @api_router.post("/leads/import")
 async def import_leads(
     file: UploadFile = File(...),
