@@ -6,6 +6,7 @@ import Login from "@/pages/Login";
 import Dashboard from "@/pages/Dashboard";
 import Leads from "@/pages/Leads";
 import Pipeline from "@/pages/Pipeline";
+import Reports from "@/pages/Reports";
 import Admin from "@/pages/Admin";
 import Layout from "@/components/Layout";
 import { Toaster } from "@/components/ui/sonner";
@@ -151,6 +152,18 @@ function AppRouter() {
             {({ user }) => (
               <Layout user={user}>
                 <Pipeline user={user} />
+              </Layout>
+            )}
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/reports"
+        element={
+          <ProtectedRoute>
+            {({ user }) => (
+              <Layout user={user}>
+                <Reports user={user} />
               </Layout>
             )}
           </ProtectedRoute>

@@ -11,7 +11,8 @@ import {
   ChevronRight,
   Sun,
   Moon,
-  Shield
+  Shield,
+  BarChart3
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -24,6 +25,7 @@ const navItems = [
   { name: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
   { name: "Leads", path: "/leads", icon: Users },
   { name: "Pipeline", path: "/pipeline", icon: Kanban },
+  { name: "Reportes", path: "/reports", icon: BarChart3 },
 ];
 
 const adminNavItems = [

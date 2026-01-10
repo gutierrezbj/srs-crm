@@ -321,18 +321,43 @@ code {
     color: #22d3ee;
 }
 
+/* Placeholder text - Slate 400 */
 .dark [data-placeholder] {
-    color: #94a3b8;
+    color: #94a3b8 !important;
 }
 
+/* Selected value and options - Slate 200 */
 .dark select,
-.dark [role="combobox"] {
+.dark [role="combobox"],
+.dark [role="combobox"] span:not([data-placeholder]) {
+    color: #e2e8f0 !important;
+}
+
+/* Dropdown open background - Slate 800 */
+.dark [data-radix-popper-content-wrapper] [role="listbox"],
+.dark [data-radix-select-viewport] {
+    background-color: #1e293b !important;
+}
+
+/* Hover on options - Slate 700 */
+.dark [data-radix-select-item]:hover,
+.dark [data-radix-select-item][data-highlighted] {
+    background-color: #334155 !important;
+    color: #e2e8f0 !important;
+}
+
+/* Select trigger button */
+.dark button[role="combobox"] {
     color: #e2e8f0;
+}
+
+.dark button[role="combobox"] [data-placeholder] {
+    color: #94a3b8 !important;
 }
 
 .dark input::placeholder,
 .dark textarea::placeholder {
-    color: #64748b;
+    color: #94a3b8;
 }
 
 .dark input,
