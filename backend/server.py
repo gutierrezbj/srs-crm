@@ -134,7 +134,7 @@ class UserUpdate(BaseModel):
 class LeadBase(BaseModel):
     empresa: str
     contacto: str
-    email: EmailStr
+    email: str  # Changed from EmailStr to allow empty/invalid emails in imported data
     telefono: Optional[str] = None
     cargo: Optional[str] = None
     sector: Optional[str] = None
