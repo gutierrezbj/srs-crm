@@ -203,6 +203,49 @@ class EnrichRequest(BaseModel):
     cargo: Optional[str] = None
     sector: Optional[str] = None
 
+# ============== TIPOS SRS (pilares de servicio) ==============
+TIPOS_SRS = [
+    "IT / Soporte técnico",
+    "Drones / Inspección", 
+    "Telecomunicaciones",
+    "Consultoría ENS",
+    "Fotovoltaica / Energía",
+    "Formación",
+    "Otro"
+]
+
+# ============== OPORTUNIDADES PLACSP MODELS ==============
+class OportunidadPLACSPBase(BaseModel):
+    expediente: str
+    adjudicatario: str
+    nif: str
+    importe: float
+    objeto: str
+    cpv: str
+    score: int  # 0-100
+    tipo_srs: str
+    keywords: List[str] = []
+    indicadores_dolor: List[str] = []
+    fecha_adjudicacion: datetime
+    fecha_fin_contrato: Optional[datetime] = None
+    dias_restantes: Optional[int] = None
+    url_licitacion: str
+    url_pliego: Optional[str] = None
+    organo_contratacion: str
+    es_pyme: bool = False
+    convertido_lead: bool = False
+    fecha_deteccion: datetime
+
+class OportunidadPLACSPCreate(OportunidadPLACSPBase):
+    pass
+
+class OportunidadPLACSP(OportunidadPLACSPBase):
+    model_config = ConfigDict(extra="ignore")
+    oportunidad_id: str
+
+class OportunidadSpotterImport(BaseModel):
+    oportunidades: List[OportunidadPLACSPCreate]
+
 # ============== AUTH HELPERS ==============
 
 async def get_current_user(request: Request) -> UserResponse:
@@ -1330,6 +1373,146 @@ async def delete_user(user_id: str, current_user: UserResponse = Depends(get_cur
     await db.user_sessions.delete_many({"user_id": user_id})
     
     return {"message": "Usuario eliminado"}
+
+# ============== OPORTUNIDADES ROUTES ==============
+
+@api_router.get("/oportunidades/tipos-srs")
+async def get_tipos_srs():
+    """Get available SRS types for filtering"""
+    return TIPOS_SRS
+
+@api_router.get("/oportunidades", response_model=List[OportunidadPLACSP])
+async def get_oportunidades(
+    tipo_srs: Optional[str] = None,
+    score_min: Optional[int] = None,
+    convertido_lead: Optional[bool] = None,
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """Get all opportunities with optional filters"""
+    query = {}
+    if tipo_srs:
+        query["tipo_srs"] = tipo_srs
+    if score_min is not None:
+        query["score"] = {"$gte": score_min}
+    if convertido_lead is not None:
+        query["convertido_lead"] = convertido_lead
+    
+    oportunidades = await db.oportunidades_placsp.find(
+        query, {"_id": 0}
+    ).sort("score", -1).to_list(1000)
+    
+    # Convert ISO strings back to datetime for response model
+    for op in oportunidades:
+        for key in ["fecha_adjudicacion", "fecha_fin_contrato", "fecha_deteccion"]:
+            if op.get(key) and isinstance(op[key], str):
+                try:
+                    op[key] = datetime.fromisoformat(op[key].replace("Z", "+00:00"))
+                except:
+                    pass
+    
+    return oportunidades
+
+@api_router.post("/oportunidades/spotter")
+async def import_oportunidades_spotter(
+    data: OportunidadSpotterImport,
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """Import opportunities from SpotterSRS"""
+    imported = 0
+    duplicates = 0
+    
+    for oportunidad in data.oportunidades:
+        # Check for existing by expediente
+        existing = await db.oportunidades_placsp.find_one(
+            {"expediente": oportunidad.expediente}
+        )
+        
+        if existing:
+            duplicates += 1
+            continue
+        
+        oportunidad_id = f"op_{uuid.uuid4().hex[:12]}"
+        oportunidad_dict = oportunidad.model_dump()
+        
+        # Convert datetime to ISO strings for MongoDB
+        for key in ["fecha_adjudicacion", "fecha_fin_contrato", "fecha_deteccion"]:
+            if oportunidad_dict.get(key):
+                if isinstance(oportunidad_dict[key], datetime):
+                    oportunidad_dict[key] = oportunidad_dict[key].isoformat()
+        
+        oportunidad_doc = {
+            "oportunidad_id": oportunidad_id,
+            **oportunidad_dict
+        }
+        
+        await db.oportunidades_placsp.insert_one(oportunidad_doc)
+        imported += 1
+    
+    return {
+        "message": "Importación completada",
+        "imported": imported,
+        "duplicates": duplicates,
+        "total": len(data.oportunidades)
+    }
+
+@api_router.post("/oportunidades/{oportunidad_id}/convertir-lead")
+async def convert_oportunidad_to_lead(
+    oportunidad_id: str,
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """Convert opportunity to lead"""
+    oportunidad = await db.oportunidades_placsp.find_one(
+        {"oportunidad_id": oportunidad_id}, {"_id": 0}
+    )
+    
+    if not oportunidad:
+        raise HTTPException(status_code=404, detail="Oportunidad no encontrada")
+    
+    if oportunidad.get("convertido_lead"):
+        raise HTTPException(status_code=400, detail="Ya convertido a lead")
+    
+    # Create lead from oportunidad
+    lead_id = f"lead_{uuid.uuid4().hex[:12]}"
+    now = datetime.now(timezone.utc)
+    
+    lead_doc = {
+        "lead_id": lead_id,
+        "empresa": oportunidad["adjudicatario"],
+        "contacto": "",  # To be filled manually
+        "email": "",     # To be filled manually
+        "telefono": None,
+        "cargo": None,
+        "sector": oportunidad.get("tipo_srs", "Otro"),
+        "valor_estimado": oportunidad.get("importe", 0),
+        "etapa": "nuevo",
+        "notas": f"Origen: PLACSP - {oportunidad['expediente']}\n"
+                 f"Objeto: {oportunidad['objeto']}\n"
+                 f"Score: {oportunidad['score']}\n"
+                 f"CPV: {oportunidad['cpv']}\n"
+                 f"Órgano: {oportunidad['organo_contratacion']}\n"
+                 f"URL: {oportunidad['url_licitacion']}",
+        "propietario": current_user.user_id,
+        "servicios": [],
+        "fuente": "Licitación",
+        "urgencia": "Sin definir",
+        "fecha_creacion": now.isoformat(),
+        "fecha_ultimo_contacto": now.isoformat(),
+        "created_by": current_user.user_id
+    }
+    
+    await db.leads.insert_one(lead_doc)
+    
+    # Mark oportunidad as converted
+    await db.oportunidades_placsp.update_one(
+        {"oportunidad_id": oportunidad_id},
+        {"$set": {"convertido_lead": True}}
+    )
+    
+    return {
+        "message": "Oportunidad convertida a lead",
+        "lead_id": lead_id,
+        "oportunidad_id": oportunidad_id
+    }
 
 # ============== ROOT ==============
 

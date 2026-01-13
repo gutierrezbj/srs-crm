@@ -1,18 +1,19 @@
 import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import axios from "axios";
-import { 
-  LayoutDashboard, 
-  Users, 
-  Kanban, 
-  LogOut, 
+import {
+  LayoutDashboard,
+  Users,
+  Kanban,
+  LogOut,
   Menu,
   X,
   ChevronRight,
   Sun,
   Moon,
   Shield,
-  BarChart3
+  BarChart3,
+  Target
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -25,6 +26,7 @@ const navItems = [
   { name: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
   { name: "Leads", path: "/leads", icon: Users },
   { name: "Pipeline", path: "/pipeline", icon: Kanban },
+  { name: "Oportunidades", path: "/oportunidades", icon: Target },
   { name: "Reportes", path: "/reports", icon: BarChart3 },
 ];
 
@@ -39,7 +41,7 @@ export default function Layout({ children, user }) {
   const { theme, toggleTheme } = useTheme();
 
   // Combine nav items based on user role
-  const allNavItems = user?.role === "admin" 
+  const allNavItems = user?.role === "admin"
     ? [...navItems, ...adminNavItems]
     : navItems;
 
@@ -63,11 +65,10 @@ export default function Layout({ children, user }) {
           setSidebarOpen(false);
         }}
         data-testid={`nav-${item.name.toLowerCase()}`}
-        className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 group ${
-          isActive
+        className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 group ${isActive
             ? "bg-gradient-to-r from-cyan-400/10 to-blue-600/10 text-cyan-400 border-l-2 border-cyan-400"
             : "theme-text-secondary hover:text-cyan-500 hover:bg-cyan-400/10"
-        }`}
+          }`}
       >
         <Icon className={`w-5 h-5 ${isActive ? "text-cyan-400" : "group-hover:text-cyan-500"}`} />
         <span className="font-medium">{item.name}</span>
@@ -80,7 +81,7 @@ export default function Layout({ children, user }) {
     <div className="min-h-screen theme-bg flex">
       {/* Mobile overlay */}
       {sidebarOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/60 z-40 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
@@ -88,9 +89,8 @@ export default function Layout({ children, user }) {
 
       {/* Sidebar */}
       <aside
-        className={`fixed lg:static inset-y-0 left-0 z-50 w-64 theme-bg-tertiary backdrop-blur-xl border-r transform transition-transform duration-300 ease-in-out ${
-          sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
-        }`}
+        className={`fixed lg:static inset-y-0 left-0 z-50 w-64 theme-bg-tertiary backdrop-blur-xl border-r transform transition-transform duration-300 ease-in-out ${sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+          }`}
         style={{ borderColor: 'var(--theme-border)' }}
       >
         <div className="flex flex-col h-full">
@@ -130,7 +130,7 @@ export default function Layout({ children, user }) {
                 <p className="text-xs theme-text-muted truncate">{user?.role === "admin" ? "Administrador" : "Usuario"}</p>
               </div>
             </div>
-            
+
             {/* Theme Toggle */}
             <Button
               onClick={toggleTheme}
@@ -150,7 +150,7 @@ export default function Layout({ children, user }) {
                 </>
               )}
             </Button>
-            
+
             <Button
               onClick={handleLogout}
               variant="ghost"

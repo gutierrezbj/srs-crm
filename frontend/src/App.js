@@ -8,6 +8,7 @@ import Leads from "@/pages/Leads";
 import Pipeline from "@/pages/Pipeline";
 import Reports from "@/pages/Reports";
 import Admin from "@/pages/Admin";
+import Oportunidades from "@/pages/Oportunidades";
 import Layout from "@/components/Layout";
 import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/context/ThemeContext";
@@ -164,6 +165,18 @@ function AppRouter() {
             {({ user }) => (
               <Layout user={user}>
                 <Reports user={user} />
+              </Layout>
+            )}
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/oportunidades"
+        element={
+          <ProtectedRoute>
+            {({ user }) => (
+              <Layout user={user}>
+                <Oportunidades user={user} />
               </Layout>
             )}
           </ProtectedRoute>
