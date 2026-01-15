@@ -20,7 +20,8 @@ import {
   Zap,
   Target,
   AlertTriangle,
-  CalendarClock
+  CalendarClock,
+  Sparkles
 } from "lucide-react";
 import {
   Dialog,
@@ -67,7 +68,6 @@ const activityTypes = [
   { value: "reunion", label: "Reunión", icon: CalendarIcon },
 ];
 
-// Mapping urgency to suggested days
 const URGENCY_DAYS_MAP = {
   "Inmediata (< 1 mes)": 1,
   "Corto plazo (1-3 meses)": 3,
@@ -104,19 +104,18 @@ export default function LeadModal({ open, onClose, lead }) {
   const [options, setOptions] = useState({});
   const [users, setUsers] = useState([]);
   const [calendarOpen, setCalendarOpen] = useState(false);
+  const [enriching, setEnriching] = useState(false);
 
   const isEditing = !!lead;
 
-  // Calculate suggested date based on urgency
   const getSuggestedDate = useCallback((urgency) => {
     const days = URGENCY_DAYS_MAP[urgency];
     if (days === undefined || days === 0) {
-      return new Date(); // Today for "Sin definir"
+      return new Date();
     }
     return addDays(new Date(), days);
   }, []);
 
-  // Format date with day of week
   const formatDateWithDay = (date) => {
     if (!date) return "";
     return format(date, "EEEE d 'de' MMMM", { locale: es });
@@ -186,7 +185,6 @@ export default function LeadModal({ open, onClose, lead }) {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  // Handle urgency change with date auto-suggestion
   const handleUrgencyChange = (urgency) => {
     const suggestedDate = getSuggestedDate(urgency);
     setFormData((prev) => ({
@@ -196,7 +194,6 @@ export default function LeadModal({ open, onClose, lead }) {
     }));
   };
 
-  // Handle date selection from calendar
   const handleDateSelect = (date) => {
     if (date) {
       setFormData((prev) => ({
@@ -207,7 +204,6 @@ export default function LeadModal({ open, onClose, lead }) {
     }
   };
 
-  // Get selected date as Date object
   const getSelectedDate = () => {
     if (!formData.proximo_seguimiento) return undefined;
     return new Date(formData.proximo_seguimiento + "T00:00:00");
@@ -269,6 +265,37 @@ export default function LeadModal({ open, onClose, lead }) {
     }
   };
 
+  const handleEnrich = async () => {
+    if (!lead?.lead_id) return;
+    
+    setEnriching(true);
+    try {
+      const response = await axios.post(
+        `${API}/leads/${lead.lead_id}/enrich-apollo`,
+        {},
+        { withCredentials: true }
+      );
+      
+      const enrichedData = response.data;
+      setFormData((prev) => ({
+        ...prev,
+        telefono: enrichedData.telefono || prev.telefono,
+        cargo: enrichedData.cargo || prev.cargo,
+        sector: enrichedData.sector || prev.sector,
+        notas: enrichedData.notas 
+          ? `${prev.notas}\n\n--- Apollo Data ---\n${enrichedData.notas}`.trim()
+          : prev.notas,
+      }));
+      
+      toast.success("Lead enriquecido con Apollo");
+    } catch (error) {
+      const msg = error.response?.data?.detail || "Error al enriquecer";
+      toast.error(msg);
+    } finally {
+      setEnriching(false);
+    }
+  };
+
   const formatDate = (dateStr) => {
     const date = new Date(dateStr);
     return date.toLocaleDateString("es-ES", {
@@ -289,11 +316,24 @@ export default function LeadModal({ open, onClose, lead }) {
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="bg-slate-900 border-white/10 max-w-3xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+        <DialogHeader className="flex flex-row items-center justify-between pr-8">
           <DialogTitle className="text-xl font-bold text-white flex items-center gap-2">
             <Building2 className="w-5 h-5 text-cyan-400" />
             {isEditing ? "Editar Lead" : "Nuevo Lead"}
           </DialogTitle>
+          {isEditing && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleEnrich}
+              disabled={enriching}
+              className="border-purple-500/50 text-purple-400 hover:bg-purple-500/20 hover:text-purple-300"
+            >
+              <Sparkles className={`w-4 h-4 mr-1 ${enriching ? "animate-spin" : ""}`} />
+              {enriching ? "Enriqueciendo..." : "Enriquecer"}
+            </Button>
+          )}
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -311,7 +351,6 @@ export default function LeadModal({ open, onClose, lead }) {
             )}
           </TabsList>
 
-          {/* Info Tab - Basic fields */}
           <TabsContent value="info" className="mt-4">
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
@@ -480,7 +519,6 @@ export default function LeadModal({ open, onClose, lead }) {
             </form>
           </TabsContent>
 
-          {/* Details Tab - New fields */}
           <TabsContent value="details" className="mt-4">
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
@@ -578,7 +616,6 @@ export default function LeadModal({ open, onClose, lead }) {
                 )}
               </div>
 
-              {/* Próximo Seguimiento */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="text-slate-300 flex items-center gap-2">
@@ -639,7 +676,6 @@ export default function LeadModal({ open, onClose, lead }) {
                 </div>
               </div>
 
-              {/* Servicios de Interés */}
               <div className="space-y-3">
                 <Label className="text-slate-300 flex items-center gap-2">
                   <Zap className="w-4 h-4" />
@@ -683,10 +719,8 @@ export default function LeadModal({ open, onClose, lead }) {
             </form>
           </TabsContent>
 
-          {/* Activity Tab */}
           {isEditing && (
             <TabsContent value="activity" className="mt-4 space-y-4">
-              {/* Add Activity */}
               <div className="bg-slate-800/50 rounded-lg p-4 space-y-3">
                 <Label className="text-slate-300">Añadir Actividad</Label>
                 <div className="flex gap-2">
@@ -723,7 +757,6 @@ export default function LeadModal({ open, onClose, lead }) {
                 </div>
               </div>
 
-              {/* Activity Timeline */}
               <div className="space-y-3">
                 <Label className="text-slate-300 flex items-center gap-2">
                   <Clock className="w-4 h-4" />

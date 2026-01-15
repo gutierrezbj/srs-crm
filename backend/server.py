@@ -1455,6 +1455,27 @@ async def import_oportunidades_spotter(
         "total": len(data.oportunidades)
     }
 
+
+@api_router.post("/oportunidades/spotter-internal")
+async def import_oportunidades_spotter_internal(data: OportunidadSpotterImport):
+    """Internal endpoint for SpotterSRS cron - no auth required, localhost only"""
+    imported = 0
+    duplicates = 0
+    for oportunidad in data.oportunidades:
+        existing = await db.oportunidades_placsp.find_one({"expediente": oportunidad.expediente})
+        if existing:
+            duplicates += 1
+            continue
+        oportunidad_id = f"op_{uuid.uuid4().hex[:12]}"
+        oportunidad_dict = oportunidad.model_dump()
+        for key in ["fecha_adjudicacion", "fecha_fin_contrato", "fecha_deteccion"]:
+            if oportunidad_dict.get(key):
+                if isinstance(oportunidad_dict[key], datetime):
+                    oportunidad_dict[key] = oportunidad_dict[key].isoformat()
+        oportunidad_doc = {"oportunidad_id": oportunidad_id, **oportunidad_dict}
+        await db.oportunidades_placsp.insert_one(oportunidad_doc)
+        imported += 1
+    return {"message": "Importacion completada", "imported": imported, "duplicates": duplicates, "total": len(data.oportunidades)}
 @api_router.post("/oportunidades/{oportunidad_id}/convertir-lead")
 async def convert_oportunidad_to_lead(
     oportunidad_id: str,
@@ -1515,6 +1536,195 @@ async def convert_oportunidad_to_lead(
     }
 
 # ============== ROOT ==============
+
+# ============== APOLLO.IO INTEGRATION ==============
+
+APOLLO_API_KEY = os.environ.get("APOLLO_API_KEY", "")
+APOLLO_BASE_URL = "https://api.apollo.io/v1"
+
+
+class ApolloEnrichPersonRequest(BaseModel):
+    email: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    domain: Optional[str] = None
+
+
+class ApolloEnrichCompanyRequest(BaseModel):
+    domain: str
+
+
+class ApolloSearchRequest(BaseModel):
+    job_titles: Optional[List[str]] = None
+    locations: Optional[List[str]] = None
+    domains: Optional[List[str]] = None
+    industries: Optional[List[str]] = None
+    company_sizes: Optional[List[str]] = None
+    page: int = 1
+    per_page: int = 25
+
+
+@api_router.post("/apollo/enrich/person")
+async def apollo_enrich_person(request: ApolloEnrichPersonRequest, current_user: UserResponse = Depends(get_current_user)):
+    if not APOLLO_API_KEY:
+        raise HTTPException(status_code=500, detail="Apollo API key not configured")
+    if not request.email and not (request.first_name and request.last_name and request.domain):
+        raise HTTPException(status_code=400, detail="Provide email OR (first_name + last_name + domain)")
+    headers = {"Content-Type": "application/json", "Cache-Control": "no-cache", "X-Api-Key": APOLLO_API_KEY}
+    payload = {}
+    if request.email:
+        payload["email"] = request.email
+    if request.first_name:
+        payload["first_name"] = request.first_name
+    if request.last_name:
+        payload["last_name"] = request.last_name
+    if request.domain:
+        payload["organization_domain"] = request.domain
+    async with httpx.AsyncClient() as client:
+        response = await client.post(f"{APOLLO_BASE_URL}/people/match", headers=headers, json=payload, timeout=30.0)
+        if response.status_code == 200:
+            data = response.json()
+            person = data.get("person", {})
+            return {"success": True, "data": {"first_name": person.get("first_name"), "last_name": person.get("last_name"), "email": person.get("email"), "title": person.get("title"), "linkedin_url": person.get("linkedin_url"), "phone": person.get("phone_numbers", [{}])[0].get("raw_number") if person.get("phone_numbers") else None, "company": person.get("organization", {}).get("name"), "company_domain": person.get("organization", {}).get("primary_domain"), "company_industry": person.get("organization", {}).get("industry"), "company_size": person.get("organization", {}).get("estimated_num_employees"), "city": person.get("city"), "country": person.get("country")}}
+        else:
+            raise HTTPException(status_code=502, detail=f"Apollo API error: {response.status_code}")
+
+
+@api_router.post("/apollo/enrich/company")
+async def apollo_enrich_company(request: ApolloEnrichCompanyRequest, current_user: UserResponse = Depends(get_current_user)):
+    if not APOLLO_API_KEY:
+        raise HTTPException(status_code=500, detail="Apollo API key not configured")
+    headers = {"Content-Type": "application/json", "Cache-Control": "no-cache", "X-Api-Key": APOLLO_API_KEY}
+    async with httpx.AsyncClient() as client:
+        response = await client.get(f"{APOLLO_BASE_URL}/organizations/enrich", headers=headers, params={"domain": request.domain}, timeout=30.0)
+        if response.status_code == 200:
+            data = response.json()
+            org = data.get("organization", {})
+            return {"success": True, "data": {"name": org.get("name"), "domain": org.get("primary_domain"), "industry": org.get("industry"), "estimated_employees": org.get("estimated_num_employees"), "linkedin_url": org.get("linkedin_url"), "website_url": org.get("website_url"), "phone": org.get("phone"), "city": org.get("city"), "country": org.get("country"), "description": org.get("short_description"), "founded_year": org.get("founded_year"), "annual_revenue": org.get("annual_revenue_printed")}}
+        else:
+            raise HTTPException(status_code=502, detail=f"Apollo API error: {response.status_code}")
+
+
+@api_router.post("/apollo/search")
+async def apollo_search_prospects(request: ApolloSearchRequest, current_user: UserResponse = Depends(get_current_user)):
+    if not APOLLO_API_KEY:
+        raise HTTPException(status_code=500, detail="Apollo API key not configured")
+    headers = {"Content-Type": "application/json", "Cache-Control": "no-cache", "X-Api-Key": APOLLO_API_KEY}
+    payload = {"page": request.page, "per_page": request.per_page}
+    if request.job_titles:
+        payload["person_titles"] = request.job_titles
+    if request.locations:
+        payload["person_locations"] = request.locations
+    if request.domains:
+        payload["organization_domains"] = request.domains
+    if request.industries:
+        payload["organization_industry_tag_ids"] = request.industries
+    if request.company_sizes:
+        payload["organization_num_employees_ranges"] = request.company_sizes
+    async with httpx.AsyncClient() as client:
+        response = await client.post(f"{APOLLO_BASE_URL}/mixed_people/search", headers=headers, json=payload, timeout=30.0)
+        if response.status_code == 200:
+            data = response.json()
+            people = data.get("people", [])
+            return {"success": True, "total": data.get("pagination", {}).get("total_entries", 0), "page": request.page, "per_page": request.per_page, "data": [{"id": p.get("id"), "first_name": p.get("first_name"), "last_name": p.get("last_name"), "email": p.get("email"), "title": p.get("title"), "linkedin_url": p.get("linkedin_url"), "company": p.get("organization", {}).get("name") if p.get("organization") else None, "company_domain": p.get("organization", {}).get("primary_domain") if p.get("organization") else None, "city": p.get("city"), "country": p.get("country")} for p in people]}
+        else:
+            raise HTTPException(status_code=502, detail=f"Apollo API error: {response.status_code}")
+
+
+@api_router.post("/leads/{lead_id}/enrich-apollo")
+async def enrich_lead_with_apollo(lead_id: str, current_user: UserResponse = Depends(get_current_user)):
+    if not APOLLO_API_KEY:
+        raise HTTPException(status_code=500, detail="Apollo API key not configured")
+    lead = await db.leads.find_one({"lead_id": lead_id}, {"_id": 0})
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead no encontrado")
+    
+    # Extraer dominio del email o generar desde empresa
+    domain = None
+    if lead.get("email") and "@" in lead.get("email", ""):
+        domain = lead["email"].split("@")[1]
+    elif lead.get("empresa"):
+        empresa = lead["empresa"].lower()
+        # Limpiar sufijos legales
+        for suffix in ["sociedad limitada", "sociedad anonima", "s.l.", "s.a.", "sl", "sa", "s.l.u.", "slu", "s.a.u.", "sau", "limited", "ltd", "inc", "corp"]:
+            empresa = empresa.replace(suffix, "")
+        empresa = empresa.replace(" ", "").replace(",", "").replace(".", "").strip()
+        domain = f"{empresa}.com"
+    
+    if not domain:
+        raise HTTPException(status_code=400, detail="No hay suficiente info para enriquecer (necesita email o empresa)")
+    
+    headers = {"Content-Type": "application/json", "X-Api-Key": APOLLO_API_KEY}
+    
+    async with httpx.AsyncClient() as client:
+        # Enriquecer organización
+        response = await client.post(
+            f"{APOLLO_BASE_URL}/organizations/enrich",
+            headers=headers,
+            json={"domain": domain},
+            timeout=30.0
+        )
+        
+        if response.status_code == 200:
+            data = response.json()
+            org = data.get("organization", {})
+            
+            if not org:
+                return {"success": False, "message": "No se encontró info en Apollo"}
+            
+            update_data = {}
+            
+            # Actualizar teléfono si no existe
+            if org.get("phone") and not lead.get("telefono"):
+                update_data["telefono"] = org["phone"]
+            
+            # Actualizar sector si no existe
+            if org.get("industry") and not lead.get("sector"):
+                update_data["sector"] = org["industry"].title()
+            
+            # Añadir info a notas
+            notas_extra = []
+            if org.get("linkedin_url"):
+                notas_extra.append(f"LinkedIn: {org['linkedin_url']}")
+            if org.get("estimated_num_employees"):
+                notas_extra.append(f"Empleados: {org['estimated_num_employees']}")
+            if org.get("industry"):
+                notas_extra.append(f"Sector: {org['industry']}")
+            if org.get("short_description"):
+                notas_extra.append(f"Descripción: {org['short_description'][:200]}...")
+            
+            if notas_extra:
+                current_notas = lead.get("notas") or ""
+                if "Apollo Data" not in current_notas:
+                    update_data["notas"] = f"{current_notas}\n\n--- Apollo Data ---\n" + "\n".join(notas_extra)
+            
+            if update_data:
+                await db.leads.update_one({"lead_id": lead_id}, {"$set": update_data})
+            
+            return {
+                "success": True,
+                "updated_fields": list(update_data.keys()),
+                "telefono": org.get("phone"),
+                "cargo": None,
+                "sector": org.get("industry"),
+                "notas": update_data.get("notas", "")
+            }
+        else:
+            raise HTTPException(status_code=response.status_code, detail=f"Apollo API error: {response.text}")
+
+
+@api_router.get("/apollo/health")
+async def apollo_health_check(current_user: UserResponse = Depends(get_current_user)):
+    if not APOLLO_API_KEY:
+        return {"status": "error", "message": "Apollo API key not configured"}
+    headers = {"Content-Type": "application/json", "X-Api-Key": APOLLO_API_KEY}
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(f"{APOLLO_BASE_URL}/organizations/enrich", headers=headers, params={"domain": "apollo.io"}, timeout=10.0)
+            return {"status": "connected" if response.status_code == 200 else "error", "message": "Apollo API working" if response.status_code == 200 else f"Apollo returned {response.status_code}"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
 
 @api_router.get("/")
 async def root():

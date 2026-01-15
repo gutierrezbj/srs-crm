@@ -662,6 +662,8 @@ class Adjudicacion:
 # ============================================================================
 
 NS = {
+    'cac-place-ext': 'urn:dgpe:names:draft:codice-place-ext:schema:xsd:CommonAggregateComponents-2',
+    'cbc-place-ext': 'urn:dgpe:names:draft:codice-place-ext:schema:xsd:CommonBasicComponents-2',
     'atom': 'http://www.w3.org/2005/Atom',
     'cbc': 'urn:dgpe:names:draft:codice:schema:xsd:CommonBasicComponents-2',
     'cac': 'urn:dgpe:names:draft:codice:schema:xsd:CommonAggregateComponents-2',
@@ -905,24 +907,19 @@ def clasificar_cpv(cpv: str) -> tuple:
 # ============================================================================
 
 def parse_entry(entry: ET.Element) -> Optional[Adjudicacion]:
-    """Parsea un entry del feed ATOM"""
+    """Parsea un entry del feed ATOM de PLACSP"""
     try:
         # Extraer título (objeto)
-        title = entry.find('atom:title', NS)
+        title = entry.find('{http://www.w3.org/2005/Atom}title')
         objeto = title.text.strip() if title is not None and title.text else ""
         
         # Extraer URL
-        link = entry.find('atom:link', NS)
+        link = entry.find('{http://www.w3.org/2005/Atom}link')
         url = link.get('href', '') if link is not None else ""
         
-        # Buscar contenido CODICE
-        content = entry.find('atom:content', NS)
-        if content is None:
-            return None
-        
-        # Intentar encontrar ContractFolderStatus
+        # Buscar ContractFolderStatus directamente en entry (formato PLACSP real)
         cfs = None
-        for child in content.iter():
+        for child in entry.iter():
             if 'ContractFolderStatus' in child.tag:
                 cfs = child
                 break
