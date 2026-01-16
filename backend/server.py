@@ -1476,6 +1476,172 @@ async def import_oportunidades_spotter_internal(data: OportunidadSpotterImport):
         await db.oportunidades_placsp.insert_one(oportunidad_doc)
         imported += 1
     return {"message": "Importacion completada", "imported": imported, "duplicates": duplicates, "total": len(data.oportunidades)}
+
+
+@api_router.post("/oportunidades/ejecutar-spotter")
+async def ejecutar_spotter_manual(current_user: UserResponse = Depends(get_current_user)):
+    """
+    Ejecuta SpotterSRS manualmente para buscar nuevas oportunidades.
+    Solo usuarios autenticados pueden ejecutar esta acción.
+    """
+    import subprocess
+    import os as os_module
+
+    # Ruta al script de SpotterSRS
+    spotter_dir = os_module.path.join(os_module.path.dirname(__file__), "app", "spotter")
+    spotter_script = os_module.path.join(spotter_dir, "run_spotter_cron.py")
+
+    if not os_module.path.exists(spotter_script):
+        raise HTTPException(
+            status_code=500,
+            detail=f"Script SpotterSRS no encontrado en {spotter_script}"
+        )
+
+    try:
+        # Ejecutar el script de SpotterSRS
+        result = subprocess.run(
+            ["python3", spotter_script],
+            cwd=spotter_dir,
+            capture_output=True,
+            text=True,
+            timeout=300  # 5 minutos máximo
+        )
+
+        if result.returncode == 0:
+            # Contar oportunidades nuevas (parsear output si es posible)
+            output = result.stdout
+
+            return {
+                "success": True,
+                "message": "SpotterSRS ejecutado correctamente",
+                "output": output[-2000:] if len(output) > 2000 else output,  # Últimos 2000 chars
+                "executed_by": current_user.email,
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+        else:
+            return {
+                "success": False,
+                "message": "SpotterSRS terminó con errores",
+                "error": result.stderr[-1000:] if result.stderr else "Sin detalles",
+                "executed_by": current_user.email,
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+
+    except subprocess.TimeoutExpired:
+        raise HTTPException(
+            status_code=504,
+            detail="SpotterSRS excedió el tiempo límite de 5 minutos"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error ejecutando SpotterSRS: {str(e)}"
+        )
+
+
+@api_router.post("/oportunidades/reclasificar")
+async def reclasificar_oportunidades_endpoint(current_user: UserResponse = Depends(get_current_user)):
+    """
+    Reclasifica todas las oportunidades existentes usando el algoritmo actualizado.
+    Solo usuarios autenticados pueden ejecutar esta acción.
+    """
+    import sys
+    import os as os_module
+
+    # Añadir el directorio de spotter al path
+    spotter_dir = os_module.path.join(os_module.path.dirname(__file__), "app", "spotter")
+    if spotter_dir not in sys.path:
+        sys.path.insert(0, spotter_dir)
+
+    try:
+        from app.spotter.spotter_srs import calcular_dolor, extraer_keywords
+
+        # Obtener todas las oportunidades
+        oportunidades = await db.oportunidades_placsp.find(
+            {},
+            {"_id": 0}
+        ).to_list(10000)
+
+        if not oportunidades:
+            return {
+                "success": True,
+                "message": "No hay oportunidades para reclasificar",
+                "total": 0,
+                "cambios": 0
+            }
+
+        cambios = 0
+        errores = 0
+
+        for opp in oportunidades:
+            try:
+                oportunidad_id = opp.get('oportunidad_id')
+                objeto = opp.get('objeto', '')
+                cpv = opp.get('cpv', '')
+                tipo_actual = opp.get('tipo_srs', '')
+                fecha_adj = opp.get('fecha_adjudicacion', '')
+                dias_restantes = opp.get('dias_restantes')
+
+                # Extraer keywords
+                keywords = extraer_keywords(objeto)
+
+                # Convertir fecha
+                if isinstance(fecha_adj, datetime):
+                    fecha_adj_str = fecha_adj.strftime('%Y-%m-%d')
+                else:
+                    fecha_adj_str = str(fecha_adj)[:10] if fecha_adj else ''
+
+                # Calcular nueva clasificación
+                dolor = calcular_dolor(
+                    objeto=objeto,
+                    fecha_adjudicacion=fecha_adj_str,
+                    duracion_dias=dias_restantes,
+                    cpv=cpv,
+                    keywords=keywords
+                )
+
+                nuevo_tipo = dolor.tipo_oportunidad.value
+
+                # Actualizar si cambió
+                if tipo_actual != nuevo_tipo:
+                    await db.oportunidades_placsp.update_one(
+                        {"oportunidad_id": oportunidad_id},
+                        {"$set": {
+                            "tipo_srs": nuevo_tipo,
+                            "keywords": list(keywords.keys()),
+                            "indicadores_dolor": dolor.indicadores_urgencia,
+                            "score": dolor.score_dolor,
+                        }}
+                    )
+                    cambios += 1
+
+            except Exception as e:
+                errores += 1
+                print(f"Error reclasificando {opp.get('oportunidad_id')}: {e}")
+
+        return {
+            "success": True,
+            "message": "Reclasificación completada",
+            "total": len(oportunidades),
+            "cambios": cambios,
+            "sin_cambios": len(oportunidades) - cambios - errores,
+            "errores": errores,
+            "executed_by": current_user.email,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+
+    except ImportError as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error importando módulo SpotterSRS: {str(e)}"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error en reclasificación: {str(e)}"
+        )
+
+
 @api_router.post("/oportunidades/{oportunidad_id}/convertir-lead")
 async def convert_oportunidad_to_lead(
     oportunidad_id: str,

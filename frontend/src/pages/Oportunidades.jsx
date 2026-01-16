@@ -13,7 +13,10 @@ import {
     Filter,
     X,
     UserPlus,
-    TrendingUp
+    TrendingUp,
+    Play,
+    RefreshCw,
+    Loader2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -72,6 +75,8 @@ export default function Oportunidades({ user }) {
     const [convertDialogOpen, setConvertDialogOpen] = useState(false);
     const [selectedOportunidad, setSelectedOportunidad] = useState(null);
     const [converting, setConverting] = useState(false);
+    const [executingSpotter, setExecutingSpotter] = useState(false);
+    const [reclassifying, setReclassifying] = useState(false);
 
     const fetchOportunidades = useCallback(async () => {
         try {
@@ -139,6 +144,58 @@ export default function Oportunidades({ user }) {
         setConvertDialogOpen(true);
     };
 
+    const handleExecuteSpotter = async () => {
+        setExecutingSpotter(true);
+        try {
+            const response = await axios.post(
+                `${API}/oportunidades/ejecutar-spotter`,
+                {},
+                { withCredentials: true }
+            );
+
+            if (response.data.success) {
+                toast.success("SpotterSRS ejecutado correctamente");
+                // Recargar oportunidades para ver las nuevas
+                fetchOportunidades();
+            } else {
+                toast.error(response.data.message || "Error al ejecutar SpotterSRS");
+            }
+        } catch (error) {
+            toast.error(error.response?.data?.detail || "Error al ejecutar SpotterSRS");
+            console.error("Error executing SpotterSRS:", error);
+        } finally {
+            setExecutingSpotter(false);
+        }
+    };
+
+    const handleReclassify = async () => {
+        setReclassifying(true);
+        try {
+            const response = await axios.post(
+                `${API}/oportunidades/reclasificar`,
+                {},
+                { withCredentials: true }
+            );
+
+            if (response.data.success) {
+                toast.success(
+                    `Reclasificación completada: ${response.data.cambios} cambios de ${response.data.total} oportunidades`
+                );
+                // Recargar oportunidades para ver los cambios
+                fetchOportunidades();
+                // Recargar tipos SRS por si hay nuevos
+                fetchTiposSrs();
+            } else {
+                toast.error(response.data.message || "Error en reclasificación");
+            }
+        } catch (error) {
+            toast.error(error.response?.data?.detail || "Error al reclasificar");
+            console.error("Error reclassifying:", error);
+        } finally {
+            setReclassifying(false);
+        }
+    };
+
     const formatCurrency = (value) => {
         return new Intl.NumberFormat("es-ES", {
             style: "currency",
@@ -184,6 +241,46 @@ export default function Oportunidades({ user }) {
                     <p className="theme-text-secondary text-sm">
                         Oportunidades detectadas por SpotterSRS
                     </p>
+                </div>
+                <div className="flex gap-2">
+                    <Button
+                        onClick={handleReclassify}
+                        disabled={reclassifying || executingSpotter}
+                        variant="outline"
+                        className="theme-text-secondary hover:theme-text"
+                        style={{ borderColor: 'var(--theme-border)' }}
+                        title="Reclasificar oportunidades existentes con el algoritmo actualizado"
+                    >
+                        {reclassifying ? (
+                            <>
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                Reclasificando...
+                            </>
+                        ) : (
+                            <>
+                                <RefreshCw className="w-4 h-4 mr-2" />
+                                Reclasificar
+                            </>
+                        )}
+                    </Button>
+                    <Button
+                        onClick={handleExecuteSpotter}
+                        disabled={executingSpotter || reclassifying}
+                        className="btn-gradient"
+                        title="Ejecutar SpotterSRS para buscar nuevas oportunidades en PLACSP"
+                    >
+                        {executingSpotter ? (
+                            <>
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                Ejecutando...
+                            </>
+                        ) : (
+                            <>
+                                <Play className="w-4 h-4 mr-2" />
+                                Ejecutar SpotterSRS
+                            </>
+                        )}
+                    </Button>
                 </div>
             </div>
 
