@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
-import { 
-  Plus, 
-  Search, 
-  Upload, 
-  Download, 
+import {
+  Plus,
+  Search,
+  Upload,
+  Download,
   MoreVertical,
   Building2,
   Mail,
@@ -17,7 +17,11 @@ import {
   UserPlus,
   ArrowRight,
   CheckSquare,
-  Square
+  Square,
+  CalendarClock,
+  Clock,
+  FileSpreadsheet,
+  FileText
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -70,6 +74,7 @@ export default function Leads({ user }) {
   const [search, setSearch] = useState("");
   const [stageFilter, setStageFilter] = useState("all");
   const [sectorFilter, setSectorFilter] = useState("all");
+  const [seguimientoFilter, setSeguimientoFilter] = useState("all");
   const [sectors, setSectors] = useState([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedLead, setSelectedLead] = useState(null);
@@ -90,6 +95,7 @@ export default function Leads({ user }) {
       if (search) params.append("search", search);
       if (stageFilter && stageFilter !== "all") params.append("etapa", stageFilter);
       if (sectorFilter && sectorFilter !== "all") params.append("sector", sectorFilter);
+      if (seguimientoFilter && seguimientoFilter !== "all") params.append("seguimiento", seguimientoFilter);
 
       const response = await axios.get(`${API}/leads?${params.toString()}`, { withCredentials: true });
       setLeads(response.data);
@@ -101,7 +107,7 @@ export default function Leads({ user }) {
     } finally {
       setLoading(false);
     }
-  }, [search, stageFilter, sectorFilter]);
+  }, [search, stageFilter, sectorFilter, seguimientoFilter]);
 
   const fetchSectors = async () => {
     try {
@@ -127,22 +133,35 @@ export default function Leads({ user }) {
     fetchUsers();
   }, [fetchLeads]);
 
-  const handleExport = async () => {
+  const handleExport = async (format = "xlsx") => {
     try {
-      const response = await axios.get(`${API}/leads/export`, {
+      const params = new URLSearchParams();
+      if (stageFilter && stageFilter !== "all") params.append("etapa", stageFilter);
+      if (sectorFilter && sectorFilter !== "all") params.append("sector", sectorFilter);
+      if (seguimientoFilter && seguimientoFilter !== "all") params.append("seguimiento", seguimientoFilter);
+      params.append("format", format);
+
+      const response = await axios.get(`${API}/leads/export?${params.toString()}`, {
         withCredentials: true,
         responseType: "blob",
       });
-      
+
+      const contentDisposition = response.headers["content-disposition"];
+      let filename = format === "xlsx" ? "leads_export.xlsx" : "leads_export.csv";
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename=([^;]+)/);
+        if (match) filename = match[1];
+      }
+
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement("a");
       link.href = url;
-      link.setAttribute("download", "leads_export.csv");
+      link.setAttribute("download", filename);
       document.body.appendChild(link);
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
-      toast.success("Leads exportados correctamente");
+      toast.success(`Leads exportados a ${format.toUpperCase()}`);
     } catch (error) {
       toast.error("Error al exportar leads");
     }
@@ -258,11 +277,29 @@ export default function Leads({ user }) {
     setSearch("");
     setStageFilter("all");
     setSectorFilter("all");
+    setSeguimientoFilter("all");
   };
 
-  const hasFilters = search || stageFilter !== "all" || sectorFilter !== "all";
+  const hasFilters = search || stageFilter !== "all" || sectorFilter !== "all" || seguimientoFilter !== "all";
   const hasSelection = selectedIds.size > 0;
   const allSelected = leads.length > 0 && selectedIds.size === leads.length;
+
+  // Helper para determinar estado de seguimiento
+  const getSeguimientoStatus = (proximo_seguimiento) => {
+    if (!proximo_seguimiento) return null;
+    const fecha = new Date(proximo_seguimiento);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    if (fecha < today) {
+      return { status: "atrasado", label: "Atrasado", className: "border-red-500 text-red-500" };
+    } else if (fecha < tomorrow) {
+      return { status: "hoy", label: "Hoy", className: "border-cyan-500 text-cyan-500" };
+    }
+    return null;
+  };
 
   return (
     <div data-testid="leads-page" className="space-y-6">
@@ -284,17 +321,30 @@ export default function Leads({ user }) {
             <Upload className="w-4 h-4 mr-2" />
             Importar
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleExport}
-            data-testid="export-btn"
-            className="theme-text-secondary hover:theme-text"
-            style={{ borderColor: 'var(--theme-border)' }}
-          >
-            <Download className="w-4 h-4 mr-2" />
-            Exportar
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                data-testid="export-btn"
+                className="theme-text-secondary hover:theme-text"
+                style={{ borderColor: 'var(--theme-border)' }}
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Exportar
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="theme-bg-secondary" style={{ borderColor: 'var(--theme-border)' }}>
+              <DropdownMenuItem onClick={() => handleExport("xlsx")} className="theme-text-secondary focus:theme-text">
+                <FileSpreadsheet className="w-4 h-4 mr-2 text-green-500" />
+                Exportar a Excel (.xlsx)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleExport("csv")} className="theme-text-secondary focus:theme-text">
+                <FileText className="w-4 h-4 mr-2 text-blue-500" />
+                Exportar a CSV
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button
             onClick={() => openModal()}
             data-testid="new-lead-btn"
@@ -392,7 +442,7 @@ export default function Leads({ user }) {
               </SelectContent>
             </Select>
             <Select value={sectorFilter} onValueChange={setSectorFilter}>
-              <SelectTrigger 
+              <SelectTrigger
                 className="w-[150px] theme-bg-tertiary"
                 style={{ borderColor: 'var(--theme-border)' }}
                 data-testid="sector-filter"
@@ -404,6 +454,36 @@ export default function Leads({ user }) {
                 {sectors.map((sector) => (
                   <SelectItem key={sector} value={sector}>{sector}</SelectItem>
                 ))}
+              </SelectContent>
+            </Select>
+            <Select value={seguimientoFilter} onValueChange={setSeguimientoFilter}>
+              <SelectTrigger
+                className="w-[170px] theme-bg-tertiary"
+                style={{ borderColor: 'var(--theme-border)' }}
+                data-testid="seguimiento-filter"
+              >
+                <SelectValue placeholder="Seguimiento" />
+              </SelectTrigger>
+              <SelectContent className="theme-bg-secondary" style={{ borderColor: 'var(--theme-border)' }}>
+                <SelectItem value="all">Todos</SelectItem>
+                <SelectItem value="hoy">
+                  <span className="flex items-center gap-2">
+                    <CalendarClock className="w-4 h-4 text-cyan-400" />
+                    Pendientes hoy
+                  </span>
+                </SelectItem>
+                <SelectItem value="atrasados">
+                  <span className="flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-amber-400" />
+                    Atrasados
+                  </span>
+                </SelectItem>
+                <SelectItem value="proximos">
+                  <span className="flex items-center gap-2">
+                    <CalendarClock className="w-4 h-4 text-blue-400" />
+                    Próximos 7 días
+                  </span>
+                </SelectItem>
               </SelectContent>
             </Select>
             {hasFilters && (
@@ -494,6 +574,18 @@ export default function Leads({ user }) {
                           {lead.dias_sin_actividad}d sin actividad
                         </Badge>
                       )}
+                      {(() => {
+                        const seg = getSeguimientoStatus(lead.proximo_seguimiento);
+                        if (seg) {
+                          return (
+                            <Badge variant="outline" className={`${seg.className} text-xs`}>
+                              <CalendarClock className="w-3 h-3 mr-1" />
+                              {seg.label}
+                            </Badge>
+                          );
+                        }
+                        return null;
+                      })()}
                     </div>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-2 text-sm">
                       <div className="flex items-center gap-2 theme-text-secondary">

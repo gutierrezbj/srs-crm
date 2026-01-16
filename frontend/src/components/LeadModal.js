@@ -2,14 +2,14 @@ import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { format, addDays } from "date-fns";
 import { es } from "date-fns/locale";
-import { 
-  Building2, 
-  User, 
-  Mail, 
-  Phone, 
-  Briefcase, 
-  Tag, 
-  Euro, 
+import {
+  Building2,
+  User,
+  Mail,
+  Phone,
+  Briefcase,
+  Tag,
+  Euro,
   FileText,
   Plus,
   Clock,
@@ -21,7 +21,8 @@ import {
   Target,
   AlertTriangle,
   CalendarClock,
-  Sparkles
+  Sparkles,
+  ExternalLink
 } from "lucide-react";
 import {
   Dialog,
@@ -62,10 +63,10 @@ const stages = [
 ];
 
 const activityTypes = [
-  { value: "nota", label: "Nota", icon: MessageSquare },
-  { value: "llamada", label: "Llamada", icon: PhoneCall },
-  { value: "email", label: "Email", icon: Mail },
-  { value: "reunion", label: "Reunión", icon: CalendarIcon },
+  { value: "nota", label: "Nota", icon: MessageSquare, color: "text-slate-400", bg: "bg-slate-700" },
+  { value: "llamada", label: "Llamada", icon: PhoneCall, color: "text-cyan-400", bg: "bg-cyan-500/20" },
+  { value: "email", label: "Email", icon: Mail, color: "text-purple-400", bg: "bg-purple-500/20" },
+  { value: "reunion", label: "Reunión", icon: CalendarIcon, color: "text-amber-400", bg: "bg-amber-500/20" },
 ];
 
 const URGENCY_DAYS_MAP = {
@@ -105,6 +106,7 @@ export default function LeadModal({ open, onClose, lead }) {
   const [users, setUsers] = useState([]);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [enriching, setEnriching] = useState(false);
+  const [activityFilter, setActivityFilter] = useState("all");
 
   const isEditing = !!lead;
 
@@ -307,11 +309,20 @@ export default function LeadModal({ open, onClose, lead }) {
     });
   };
 
-  const getActivityIcon = (tipo) => {
+  const getActivityConfig = (tipo) => {
     const activity = activityTypes.find((a) => a.value === tipo);
-    const Icon = activity?.icon || MessageSquare;
-    return <Icon className="w-4 h-4" />;
+    return activity || activityTypes[0];
   };
+
+  const getActivityIcon = (tipo) => {
+    const config = getActivityConfig(tipo);
+    const Icon = config.icon;
+    return <Icon className={`w-4 h-4 ${config.color}`} />;
+  };
+
+  const filteredActivities = activityFilter === "all"
+    ? activities
+    : activities.filter(a => a.tipo === activityFilter);
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -402,12 +413,46 @@ export default function LeadModal({ open, onClose, lead }) {
                     <Phone className="w-4 h-4" />
                     Teléfono
                   </Label>
-                  <Input
-                    value={formData.telefono}
-                    onChange={(e) => handleChange("telefono", e.target.value)}
-                    data-testid="lead-telefono"
-                    className="bg-slate-950 border-slate-800 focus:border-cyan-400"
-                  />
+                  <div className="flex gap-2">
+                    <Input
+                      value={formData.telefono}
+                      onChange={(e) => handleChange("telefono", e.target.value)}
+                      data-testid="lead-telefono"
+                      className="bg-slate-950 border-slate-800 focus:border-cyan-400 flex-1"
+                    />
+                    {formData.telefono && (
+                      <>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          asChild
+                          className="border-cyan-500/50 text-cyan-400 hover:bg-cyan-500/20 hover:text-cyan-300"
+                          title="Llamar"
+                        >
+                          <a href={`tel:${formData.telefono.replace(/\s/g, '')}`}>
+                            <PhoneCall className="w-4 h-4" />
+                          </a>
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          asChild
+                          className="border-green-500/50 text-green-400 hover:bg-green-500/20 hover:text-green-300"
+                          title="WhatsApp"
+                        >
+                          <a
+                            href={`https://wa.me/${formData.telefono.replace(/\s/g, '').replace(/^\+/, '')}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            <MessageSquare className="w-4 h-4" />
+                          </a>
+                        </Button>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -758,42 +803,79 @@ export default function LeadModal({ open, onClose, lead }) {
               </div>
 
               <div className="space-y-3">
-                <Label className="text-slate-300 flex items-center gap-2">
-                  <Clock className="w-4 h-4" />
-                  Historial
-                </Label>
-                {activities.length === 0 ? (
+                <div className="flex items-center justify-between">
+                  <Label className="text-slate-300 flex items-center gap-2">
+                    <Clock className="w-4 h-4" />
+                    Historial ({filteredActivities.length})
+                  </Label>
+                  {activities.length > 0 && (
+                    <div className="flex gap-1">
+                      <Button
+                        type="button"
+                        variant={activityFilter === "all" ? "default" : "ghost"}
+                        size="sm"
+                        onClick={() => setActivityFilter("all")}
+                        className={activityFilter === "all" ? "bg-slate-700 text-white" : "text-slate-400 hover:text-white"}
+                      >
+                        Todas
+                      </Button>
+                      {activityTypes.map((type) => {
+                        const Icon = type.icon;
+                        const count = activities.filter(a => a.tipo === type.value).length;
+                        if (count === 0) return null;
+                        return (
+                          <Button
+                            key={type.value}
+                            type="button"
+                            variant={activityFilter === type.value ? "default" : "ghost"}
+                            size="sm"
+                            onClick={() => setActivityFilter(type.value)}
+                            className={activityFilter === type.value ? `${type.bg} ${type.color}` : `text-slate-400 hover:${type.color}`}
+                            title={type.label}
+                          >
+                            <Icon className="w-4 h-4" />
+                            <span className="ml-1 text-xs">{count}</span>
+                          </Button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+                {filteredActivities.length === 0 ? (
                   <div className="text-center py-8 text-slate-500">
                     <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                    <p>Sin actividades registradas</p>
+                    <p>{activities.length === 0 ? "Sin actividades registradas" : "No hay actividades de este tipo"}</p>
                   </div>
                 ) : (
                   <div className="space-y-2 max-h-[300px] overflow-y-auto">
-                    {activities.map((activity) => (
-                      <div
-                        key={activity.activity_id}
-                        className="flex gap-3 p-3 bg-slate-800/30 rounded-lg"
-                        data-testid={`activity-${activity.activity_id}`}
-                      >
-                        <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-cyan-400">
-                          {getActivityIcon(activity.tipo)}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="font-medium text-white text-sm">
-                              {activity.user_name}
-                            </span>
-                            <Badge variant="outline" className="text-xs border-slate-600 text-slate-400">
-                              {activityTypes.find((t) => t.value === activity.tipo)?.label || activity.tipo}
-                            </Badge>
+                    {filteredActivities.map((activity) => {
+                      const config = getActivityConfig(activity.tipo);
+                      return (
+                        <div
+                          key={activity.activity_id}
+                          className="flex gap-3 p-3 bg-slate-800/30 rounded-lg"
+                          data-testid={`activity-${activity.activity_id}`}
+                        >
+                          <div className={`w-8 h-8 rounded-full ${config.bg} flex items-center justify-center`}>
+                            {getActivityIcon(activity.tipo)}
                           </div>
-                          <p className="text-sm text-slate-300">{activity.descripcion}</p>
-                          <p className="text-xs text-slate-500 mt-1">
-                            {formatDate(activity.created_at)}
-                          </p>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="font-medium text-white text-sm">
+                                {activity.user_name}
+                              </span>
+                              <Badge variant="outline" className={`text-xs border-slate-600 ${config.color}`}>
+                                {config.label}
+                              </Badge>
+                            </div>
+                            <p className="text-sm text-slate-300">{activity.descripcion}</p>
+                            <p className="text-xs text-slate-500 mt-1">
+                              {formatDate(activity.created_at)}
+                            </p>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>

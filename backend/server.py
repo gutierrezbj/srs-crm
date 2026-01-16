@@ -421,11 +421,12 @@ async def get_leads(
     sector: Optional[str] = None,
     propietario: Optional[str] = None,
     search: Optional[str] = None,
+    seguimiento: Optional[str] = None,
     current_user: UserResponse = Depends(get_current_user)
 ):
     """Get all leads with optional filters"""
     query = {}
-    
+
     if etapa:
         query["etapa"] = etapa
     if sector:
@@ -438,7 +439,32 @@ async def get_leads(
             {"contacto": {"$regex": search, "$options": "i"}},
             {"email": {"$regex": search, "$options": "i"}}
         ]
-    
+
+    # Filtro de seguimiento
+    if seguimiento:
+        today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+        today_end = today + timedelta(days=1)
+
+        if seguimiento == "hoy":
+            # Seguimientos programados para hoy
+            query["proximo_seguimiento"] = {
+                "$gte": today.isoformat(),
+                "$lt": today_end.isoformat()
+            }
+        elif seguimiento == "atrasados":
+            # Seguimientos vencidos (antes de hoy)
+            query["proximo_seguimiento"] = {
+                "$lt": today.isoformat(),
+                "$ne": None
+            }
+        elif seguimiento == "proximos":
+            # Próximos 7 días
+            week_end = today + timedelta(days=7)
+            query["proximo_seguimiento"] = {
+                "$gte": today.isoformat(),
+                "$lt": week_end.isoformat()
+            }
+
     leads = await db.leads.find(query, {"_id": 0}).sort("fecha_creacion", -1).to_list(1000)
     
     # Get all users for propietario_nombre lookup
@@ -510,35 +536,177 @@ async def get_leads_stats(current_user: UserResponse = Depends(get_current_user)
     }
 
 @api_router.get("/leads/export")
-async def export_leads(current_user: UserResponse = Depends(get_current_user)):
-    """Export leads to CSV"""
-    leads = await db.leads.find({}, {"_id": 0}).to_list(1000)
-    
-    output = io.StringIO()
-    writer = csv.DictWriter(output, fieldnames=[
-        "empresa", "contacto", "email", "telefono", "cargo", 
-        "sector", "valor_estimado", "etapa", "notas"
-    ])
-    writer.writeheader()
-    
-    for lead in leads:
-        writer.writerow({
-            "empresa": lead.get("empresa", ""),
-            "contacto": lead.get("contacto", ""),
-            "email": lead.get("email", ""),
-            "telefono": lead.get("telefono", ""),
-            "cargo": lead.get("cargo", ""),
-            "sector": lead.get("sector", ""),
-            "valor_estimado": lead.get("valor_estimado", 0),
-            "etapa": lead.get("etapa", "nuevo"),
-            "notas": lead.get("notas", "")
-        })
-    
+async def export_leads(
+    etapa: Optional[str] = None,
+    sector: Optional[str] = None,
+    seguimiento: Optional[str] = None,
+    format: str = "xlsx",
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """Export leads to Excel or CSV with optional filters"""
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+
+    # Build query with filters
+    query = {}
+    if etapa:
+        query["etapa"] = etapa
+    if sector:
+        query["sector"] = sector
+
+    # Seguimiento filter
+    if seguimiento:
+        today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+        today_end = today + timedelta(days=1)
+        if seguimiento == "hoy":
+            query["proximo_seguimiento"] = {"$gte": today.isoformat(), "$lt": today_end.isoformat()}
+        elif seguimiento == "atrasados":
+            query["proximo_seguimiento"] = {"$lt": today.isoformat(), "$ne": None}
+        elif seguimiento == "proximos":
+            week_end = today + timedelta(days=7)
+            query["proximo_seguimiento"] = {"$gte": today.isoformat(), "$lt": week_end.isoformat()}
+
+    leads = await db.leads.find(query, {"_id": 0}).sort("fecha_creacion", -1).to_list(1000)
+
+    # Get users for propietario lookup
+    users = await db.users.find({}, {"_id": 0, "user_id": 1, "name": 1}).to_list(100)
+    users_map = {u["user_id"]: u["name"] for u in users}
+
+    if format == "csv":
+        # CSV export
+        output = io.StringIO()
+        writer = csv.DictWriter(output, fieldnames=[
+            "empresa", "contacto", "email", "telefono", "cargo",
+            "sector", "valor_estimado", "etapa", "notas"
+        ])
+        writer.writeheader()
+        for lead in leads:
+            writer.writerow({
+                "empresa": lead.get("empresa", ""),
+                "contacto": lead.get("contacto", ""),
+                "email": lead.get("email", ""),
+                "telefono": lead.get("telefono", ""),
+                "cargo": lead.get("cargo", ""),
+                "sector": lead.get("sector", ""),
+                "valor_estimado": lead.get("valor_estimado", 0),
+                "etapa": lead.get("etapa", "nuevo"),
+                "notas": lead.get("notas", "")
+            })
+        output.seek(0)
+        return StreamingResponse(
+            iter([output.getvalue()]),
+            media_type="text/csv",
+            headers={"Content-Disposition": "attachment; filename=leads_export.csv"}
+        )
+
+    # Excel export
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Leads"
+
+    # Headers
+    headers = [
+        "Empresa", "Contacto", "Email", "Teléfono", "Cargo",
+        "Sector", "Valor Estimado", "Etapa", "Propietario",
+        "Urgencia", "Servicios", "Fuente", "Próximo Seguimiento", "Notas"
+    ]
+
+    # Header styling
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill(start_color="0EA5E9", end_color="0EA5E9", fill_type="solid")
+    header_alignment = Alignment(horizontal="center", vertical="center")
+    thin_border = Border(
+        left=Side(style='thin'),
+        right=Side(style='thin'),
+        top=Side(style='thin'),
+        bottom=Side(style='thin')
+    )
+
+    for col, header in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col, value=header)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = header_alignment
+        cell.border = thin_border
+
+    # Stage colors for conditional formatting
+    stage_colors = {
+        "nuevo": "64748B",
+        "contactado": "3B82F6",
+        "calificado": "06B6D4",
+        "propuesta": "A855F7",
+        "negociacion": "F59E0B",
+        "ganado": "10B981",
+        "perdido": "EF4444"
+    }
+
+    # Data rows
+    for row_num, lead in enumerate(leads, 2):
+        etapa_val = lead.get("etapa", "nuevo")
+        propietario_id = lead.get("propietario", "")
+        propietario_name = users_map.get(propietario_id, "") if propietario_id else ""
+        servicios = ", ".join(lead.get("servicios", []))
+        proximo_seg = lead.get("proximo_seguimiento", "")
+        if proximo_seg:
+            try:
+                fecha = datetime.fromisoformat(proximo_seg.replace("Z", "+00:00"))
+                proximo_seg = fecha.strftime("%Y-%m-%d")
+            except:
+                pass
+
+        row_data = [
+            lead.get("empresa", ""),
+            lead.get("contacto", ""),
+            lead.get("email", ""),
+            lead.get("telefono", ""),
+            lead.get("cargo", ""),
+            lead.get("sector", ""),
+            lead.get("valor_estimado", 0),
+            etapa_val.capitalize(),
+            propietario_name,
+            lead.get("urgencia", ""),
+            servicios,
+            lead.get("fuente", ""),
+            proximo_seg,
+            lead.get("notas", "")
+        ]
+
+        for col, value in enumerate(row_data, 1):
+            cell = ws.cell(row=row_num, column=col, value=value)
+            cell.border = thin_border
+            # Apply stage color to Etapa column
+            if col == 8:
+                color = stage_colors.get(etapa_val, "64748B")
+                cell.fill = PatternFill(start_color=color, end_color=color, fill_type="solid")
+                cell.font = Font(color="FFFFFF", bold=True)
+                cell.alignment = Alignment(horizontal="center")
+
+    # Auto-adjust column widths
+    for col in range(1, len(headers) + 1):
+        max_length = len(headers[col - 1])
+        for row in range(2, len(leads) + 2):
+            cell_value = str(ws.cell(row=row, column=col).value or "")
+            if len(cell_value) > max_length:
+                max_length = min(len(cell_value), 50)
+        ws.column_dimensions[get_column_letter(col)].width = max_length + 2
+
+    # Freeze header row
+    ws.freeze_panes = "A2"
+
+    # Add filters
+    ws.auto_filter.ref = f"A1:{get_column_letter(len(headers))}{len(leads) + 1}"
+
+    # Save to BytesIO
+    output = io.BytesIO()
+    wb.save(output)
     output.seek(0)
+
+    filename = f"leads_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
     return StreamingResponse(
         iter([output.getvalue()]),
-        media_type="text/csv",
-        headers={"Content-Disposition": "attachment; filename=leads_export.csv"}
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
     )
 
 @api_router.get("/leads/{lead_id}", response_model=Lead)
