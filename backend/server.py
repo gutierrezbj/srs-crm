@@ -1810,6 +1810,139 @@ async def reclasificar_oportunidades_endpoint(current_user: UserResponse = Depen
         )
 
 
+@api_router.post("/oportunidades/{oportunidad_id}/analizar-pain")
+async def analizar_pain_oportunidad_endpoint(
+    oportunidad_id: str,
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """
+    Analiza el pain/urgencia de una oportunidad usando IA.
+    Descarga el pliego técnico si está disponible y genera un pain score.
+    """
+    try:
+        from app.spotter.pain_analyzer import analizar_pain_oportunidad
+
+        # Obtener la oportunidad
+        oportunidad = await db.oportunidades_placsp.find_one(
+            {"oportunidad_id": oportunidad_id},
+            {"_id": 0}
+        )
+
+        if not oportunidad:
+            raise HTTPException(status_code=404, detail="Oportunidad no encontrada")
+
+        # Analizar pain
+        resultado = await analizar_pain_oportunidad(
+            oportunidad_id=oportunidad_id,
+            objeto=oportunidad.get("objeto", ""),
+            cpv=oportunidad.get("cpv", ""),
+            url_pliego=oportunidad.get("url_pliego_tecnico")
+        )
+
+        # Guardar análisis en la oportunidad
+        await db.oportunidades_placsp.update_one(
+            {"oportunidad_id": oportunidad_id},
+            {"$set": {
+                "pain_analysis": resultado,
+                "pain_score": resultado.get("pain_score", 0),
+                "nivel_urgencia": resultado.get("nivel_urgencia", "medio"),
+                "analisis_fecha": datetime.now(timezone.utc).isoformat()
+            }}
+        )
+
+        return {
+            "success": True,
+            "oportunidad_id": oportunidad_id,
+            "pain_analysis": resultado
+        }
+
+    except ImportError as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error importando módulo pain_analyzer: {str(e)}"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error analizando pain: {str(e)}"
+        )
+
+
+@api_router.post("/oportunidades/analizar-pain-batch")
+async def analizar_pain_batch(
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """
+    Analiza el pain de todas las oportunidades que no tienen análisis.
+    Limita a 10 oportunidades por batch para evitar timeouts.
+    """
+    try:
+        from app.spotter.pain_analyzer import analizar_pain_oportunidad
+
+        # Obtener oportunidades sin análisis de pain
+        oportunidades = await db.oportunidades_placsp.find(
+            {"pain_analysis": {"$exists": False}},
+            {"_id": 0, "oportunidad_id": 1, "objeto": 1, "cpv": 1, "url_pliego_tecnico": 1}
+        ).limit(10).to_list(10)
+
+        if not oportunidades:
+            return {
+                "success": True,
+                "message": "No hay oportunidades pendientes de análisis",
+                "analizadas": 0
+            }
+
+        analizadas = 0
+        errores = 0
+
+        for opp in oportunidades:
+            try:
+                resultado = await analizar_pain_oportunidad(
+                    oportunidad_id=opp["oportunidad_id"],
+                    objeto=opp.get("objeto", ""),
+                    cpv=opp.get("cpv", ""),
+                    url_pliego=opp.get("url_pliego_tecnico")
+                )
+
+                await db.oportunidades_placsp.update_one(
+                    {"oportunidad_id": opp["oportunidad_id"]},
+                    {"$set": {
+                        "pain_analysis": resultado,
+                        "pain_score": resultado.get("pain_score", 0),
+                        "nivel_urgencia": resultado.get("nivel_urgencia", "medio"),
+                        "analisis_fecha": datetime.now(timezone.utc).isoformat()
+                    }}
+                )
+                analizadas += 1
+
+            except Exception as e:
+                errores += 1
+                print(f"Error analizando {opp['oportunidad_id']}: {e}")
+
+        pendientes = await db.oportunidades_placsp.count_documents(
+            {"pain_analysis": {"$exists": False}}
+        )
+
+        return {
+            "success": True,
+            "message": f"Análisis completado",
+            "analizadas": analizadas,
+            "errores": errores,
+            "pendientes": pendientes
+        }
+
+    except ImportError as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error importando módulo pain_analyzer: {str(e)}"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error en análisis batch: {str(e)}"
+        )
+
+
 @api_router.post("/oportunidades/{oportunidad_id}/convertir-lead")
 async def convert_oportunidad_to_lead(
     oportunidad_id: str,

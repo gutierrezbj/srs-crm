@@ -16,8 +16,18 @@ import {
     TrendingUp,
     Play,
     RefreshCw,
-    Loader2
+    Loader2,
+    Brain,
+    AlertTriangle,
+    Zap,
+    Info
 } from "lucide-react";
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -67,6 +77,24 @@ const getScoreBadgeClass = (score) => {
     return "bg-gradient-to-r from-green-600 to-green-500 text-white shadow-green-500/30";
 };
 
+// Pain score color coding
+const getPainScoreColor = (painScore) => {
+    if (painScore >= 80) return "text-red-400 bg-red-500/20 border-red-500/30";
+    if (painScore >= 60) return "text-orange-400 bg-orange-500/20 border-orange-500/30";
+    if (painScore >= 40) return "text-yellow-400 bg-yellow-500/20 border-yellow-500/30";
+    return "text-green-400 bg-green-500/20 border-green-500/30";
+};
+
+const getNivelUrgenciaLabel = (nivel) => {
+    const labels = {
+        critico: { text: "Crítico", icon: AlertTriangle, color: "text-red-400" },
+        alto: { text: "Alto", icon: Zap, color: "text-orange-400" },
+        medio: { text: "Medio", icon: Clock, color: "text-yellow-400" },
+        bajo: { text: "Bajo", icon: CheckCircle2, color: "text-green-400" }
+    };
+    return labels[nivel] || labels.medio;
+};
+
 export default function Oportunidades({ user }) {
     const [oportunidades, setOportunidades] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -77,6 +105,8 @@ export default function Oportunidades({ user }) {
     const [converting, setConverting] = useState(false);
     const [executingSpotter, setExecutingSpotter] = useState(false);
     const [reclassifying, setReclassifying] = useState(false);
+    const [analyzingPain, setAnalyzingPain] = useState({});
+    const [analyzingBatch, setAnalyzingBatch] = useState(false);
 
     const fetchOportunidades = useCallback(async () => {
         try {
@@ -196,6 +226,54 @@ export default function Oportunidades({ user }) {
         }
     };
 
+    const handleAnalyzePain = async (oportunidadId) => {
+        setAnalyzingPain(prev => ({ ...prev, [oportunidadId]: true }));
+        try {
+            const response = await axios.post(
+                `${API}/oportunidades/${oportunidadId}/analizar-pain`,
+                {},
+                { withCredentials: true }
+            );
+
+            if (response.data.success) {
+                toast.success(`Análisis completado: Pain Score ${response.data.pain_analysis.pain_score}`);
+                fetchOportunidades();
+            } else {
+                toast.error("Error en análisis de pain");
+            }
+        } catch (error) {
+            toast.error(error.response?.data?.detail || "Error al analizar pain");
+            console.error("Error analyzing pain:", error);
+        } finally {
+            setAnalyzingPain(prev => ({ ...prev, [oportunidadId]: false }));
+        }
+    };
+
+    const handleAnalyzePainBatch = async () => {
+        setAnalyzingBatch(true);
+        try {
+            const response = await axios.post(
+                `${API}/oportunidades/analizar-pain-batch`,
+                {},
+                { withCredentials: true }
+            );
+
+            if (response.data.success) {
+                toast.success(
+                    `Análisis completado: ${response.data.analizadas} oportunidades. Pendientes: ${response.data.pendientes}`
+                );
+                fetchOportunidades();
+            } else {
+                toast.error(response.data.message || "Error en análisis batch");
+            }
+        } catch (error) {
+            toast.error(error.response?.data?.detail || "Error al analizar batch");
+            console.error("Error analyzing batch:", error);
+        } finally {
+            setAnalyzingBatch(false);
+        }
+    };
+
     const formatCurrency = (value) => {
         return new Intl.NumberFormat("es-ES", {
             style: "currency",
@@ -244,8 +322,28 @@ export default function Oportunidades({ user }) {
                 </div>
                 <div className="flex gap-2">
                     <Button
+                        onClick={handleAnalyzePainBatch}
+                        disabled={analyzingBatch || reclassifying || executingSpotter}
+                        variant="outline"
+                        className="theme-text-secondary hover:theme-text"
+                        style={{ borderColor: 'var(--theme-border)' }}
+                        title="Analizar pain de oportunidades pendientes con IA"
+                    >
+                        {analyzingBatch ? (
+                            <>
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                Analizando...
+                            </>
+                        ) : (
+                            <>
+                                <Brain className="w-4 h-4 mr-2" />
+                                Analizar Pain (IA)
+                            </>
+                        )}
+                    </Button>
+                    <Button
                         onClick={handleReclassify}
-                        disabled={reclassifying || executingSpotter}
+                        disabled={reclassifying || executingSpotter || analyzingBatch}
                         variant="outline"
                         className="theme-text-secondary hover:theme-text"
                         style={{ borderColor: 'var(--theme-border)' }}
@@ -265,7 +363,7 @@ export default function Oportunidades({ user }) {
                     </Button>
                     <Button
                         onClick={handleExecuteSpotter}
-                        disabled={executingSpotter || reclassifying}
+                        disabled={executingSpotter || reclassifying || analyzingBatch}
                         className="btn-gradient"
                         title="Ejecutar SpotterSRS para buscar nuevas oportunidades en PLACSP"
                     >
@@ -398,6 +496,12 @@ export default function Oportunidades({ user }) {
                                             <ArrowUpDown className="w-3 h-3" />
                                         </div>
                                     </TableHead>
+                                    <TableHead className="theme-text-secondary font-semibold">
+                                        <div className="flex items-center gap-1">
+                                            <Brain className="w-3 h-3" />
+                                            Pain
+                                        </div>
+                                    </TableHead>
                                     <TableHead className="theme-text-secondary font-semibold">Adjudicatario</TableHead>
                                     <TableHead className="theme-text-secondary font-semibold">Importe</TableHead>
                                     <TableHead className="theme-text-secondary font-semibold">Tipo SRS</TableHead>
@@ -420,6 +524,57 @@ export default function Oportunidades({ user }) {
                                             >
                                                 {oportunidad.score}
                                             </Badge>
+                                        </TableCell>
+                                        <TableCell>
+                                            <TooltipProvider>
+                                                {oportunidad.pain_score !== undefined ? (
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <div className="flex items-center gap-1">
+                                                                <Badge
+                                                                    variant="outline"
+                                                                    className={`${getPainScoreColor(oportunidad.pain_score)} font-bold cursor-help`}
+                                                                >
+                                                                    {oportunidad.pain_score}
+                                                                </Badge>
+                                                                {oportunidad.nivel_urgencia === "critico" && (
+                                                                    <AlertTriangle className="w-3 h-3 text-red-400" />
+                                                                )}
+                                                            </div>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent side="right" className="max-w-xs bg-slate-900 border-slate-700">
+                                                            <div className="space-y-2">
+                                                                <p className="font-semibold text-white">
+                                                                    Pain Score: {oportunidad.pain_score}
+                                                                </p>
+                                                                <p className="text-xs text-slate-300">
+                                                                    Nivel: {getNivelUrgenciaLabel(oportunidad.nivel_urgencia).text}
+                                                                </p>
+                                                                {oportunidad.pain_analysis?.resumen_ejecutivo && (
+                                                                    <p className="text-xs text-slate-400">
+                                                                        {oportunidad.pain_analysis.resumen_ejecutivo.substring(0, 150)}...
+                                                                    </p>
+                                                                )}
+                                                            </div>
+                                                        </TooltipContent>
+                                                    </Tooltip>
+                                                ) : (
+                                                    <Button
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        onClick={() => handleAnalyzePain(oportunidad.oportunidad_id)}
+                                                        disabled={analyzingPain[oportunidad.oportunidad_id]}
+                                                        className="text-slate-500 hover:text-cyan-400"
+                                                        title="Analizar con IA"
+                                                    >
+                                                        {analyzingPain[oportunidad.oportunidad_id] ? (
+                                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                                        ) : (
+                                                            <Brain className="w-4 h-4" />
+                                                        )}
+                                                    </Button>
+                                                )}
+                                            </TooltipProvider>
                                         </TableCell>
                                         <TableCell>
                                             <div className="max-w-[250px]">
