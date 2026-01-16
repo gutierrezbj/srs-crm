@@ -1,99 +1,76 @@
 #!/usr/bin/env python3
 """
-╔═══════════════════════════════════════════════════════════════════╗
-║                    PAIN ANALYZER - SpotterSRS                      ║
-║           Análisis profundo de pliegos con IA                      ║
-╠═══════════════════════════════════════════════════════════════════╣
-║  Descarga y analiza pliegos técnicos para:                         ║
-║    - Calcular pain score (0-100)                                   ║
-║    - Identificar señales de urgencia                               ║
-║    - Detectar requisitos de subcontratación                        ║
-║    - Extraer recursos humanos necesarios                           ║
-╚═══════════════════════════════════════════════════════════════════╝
+Pain Analyzer - SpotterSRS
+Análisis rápido de oportunidades con IA (sin PDFs para velocidad)
+Fallback: OpenAI -> Gemini -> Claude -> Básico
 """
 
 import os
 import re
 import json
-import aiohttp
 import asyncio
-from typing import Optional, Dict, List, Any
+from typing import Optional, Dict, List
 from dataclasses import dataclass, field, asdict
 from datetime import datetime
 from enum import Enum
 import logging
 
-# Configurar logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Intentar importar las librerías de IA
+# Detectar proveedores disponibles
+OPENAI_AVAILABLE = False
+GEMINI_AVAILABLE = False
+ANTHROPIC_AVAILABLE = False
+
+try:
+    from openai import OpenAI
+    OPENAI_AVAILABLE = True
+except ImportError:
+    logger.warning("openai no disponible")
+
 try:
     import google.generativeai as genai
     GEMINI_AVAILABLE = True
 except ImportError:
-    GEMINI_AVAILABLE = False
     logger.warning("google-generativeai no disponible")
 
 try:
     from anthropic import Anthropic
     ANTHROPIC_AVAILABLE = True
 except ImportError:
-    ANTHROPIC_AVAILABLE = False
     logger.warning("anthropic no disponible")
-
-try:
-    from bs4 import BeautifulSoup
-    BS4_AVAILABLE = True
-except ImportError:
-    BS4_AVAILABLE = False
-    logger.warning("beautifulsoup4 no disponible")
-
-try:
-    import pdfplumber
-    PDFPLUMBER_AVAILABLE = True
-except ImportError:
-    PDFPLUMBER_AVAILABLE = False
-    try:
-        import PyPDF2
-        PYPDF2_AVAILABLE = True
-    except ImportError:
-        PYPDF2_AVAILABLE = False
-        logger.warning("Ninguna librería PDF disponible (pdfplumber o PyPDF2)")
 
 
 class AIProvider(Enum):
-    """Proveedores de IA disponibles"""
+    OPENAI = "openai"
     GEMINI = "gemini"
     CLAUDE = "claude"
-    NONE = "none"
+    BASICO = "basico"
 
 
 @dataclass
 class PainSignal:
-    """Señal de dolor/urgencia detectada"""
-    tipo: str  # "urgencia", "complejidad", "recursos", "riesgo"
+    tipo: str
     descripcion: str
-    peso: int  # 1-10
-    extracto: Optional[str] = None  # Texto del pliego donde se detectó
+    peso: int
+    extracto: Optional[str] = None
 
 
 @dataclass
 class RecursoRequerido:
-    """Recurso humano o técnico requerido"""
     perfil: str
     cantidad: int
-    dedicacion: str  # "tiempo_completo", "parcial", "puntual"
+    dedicacion: str
     certificaciones: List[str] = field(default_factory=list)
     experiencia_minima: Optional[str] = None
 
 
 @dataclass
 class AnalisisPain:
-    """Resultado del análisis de pain"""
     oportunidad_id: str
-    pain_score: int  # 0-100
-    nivel_urgencia: str  # "critico", "alto", "medio", "bajo"
+    pain_score: int
+    nivel_urgencia: str
     senales_dolor: List[PainSignal] = field(default_factory=list)
     recursos_requeridos: List[RecursoRequerido] = field(default_factory=list)
     resumen_ejecutivo: str = ""
@@ -101,205 +78,171 @@ class AnalisisPain:
     riesgos_detectados: List[str] = field(default_factory=list)
     keywords_clave: List[str] = field(default_factory=list)
     fecha_analisis: str = field(default_factory=lambda: datetime.now().isoformat())
-    proveedor_ia: str = "none"
+    proveedor_ia: str = "basico"
     pliego_analizado: bool = False
     error: Optional[str] = None
 
     def to_dict(self) -> Dict:
-        """Convierte a diccionario para MongoDB"""
         result = asdict(self)
-        # Convertir señales y recursos a diccionarios
         result["senales_dolor"] = [asdict(s) for s in self.senales_dolor]
         result["recursos_requeridos"] = [asdict(r) for r in self.recursos_requeridos]
         return result
 
 
 class PainAnalyzer:
-    """Analizador de pain en pliegos usando IA"""
+    """Analizador de pain con multi-IA y fallback"""
+
+    # CPVs de alto valor para SRS (IT/Infraestructura)
+    CPV_ALTO_VALOR = {
+        "72": 25,  # Servicios IT
+        "48": 20,  # Software
+        "32": 20,  # Telecomunicaciones
+        "50": 15,  # Mantenimiento
+        "79": 10,  # Servicios empresariales
+    }
+
+    # Keywords que indican alta complejidad/oportunidad
+    KEYWORDS_ALTO_PAIN = {
+        "24x7": 15, "24/7": 15, "7x24": 15,
+        "certificación": 10, "certificacion": 10,
+        "ens": 12, "iso 27001": 12, "iso27001": 12,
+        "cpd": 15, "centro de datos": 15, "datacenter": 15,
+        "infraestructura": 12, "sistemas": 8,
+        "soporte": 10, "helpdesk": 12, "service desk": 12,
+        "penalización": 10, "penalizacion": 10, "sla": 12,
+        "urgente": 15, "inmediato": 12,
+        "multisede": 12, "nacional": 10,
+        "técnico": 8, "tecnico": 8,
+        "microinformática": 10, "microinformatica": 10,
+        "redes": 10, "comunicaciones": 10,
+        "ciberseguridad": 15, "seguridad": 8,
+        "cloud": 10, "nube": 10,
+        "virtualización": 10, "virtualizacion": 10,
+    }
 
     def __init__(self):
-        self.provider = self._detect_provider()
-        self._setup_provider()
+        self.providers = self._init_providers()
+        logger.info(f"Proveedores IA disponibles: {[p.value for p in self.providers]}")
 
-    def _detect_provider(self) -> AIProvider:
-        """Detecta qué proveedor de IA está disponible"""
-        # Preferir Gemini por coste
+    def _init_providers(self) -> List[AIProvider]:
+        """Inicializa proveedores en orden de preferencia"""
+        providers = []
+
+        # OpenAI primero (más rápido)
+        if OPENAI_AVAILABLE and os.getenv("OPENAI_API_KEY"):
+            self.openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+            providers.append(AIProvider.OPENAI)
+            logger.info("OpenAI configurado")
+
+        # Gemini segundo
         if GEMINI_AVAILABLE and os.getenv("GOOGLE_API_KEY"):
-            return AIProvider.GEMINI
-        elif ANTHROPIC_AVAILABLE and os.getenv("ANTHROPIC_API_KEY"):
-            return AIProvider.CLAUDE
-        return AIProvider.NONE
-
-    def _setup_provider(self):
-        """Configura el proveedor de IA"""
-        if self.provider == AIProvider.GEMINI:
             genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
-            self.model = genai.GenerativeModel("gemini-1.5-flash")
-            logger.info("Usando Gemini Flash para análisis")
-        elif self.provider == AIProvider.CLAUDE:
-            self.client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
-            logger.info("Usando Claude para análisis")
-        else:
-            logger.warning("Sin proveedor de IA configurado - análisis básico")
+            self.gemini_model = genai.GenerativeModel("gemini-1.5-flash")
+            providers.append(AIProvider.GEMINI)
+            logger.info("Gemini configurado")
 
-    async def descargar_pliego(self, url: str) -> Optional[str]:
-        """Descarga y extrae texto de un pliego (PDF o HTML)"""
+        # Claude tercero
+        if ANTHROPIC_AVAILABLE and os.getenv("ANTHROPIC_API_KEY"):
+            self.claude_client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+            providers.append(AIProvider.CLAUDE)
+            logger.info("Claude configurado")
+
+        # Siempre tener básico como fallback
+        providers.append(AIProvider.BASICO)
+        return providers
+
+    def _generar_prompt(self, objeto: str, cpv: str, importe: float = 0) -> str:
+        """Prompt corto y directo para respuesta rápida"""
+        return f"""Analiza esta licitación y devuelve JSON con pain_score (0-100).
+
+LICITACIÓN:
+- Objeto: {objeto[:800]}
+- CPV: {cpv}
+- Importe: {importe:,.0f}€
+
+CRITERIOS PAIN SCORE:
++20: CPD/Infraestructura/Sistemas críticos
++15: 24x7/Urgente/Penalizaciones SLA
++12: ENS/ISO27001/Certificaciones
++10: Multisede/Nacional/Soporte IT
++8: Telecomunicaciones/Redes
+
+RESPONDE SOLO JSON:
+{{"pain_score":N,"nivel_urgencia":"critico|alto|medio|bajo","resumen_ejecutivo":"1 frase","senales_dolor":[{{"tipo":"urgencia|complejidad|recursos","descripcion":"breve","peso":1-10}}],"keywords_clave":["kw1","kw2"]}}"""
+
+    async def _analizar_openai(self, objeto: str, cpv: str, importe: float) -> Optional[Dict]:
+        """Análisis con OpenAI GPT-3.5-turbo (muy rápido)"""
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url, timeout=aiohttp.ClientTimeout(total=60)) as response:
-                    if response.status != 200:
-                        logger.error(f"Error descargando pliego: {response.status}")
-                        return None
+            prompt = self._generar_prompt(objeto, cpv, importe)
 
-                    content_type = response.headers.get("Content-Type", "")
-                    content = await response.read()
-
-                    if "pdf" in content_type.lower() or url.lower().endswith(".pdf"):
-                        return self._extraer_texto_pdf(content)
-                    elif "html" in content_type.lower():
-                        return self._extraer_texto_html(content)
-                    else:
-                        # Intentar como texto plano
-                        return content.decode("utf-8", errors="ignore")
-
-        except Exception as e:
-            logger.error(f"Error descargando pliego {url}: {e}")
-            return None
-
-    def _extraer_texto_pdf(self, content: bytes) -> Optional[str]:
-        """Extrae texto de un PDF"""
-        import io
-
-        if PDFPLUMBER_AVAILABLE:
-            try:
-                with pdfplumber.open(io.BytesIO(content)) as pdf:
-                    texto = ""
-                    for page in pdf.pages[:50]:  # Limitar a 50 páginas
-                        texto += page.extract_text() or ""
-                    return texto[:100000]  # Limitar a 100k caracteres
-            except Exception as e:
-                logger.error(f"Error con pdfplumber: {e}")
-
-        if PYPDF2_AVAILABLE:
-            try:
-                import PyPDF2
-                reader = PyPDF2.PdfReader(io.BytesIO(content))
-                texto = ""
-                for page in reader.pages[:50]:
-                    texto += page.extract_text() or ""
-                return texto[:100000]
-            except Exception as e:
-                logger.error(f"Error con PyPDF2: {e}")
-
-        return None
-
-    def _extraer_texto_html(self, content: bytes) -> Optional[str]:
-        """Extrae texto de HTML"""
-        if not BS4_AVAILABLE:
-            # Fallback básico
-            text = content.decode("utf-8", errors="ignore")
-            text = re.sub(r"<[^>]+>", " ", text)
-            return text[:100000]
-
-        try:
-            soup = BeautifulSoup(content, "html.parser")
-            # Eliminar scripts y estilos
-            for script in soup(["script", "style"]):
-                script.decompose()
-            return soup.get_text(separator=" ", strip=True)[:100000]
-        except Exception as e:
-            logger.error(f"Error parseando HTML: {e}")
-            return None
-
-    def _generar_prompt_analisis(self, texto_pliego: str, objeto: str, cpv: str) -> str:
-        """Genera el prompt para análisis de IA"""
-        return f"""Analiza este pliego de contratación pública española y genera un JSON con el análisis de "pain" (dolor/urgencia del adjudicatario).
-
-CONTEXTO:
-- Objeto del contrato: {objeto}
-- Código CPV: {cpv}
-- Somos SRS (System Rapid Solutions), empresa de servicios IT que ofrece subcontratación a empresas que ganan licitaciones.
-
-TEXTO DEL PLIEGO (extracto):
-{texto_pliego[:30000]}
-
-GENERA UN JSON con esta estructura exacta:
-{{
-    "pain_score": <número 0-100, donde 100 = máxima urgencia/complejidad>,
-    "nivel_urgencia": "<critico|alto|medio|bajo>",
-    "resumen_ejecutivo": "<resumen de 2-3 frases del proyecto y por qué necesitan subcontratación>",
-    "senales_dolor": [
-        {{
-            "tipo": "<urgencia|complejidad|recursos|riesgo>",
-            "descripcion": "<descripción de la señal>",
-            "peso": <1-10>,
-            "extracto": "<texto literal del pliego que evidencia esto>"
-        }}
-    ],
-    "recursos_requeridos": [
-        {{
-            "perfil": "<nombre del perfil técnico>",
-            "cantidad": <número>,
-            "dedicacion": "<tiempo_completo|parcial|puntual>",
-            "certificaciones": ["<cert1>", "<cert2>"],
-            "experiencia_minima": "<X años en Y>"
-        }}
-    ],
-    "oportunidades_subcontratacion": [
-        "<área donde SRS puede aportar valor>"
-    ],
-    "riesgos_detectados": [
-        "<riesgo para el adjudicatario>"
-    ],
-    "keywords_clave": ["<keyword1>", "<keyword2>"]
-}}
-
-CRITERIOS PARA PAIN SCORE:
-- +20: Plazo de ejecución < 3 meses
-- +15: Requiere certificaciones específicas (ENS, ISO27001, fabricantes)
-- +15: Menciona penalizaciones por incumplimiento
-- +10: Multisede o dispersión geográfica
-- +10: Tecnologías específicas complejas
-- +10: Horarios especiales (24x7, festivos)
-- +10: Volumen alto de recursos humanos
-- +5: Urgencia explícita en el texto
-
-Responde SOLO con el JSON, sin explicaciones adicionales."""
-
-    async def _analizar_con_gemini(self, texto_pliego: str, objeto: str, cpv: str) -> Optional[Dict]:
-        """Analiza usando Gemini"""
-        try:
-            prompt = self._generar_prompt_analisis(texto_pliego, objeto, cpv)
-            response = await asyncio.to_thread(
-                self.model.generate_content,
-                prompt,
-                generation_config=genai.GenerationConfig(
+            response = await asyncio.wait_for(
+                asyncio.to_thread(
+                    self.openai_client.chat.completions.create,
+                    model="gpt-3.5-turbo",
+                    messages=[{"role": "user", "content": prompt}],
+                    max_tokens=500,
                     temperature=0.3,
-                    max_output_tokens=4096,
-                )
+                    timeout=15
+                ),
+                timeout=20
             )
 
-            # Extraer JSON de la respuesta
-            text = response.text
-            # Buscar JSON en la respuesta
+            text = response.choices[0].message.content
             json_match = re.search(r"\{[\s\S]*\}", text)
             if json_match:
                 return json.loads(json_match.group())
             return None
 
+        except asyncio.TimeoutError:
+            logger.error("Timeout OpenAI (20s)")
+            return None
         except Exception as e:
-            logger.error(f"Error con Gemini: {e}")
+            logger.error(f"Error OpenAI: {e}")
             return None
 
-    async def _analizar_con_claude(self, texto_pliego: str, objeto: str, cpv: str) -> Optional[Dict]:
-        """Analiza usando Claude"""
+    async def _analizar_gemini(self, objeto: str, cpv: str, importe: float) -> Optional[Dict]:
+        """Análisis con Gemini Flash"""
         try:
-            prompt = self._generar_prompt_analisis(texto_pliego, objeto, cpv)
-            response = await asyncio.to_thread(
-                self.client.messages.create,
-                model="claude-3-haiku-20240307",  # Usar Haiku por coste
-                max_tokens=4096,
-                messages=[{"role": "user", "content": prompt}]
+            prompt = self._generar_prompt(objeto, cpv, importe)
+
+            response = await asyncio.wait_for(
+                asyncio.to_thread(
+                    self.gemini_model.generate_content,
+                    prompt,
+                    generation_config=genai.GenerationConfig(
+                        temperature=0.3,
+                        max_output_tokens=500,
+                    )
+                ),
+                timeout=30
+            )
+
+            text = response.text
+            json_match = re.search(r"\{[\s\S]*\}", text)
+            if json_match:
+                return json.loads(json_match.group())
+            return None
+
+        except asyncio.TimeoutError:
+            logger.error("Timeout Gemini (30s)")
+            return None
+        except Exception as e:
+            logger.error(f"Error Gemini: {e}")
+            return None
+
+    async def _analizar_claude(self, objeto: str, cpv: str, importe: float) -> Optional[Dict]:
+        """Análisis con Claude Haiku"""
+        try:
+            prompt = self._generar_prompt(objeto, cpv, importe)
+
+            response = await asyncio.wait_for(
+                asyncio.to_thread(
+                    self.claude_client.messages.create,
+                    model="claude-3-haiku-20240307",
+                    max_tokens=500,
+                    messages=[{"role": "user", "content": prompt}]
+                ),
+                timeout=30
             )
 
             text = response.content[0].text
@@ -308,83 +251,74 @@ Responde SOLO con el JSON, sin explicaciones adicionales."""
                 return json.loads(json_match.group())
             return None
 
+        except asyncio.TimeoutError:
+            logger.error("Timeout Claude (30s)")
+            return None
         except Exception as e:
-            logger.error(f"Error con Claude: {e}")
+            logger.error(f"Error Claude: {e}")
             return None
 
-    def _analisis_basico(self, texto_pliego: str, objeto: str) -> Dict:
-        """Análisis básico sin IA basado en keywords"""
-        pain_score = 30  # Base
+    def _analisis_basico(self, objeto: str, cpv: str, importe: float = 0) -> Dict:
+        """Análisis rápido basado en keywords (sin IA)"""
+        pain_score = 25  # Base
         senales = []
-        texto_lower = texto_pliego.lower() if texto_pliego else objeto.lower()
+        keywords_encontradas = []
+        texto = objeto.lower()
 
-        # Detectar urgencia
-        urgencia_keywords = ["urgente", "inmediato", "improrrogable", "perentorio", "máxima prioridad"]
-        for kw in urgencia_keywords:
-            if kw in texto_lower:
-                pain_score += 15
-                senales.append({
-                    "tipo": "urgencia",
-                    "descripcion": f"Detectada palabra de urgencia: {kw}",
-                    "peso": 8
-                })
-                break
-
-        # Detectar penalizaciones
-        if "penaliza" in texto_lower or "penalidad" in texto_lower:
-            pain_score += 10
+        # Scoring por CPV
+        cpv_prefix = cpv[:2] if cpv else ""
+        if cpv_prefix in self.CPV_ALTO_VALOR:
+            bonus = self.CPV_ALTO_VALOR[cpv_prefix]
+            pain_score += bonus
             senales.append({
-                "tipo": "riesgo",
-                "descripcion": "Menciona penalizaciones por incumplimiento",
+                "tipo": "complejidad",
+                "descripcion": f"CPV {cpv_prefix}* indica servicios IT/Infraestructura",
                 "peso": 7
             })
 
-        # Detectar certificaciones
-        certs = ["iso 27001", "ens", "itil", "pmp", "cisco", "microsoft", "vmware"]
-        for cert in certs:
-            if cert in texto_lower:
-                pain_score += 5
-                senales.append({
-                    "tipo": "complejidad",
-                    "descripcion": f"Requiere certificación: {cert.upper()}",
-                    "peso": 6
-                })
+        # Scoring por keywords
+        for kw, puntos in self.KEYWORDS_ALTO_PAIN.items():
+            if kw in texto:
+                pain_score += puntos
+                keywords_encontradas.append(kw)
+                if len(senales) < 5:  # Limitar señales
+                    senales.append({
+                        "tipo": "complejidad" if puntos >= 12 else "recursos",
+                        "descripcion": f"Detectado: {kw}",
+                        "peso": min(10, puntos)
+                    })
 
-        # Detectar 24x7
-        if "24x7" in texto_lower or "24 horas" in texto_lower or "7x24" in texto_lower:
+        # Bonus por importe alto (>500k)
+        if importe > 500000:
             pain_score += 10
             senales.append({
                 "tipo": "recursos",
-                "descripcion": "Requiere cobertura 24x7",
+                "descripcion": f"Contrato de alto valor ({importe:,.0f}€)",
                 "peso": 8
             })
 
-        # Detectar multisede
-        if "multisede" in texto_lower or "múltiples sedes" in texto_lower or "dispersión geográfica" in texto_lower:
-            pain_score += 10
-            senales.append({
-                "tipo": "complejidad",
-                "descripcion": "Proyecto multisede / dispersión geográfica",
-                "peso": 7
-            })
+        # Normalizar score
+        pain_score = min(100, max(0, pain_score))
 
-        nivel = "bajo"
-        if pain_score >= 80:
+        # Determinar nivel
+        if pain_score >= 75:
             nivel = "critico"
-        elif pain_score >= 60:
+        elif pain_score >= 55:
             nivel = "alto"
-        elif pain_score >= 40:
+        elif pain_score >= 35:
             nivel = "medio"
+        else:
+            nivel = "bajo"
 
         return {
-            "pain_score": min(100, pain_score),
+            "pain_score": pain_score,
             "nivel_urgencia": nivel,
-            "resumen_ejecutivo": f"Análisis básico del contrato: {objeto[:200]}",
+            "resumen_ejecutivo": f"Análisis de: {objeto[:150]}...",
             "senales_dolor": senales,
             "recursos_requeridos": [],
             "oportunidades_subcontratacion": [],
             "riesgos_detectados": [],
-            "keywords_clave": []
+            "keywords_clave": keywords_encontradas[:10]
         }
 
     async def analizar_oportunidad(
@@ -392,55 +326,53 @@ Responde SOLO con el JSON, sin explicaciones adicionales."""
         oportunidad_id: str,
         objeto: str,
         cpv: str = "",
-        url_pliego: Optional[str] = None
+        importe: float = 0,
+        url_pliego: Optional[str] = None  # Ignorado para velocidad
     ) -> AnalisisPain:
         """
-        Analiza una oportunidad y calcula su pain score.
-
-        Args:
-            oportunidad_id: ID único de la oportunidad
-            objeto: Descripción del objeto del contrato
-            cpv: Código CPV
-            url_pliego: URL del pliego técnico (opcional)
-
-        Returns:
-            AnalisisPain con el resultado del análisis
+        Analiza oportunidad con fallback multi-IA.
+        NO descarga PDFs para garantizar respuesta <5s.
         """
-        texto_pliego = None
-        pliego_analizado = False
-
-        # Intentar descargar pliego si hay URL
-        if url_pliego:
-            logger.info(f"Descargando pliego: {url_pliego}")
-            texto_pliego = await self.descargar_pliego(url_pliego)
-            if texto_pliego:
-                pliego_analizado = True
-                logger.info(f"Pliego descargado: {len(texto_pliego)} caracteres")
-
-        # Si no hay pliego, usar el objeto como texto
-        texto_para_analisis = texto_pliego or objeto
-
-        # Analizar según proveedor disponible
         resultado = None
-        proveedor_usado = "none"
+        proveedor_usado = "basico"
 
-        if self.provider == AIProvider.GEMINI and texto_para_analisis:
-            resultado = await self._analizar_con_gemini(texto_para_analisis, objeto, cpv)
-            proveedor_usado = "gemini"
-        elif self.provider == AIProvider.CLAUDE and texto_para_analisis:
-            resultado = await self._analizar_con_claude(texto_para_analisis, objeto, cpv)
-            proveedor_usado = "claude"
+        # Intentar cada proveedor en orden
+        for provider in self.providers:
+            if provider == AIProvider.OPENAI:
+                logger.info(f"Intentando OpenAI para {oportunidad_id}")
+                resultado = await self._analizar_openai(objeto, cpv, importe)
+                if resultado:
+                    proveedor_usado = "openai"
+                    break
 
-        # Fallback a análisis básico
-        if not resultado:
-            resultado = self._analisis_basico(texto_para_analisis, objeto)
-            proveedor_usado = "basico"
+            elif provider == AIProvider.GEMINI:
+                logger.info(f"Intentando Gemini para {oportunidad_id}")
+                resultado = await self._analizar_gemini(objeto, cpv, importe)
+                if resultado:
+                    proveedor_usado = "gemini"
+                    break
+
+            elif provider == AIProvider.CLAUDE:
+                logger.info(f"Intentando Claude para {oportunidad_id}")
+                resultado = await self._analizar_claude(objeto, cpv, importe)
+                if resultado:
+                    proveedor_usado = "claude"
+                    break
+
+            elif provider == AIProvider.BASICO:
+                logger.info(f"Usando análisis básico para {oportunidad_id}")
+                resultado = self._analisis_basico(objeto, cpv, importe)
+                proveedor_usado = "basico"
 
         # Construir respuesta
+        if not resultado:
+            resultado = self._analisis_basico(objeto, cpv, importe)
+            proveedor_usado = "basico"
+
         try:
             senales = [
                 PainSignal(
-                    tipo=s.get("tipo", ""),
+                    tipo=s.get("tipo", "complejidad"),
                     descripcion=s.get("descripcion", ""),
                     peso=s.get("peso", 5),
                     extracto=s.get("extracto")
@@ -470,25 +402,25 @@ Responde SOLO con el JSON, sin explicaciones adicionales."""
                 riesgos_detectados=resultado.get("riesgos_detectados", []),
                 keywords_clave=resultado.get("keywords_clave", []),
                 proveedor_ia=proveedor_usado,
-                pliego_analizado=pliego_analizado
+                pliego_analizado=False
             )
 
         except Exception as e:
-            logger.error(f"Error construyendo AnalisisPain: {e}")
+            logger.error(f"Error construyendo resultado: {e}")
             return AnalisisPain(
                 oportunidad_id=oportunidad_id,
                 pain_score=30,
                 nivel_urgencia="medio",
+                proveedor_ia="error",
                 error=str(e)
             )
 
 
-# Singleton para reutilizar
+# Singleton
 _analyzer_instance: Optional[PainAnalyzer] = None
 
 
 def get_pain_analyzer() -> PainAnalyzer:
-    """Obtiene instancia singleton del analizador"""
     global _analyzer_instance
     if _analyzer_instance is None:
         _analyzer_instance = PainAnalyzer()
@@ -499,31 +431,28 @@ async def analizar_pain_oportunidad(
     oportunidad_id: str,
     objeto: str,
     cpv: str = "",
+    importe: float = 0,
     url_pliego: Optional[str] = None
 ) -> Dict:
-    """
-    Función de conveniencia para analizar una oportunidad.
-
-    Returns:
-        Diccionario con el análisis de pain listo para MongoDB
-    """
+    """Función principal para analizar una oportunidad"""
     analyzer = get_pain_analyzer()
     resultado = await analyzer.analizar_oportunidad(
         oportunidad_id=oportunidad_id,
         objeto=objeto,
         cpv=cpv,
+        importe=importe,
         url_pliego=url_pliego
     )
     return resultado.to_dict()
 
 
-# Para testing
 if __name__ == "__main__":
     async def test():
         resultado = await analizar_pain_oportunidad(
             oportunidad_id="TEST-001",
-            objeto="Servicio de soporte técnico informático 24x7 con certificación ISO 27001 para multisede urgente",
-            cpv="72000000"
+            objeto="Servicio de soporte técnico informático 24x7 con certificación ISO 27001 para CPD multisede nacional urgente",
+            cpv="72000000",
+            importe=850000
         )
         print(json.dumps(resultado, indent=2, ensure_ascii=False))
 

@@ -1816,13 +1816,14 @@ async def analizar_pain_oportunidad_endpoint(
     current_user: UserResponse = Depends(get_current_user)
 ):
     """
-    Analiza el pain/urgencia de una oportunidad usando IA.
-    Descarga el pliego técnico si está disponible y genera un pain score.
+    Analiza el pain/urgencia de una oportunidad usando IA multi-proveedor.
+    Orden: OpenAI -> Gemini -> Claude -> Básico
+    Respuesta esperada: <5 segundos
     """
     try:
         from app.spotter.pain_analyzer import analizar_pain_oportunidad
 
-        # Obtener la oportunidad
+        # Obtener la oportunidad con importe
         oportunidad = await db.oportunidades_placsp.find_one(
             {"oportunidad_id": oportunidad_id},
             {"_id": 0}
@@ -1831,12 +1832,12 @@ async def analizar_pain_oportunidad_endpoint(
         if not oportunidad:
             raise HTTPException(status_code=404, detail="Oportunidad no encontrada")
 
-        # Analizar pain
+        # Analizar pain (sin PDFs para velocidad)
         resultado = await analizar_pain_oportunidad(
             oportunidad_id=oportunidad_id,
             objeto=oportunidad.get("objeto", ""),
             cpv=oportunidad.get("cpv", ""),
-            url_pliego=oportunidad.get("url_pliego_tecnico")
+            importe=float(oportunidad.get("importe", 0) or 0)
         )
 
         # Guardar análisis en la oportunidad
@@ -1873,8 +1874,8 @@ async def analizar_pain_batch(
     current_user: UserResponse = Depends(get_current_user)
 ):
     """
-    Analiza el pain de todas las oportunidades que no tienen análisis.
-    Limita a 10 oportunidades por batch para evitar timeouts.
+    Analiza el pain de oportunidades sin análisis.
+    Procesa 10 oportunidades por batch (rápido sin PDFs).
     """
     try:
         from app.spotter.pain_analyzer import analizar_pain_oportunidad
@@ -1882,7 +1883,7 @@ async def analizar_pain_batch(
         # Obtener oportunidades sin análisis de pain
         oportunidades = await db.oportunidades_placsp.find(
             {"pain_analysis": {"$exists": False}},
-            {"_id": 0, "oportunidad_id": 1, "objeto": 1, "cpv": 1, "url_pliego_tecnico": 1}
+            {"_id": 0, "oportunidad_id": 1, "objeto": 1, "cpv": 1, "importe": 1}
         ).limit(10).to_list(10)
 
         if not oportunidades:
@@ -1894,18 +1895,21 @@ async def analizar_pain_batch(
 
         analizadas = 0
         errores = 0
+        detalles = []
 
         for opp in oportunidades:
+            opp_id = opp["oportunidad_id"]
             try:
+                # Análisis rápido (sin PDFs, <5s por oportunidad)
                 resultado = await analizar_pain_oportunidad(
-                    oportunidad_id=opp["oportunidad_id"],
+                    oportunidad_id=opp_id,
                     objeto=opp.get("objeto", ""),
                     cpv=opp.get("cpv", ""),
-                    url_pliego=opp.get("url_pliego_tecnico")
+                    importe=float(opp.get("importe", 0) or 0)
                 )
 
                 await db.oportunidades_placsp.update_one(
-                    {"oportunidad_id": opp["oportunidad_id"]},
+                    {"oportunidad_id": opp_id},
                     {"$set": {
                         "pain_analysis": resultado,
                         "pain_score": resultado.get("pain_score", 0),
@@ -1914,10 +1918,17 @@ async def analizar_pain_batch(
                     }}
                 )
                 analizadas += 1
+                detalles.append({
+                    "id": opp_id,
+                    "status": "ok",
+                    "score": resultado.get("pain_score", 0),
+                    "proveedor": resultado.get("proveedor_ia", "unknown")
+                })
 
             except Exception as e:
                 errores += 1
-                print(f"Error analizando {opp['oportunidad_id']}: {e}")
+                detalles.append({"id": opp_id, "status": "error", "error": str(e)[:100]})
+                print(f"Error analizando {opp_id}: {e}")
 
         pendientes = await db.oportunidades_placsp.count_documents(
             {"pain_analysis": {"$exists": False}}
@@ -1928,7 +1939,8 @@ async def analizar_pain_batch(
             "message": f"Análisis completado",
             "analizadas": analizadas,
             "errores": errores,
-            "pendientes": pendientes
+            "pendientes": pendientes,
+            "detalles": detalles
         }
 
     except ImportError as e:
