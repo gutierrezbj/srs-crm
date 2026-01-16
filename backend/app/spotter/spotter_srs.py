@@ -57,6 +57,7 @@ class TipoOportunidad(Enum):
     CIBERSEGURIDAD_ENS = "🛡️ Ciberseguridad / ENS"             # Pilar 3
     COMUNICACIONES_UC = "📞 Comunicaciones Unificadas"         # Pilar 4
     HEALTHCARE_IT = "🏥 Healthcare IT (RIS/PACS)"              # Pilar 5
+    FOTOVOLTAICA_ENERGIA = "☀️ Fotovoltaica / Energía"         # Pilar 6
     # Diferenciales
     SOPORTE_INTERNACIONAL = "🌍 Soporte Internacional"         # Diferencial único
     # Genéricos
@@ -570,6 +571,77 @@ KEYWORDS_INTERNACIONAL = {
     "portugues": 7,
 }
 
+# ═══════════════════════════════════════════════════════════════
+# PILAR 6: FOTOVOLTAICA / ENERGÍA
+# ═══════════════════════════════════════════════════════════════
+KEYWORDS_FOTOVOLTAICA = {
+    # Instalaciones solares
+    "fotovoltaica": 10,
+    "fotovoltaico": 10,
+    "solar": 8,
+    "paneles solares": 10,
+    "placas solares": 10,
+    "módulos fotovoltaicos": 10,
+    "modulos fotovoltaicos": 10,
+    "autoconsumo": 10,
+    "autoconsumo solar": 10,
+    "autoconsumo fotovoltaico": 10,
+
+    # Componentes
+    "inversor solar": 9,
+    "inversores": 7,
+    "string inverter": 9,
+    "microinversor": 9,
+    "optimizador": 7,
+    "monitorización solar": 9,
+    "monitorizacion solar": 9,
+
+    # Potencia
+    "kwp": 8,
+    "mwp": 9,
+    "kilovatios pico": 8,
+    "megavatios pico": 9,
+
+    # Tipos de instalación
+    "cubierta solar": 10,
+    "marquesina fotovoltaica": 10,
+    "pérgola fotovoltaica": 10,
+    "pergola fotovoltaica": 10,
+    "parking solar": 10,
+    "huerto solar": 8,
+    "planta fotovoltaica": 9,
+
+    # Almacenamiento
+    "baterías": 7,
+    "baterias": 7,
+    "almacenamiento energético": 9,
+    "almacenamiento energetico": 9,
+    "sistema de almacenamiento": 8,
+
+    # Eficiencia energética relacionada
+    "eficiencia energética": 7,
+    "eficiencia energetica": 7,
+    "certificación energética": 6,
+    "certificacion energetica": 6,
+    "ahorro energético": 7,
+    "ahorro energetico": 7,
+}
+
+# CPVs de energía solar/fotovoltaica
+CPVS_FOTOVOLTAICA = {
+    "09331200": "Módulos solares fotovoltaicos",
+    "09332000": "Instalación solar",
+    "45261215": "Trabajos de instalación de paneles solares",
+    "45311000": "Instalación de cableado y accesorios eléctricos",  # Cuando incluye solar
+    "45251100": "Construcción de centrales eléctricas",
+    "31712331": "Células fotovoltaicas",
+    "31712332": "Paneles fotovoltaicos",
+    "09331000": "Paneles solares",
+    "09330000": "Energía solar",
+    "71314000": "Energía y servicios conexos",
+    "45251160": "Instalación de energía solar",
+}
+
 # Indicadores de plazos cortos (DOLOR ALTO)
 KEYWORDS_URGENCIA = [
     "urgente", "urgencia", "inmediato", "inmediata",
@@ -577,6 +649,26 @@ KEYWORDS_URGENCIA = [
     "penalización", "penalizacion", "penalidad",
     "ejecución rápida", "ejecucion rapida",
 ]
+
+# ═══════════════════════════════════════════════════════════════
+# KEYWORDS QUE DEBEN MATCHEAR COMO PALABRAS COMPLETAS
+# (evitar falsos positivos como "potencia" → "ens")
+# ═══════════════════════════════════════════════════════════════
+KEYWORDS_PALABRA_COMPLETA = {
+    "ens",      # Esquema Nacional de Seguridad, no "pot-ens-ia"
+    "soc",      # Security Operations Center, no "a-soc-iación"
+    "ris",      # Radiology Information System, no "tu-ris-mo"
+    "cpd",      # Centro de Proceso de Datos
+    "lan",      # Local Area Network, no "p-lan"
+    "msp",      # Managed Service Provider
+    "gcp",      # Google Cloud Platform
+    "aws",      # Amazon Web Services
+    "erp",      # Enterprise Resource Planning
+    "crm",      # Customer Relationship Management
+    "sap",      # SAP software
+    "app",      # Aplicación
+    "web",      # Web
+}
 
 
 # ============================================================================
@@ -733,67 +825,104 @@ def calcular_dolor(
     
     # 4. Determinar tipo de oportunidad (priorizado para pilares SRS)
     cpv_base = cpv[:5] if cpv else ""
+    cpv_8 = cpv[:8] if cpv else ""
     keywords_lower = {k.lower(): v for k, v in keywords.items()}
-    
+
+    # ═══════════════════════════════════════════════════════════════
+    # FUNCIÓN HELPER PARA DETECTAR KEYWORDS CON VALIDACIÓN
+    # ═══════════════════════════════════════════════════════════════
+    def tiene_keyword(texto: str, lista_keywords: list) -> bool:
+        """
+        Detecta si alguna keyword de la lista está en el texto.
+        Para keywords cortas (en KEYWORDS_PALABRA_COMPLETA), valida palabra completa.
+        """
+        import re
+        for kw in lista_keywords:
+            kw_lower = kw.lower()
+            if kw_lower in KEYWORDS_PALABRA_COMPLETA:
+                # Validar como palabra completa
+                pattern = r'\b' + re.escape(kw_lower) + r'\b'
+                if re.search(pattern, texto, re.IGNORECASE):
+                    return True
+            else:
+                # Búsqueda normal por subcadena
+                if kw_lower in texto:
+                    return True
+        return False
+
     # ═══════════════════════════════════════════════════════════════
     # DETECCIÓN POR KEYWORDS (basado en pilares del portfolio SRS)
     # ═══════════════════════════════════════════════════════════════
-    
+
+    # PILAR 6: Fotovoltaica / Energía (NUEVO - alta prioridad)
+    kw_fotovoltaica = ["fotovoltaica", "fotovoltaico", "paneles solares", "placas solares",
+                       "autoconsumo", "solar", "módulos fotovoltaicos", "modulos fotovoltaicos",
+                       "inversor solar", "kwp", "mwp", "cubierta solar", "planta fotovoltaica",
+                       "marquesina fotovoltaica", "pérgola fotovoltaica", "pergola fotovoltaica"]
+
     # PILAR 1: Field Services / Soporte Onsite
-    kw_soporte = ["soporte técnico", "soporte tecnico", "helpdesk", "help desk", 
+    kw_soporte = ["soporte técnico", "soporte tecnico", "helpdesk", "help desk",
                   "microinformática", "microinformatica", "atención al usuario",
                   "atencion al usuario", "service desk", "mantenimiento informático",
                   "mantenimiento informatico", "soporte a usuarios", "soporte de usuarios",
                   "soporte onsite", "soporte on-site", "field service", "smart hands",
                   "wintel", "soporte nivel", "soporte n1", "soporte n2"]
-    
+
     # PILAR 1: Cableado e Infraestructura Física
-    kw_cableado = ["cableado", "fibra", "red de datos", "cat6", "cat6a", 
+    kw_cableado = ["cableado", "fibra", "red de datos", "cat6", "cat6a",
                    "puntos de red", "tomas de datos", "rack", "patch panel",
                    "cableado estructurado", "fibra óptica", "fibra optica",
                    "rackeo", "instalación de hardware", "certificación de red"]
-    
-    # PILAR 1: CPD / Data Center
+
+    # PILAR 1: CPD / Data Center (cpd requiere palabra completa)
     kw_cpd = ["datacenter", "data center", "centro de datos", "cpd", "sala técnica",
               "montaje de servidores", "desmontaje", "servidor", "servidores"]
-    
-    # PILAR 2: Cloud & Virtualización
+
+    # PILAR 2: Cloud & Virtualización (aws, gcp requieren palabra completa)
     kw_cloud = ["vmware", "vsphere", "vcenter", "esxi", "vsan", "hyper-v", "proxmox",
                 "azure", "aws", "google cloud", "gcp", "migración cloud", "cloud híbrido",
                 "virtualización", "virtualizacion"]
-    
-    # PILAR 3: Ciberseguridad / ENS
-    kw_ciber = ["ciberseguridad", "seguridad informática", "ens", "esquema nacional",
+
+    # PILAR 3: Ciberseguridad / ENS (ens, soc requieren palabra completa)
+    kw_ciber = ["ciberseguridad", "seguridad informática", "seguridad informatica",
+                "ens", "esquema nacional de seguridad",
                 "iso 27001", "soc 24/7", "soc", "veeam", "backup", "disaster recovery",
-                "hardening", "bastionado", "monitorización"]
-    
+                "hardening", "bastionado", "monitorización de seguridad"]
+
     # PILAR 4: Comunicaciones Unificadas
     kw_uc = ["comunicaciones unificadas", "microsoft teams", "ms teams", "zoom",
              "google workspace", "videoconferencia", "telepresencia"]
-    
-    # PILAR 5: Healthcare IT
+
+    # PILAR 5: Healthcare IT (ris requiere palabra completa)
     kw_health = ["dicom", "pacs", "ris/pacs", "ris", "imagen médica", "imagen medica",
-                 "healthcare", "hospital", "clínica", "clinica"]
-    
+                 "healthcare", "radiología", "radiologia"]
+
     # DIFERENCIAL: Internacional
     kw_internacional = ["internacional", "multi-país", "multi-pais", "multinacional",
                         "multisede", "múltiples sedes", "sedes internacionales",
                         "latam", "latinoamérica", "latinoamerica", "worldwide"]
-    
+
     # ═══════════════════════════════════════════════════════════════
-    # CLASIFICACIÓN POR PRIORIDAD
+    # CLASIFICACIÓN POR PRIORIDAD (usando validación de palabra completa)
     # ═══════════════════════════════════════════════════════════════
-    tiene_soporte = any(kw in objeto_lower for kw in kw_soporte)
-    tiene_cableado = any(kw in objeto_lower for kw in kw_cableado)
-    tiene_cpd = any(kw in objeto_lower for kw in kw_cpd)
-    tiene_cloud = any(kw in objeto_lower for kw in kw_cloud)
-    tiene_ciber = any(kw in objeto_lower for kw in kw_ciber)
-    tiene_uc = any(kw in objeto_lower for kw in kw_uc)
-    tiene_health = any(kw in objeto_lower for kw in kw_health)
-    tiene_internacional = any(kw in objeto_lower for kw in kw_internacional)
-    
-    # Clasificación jerárquica
-    if tiene_health:
+    tiene_fotovoltaica = tiene_keyword(objeto_lower, kw_fotovoltaica)
+    tiene_soporte = tiene_keyword(objeto_lower, kw_soporte)
+    tiene_cableado = tiene_keyword(objeto_lower, kw_cableado)
+    tiene_cpd = tiene_keyword(objeto_lower, kw_cpd)
+    tiene_cloud = tiene_keyword(objeto_lower, kw_cloud)
+    tiene_ciber = tiene_keyword(objeto_lower, kw_ciber)
+    tiene_uc = tiene_keyword(objeto_lower, kw_uc)
+    tiene_health = tiene_keyword(objeto_lower, kw_health)
+    tiene_internacional = tiene_keyword(objeto_lower, kw_internacional)
+
+    # Verificar CPV de fotovoltaica
+    es_cpv_fotovoltaica = any(cpv_8.startswith(code[:5]) for code in CPVS_FOTOVOLTAICA.keys())
+
+    # Clasificación jerárquica (fotovoltaica tiene alta prioridad)
+    if tiene_fotovoltaica or es_cpv_fotovoltaica:
+        tipo = TipoOportunidad.FOTOVOLTAICA_ENERGIA
+        indicadores.append("☀️ Pilar 6 SRS: Fotovoltaica / Energía")
+    elif tiene_health:
         tipo = TipoOportunidad.HEALTHCARE_IT
         indicadores.append("🏥 Pilar SRS: Healthcare IT")
     elif tiene_soporte and tiene_internacional:
@@ -853,24 +982,45 @@ def calcular_dolor(
     )
 
 
+def es_palabra_completa(texto: str, keyword: str) -> bool:
+    """
+    Verifica si la keyword aparece como palabra completa en el texto.
+    Evita falsos positivos como "potencia" matcheando con "ens".
+    """
+    import re
+    # \b marca límite de palabra (word boundary)
+    pattern = r'\b' + re.escape(keyword) + r'\b'
+    return bool(re.search(pattern, texto, re.IGNORECASE))
+
+
 def extraer_keywords(objeto: str) -> Dict[str, int]:
     """Extrae keywords con sus pesos del objeto del contrato"""
     objeto_lower = objeto.lower()
     encontradas = {}
-    
+
     # Buscar en todos los diccionarios de keywords
     todos_keywords = {
-        **KEYWORDS_DOLOR_IT, 
+        **KEYWORDS_DOLOR_IT,
         **KEYWORDS_DOLOR_CABLEADO,
         **KEYWORDS_AUDIOVISUAL_CON_CABLEADO,
         **KEYWORDS_FONDOS_EU,
-        **KEYWORDS_INTERNACIONAL
+        **KEYWORDS_INTERNACIONAL,
+        **KEYWORDS_FOTOVOLTAICA,  # Añadir keywords de fotovoltaica
     }
-    
+
     for kw, peso in todos_keywords.items():
-        if kw.lower() in objeto_lower:
-            encontradas[kw] = peso
-    
+        kw_lower = kw.lower()
+
+        # Para keywords cortas que pueden causar falsos positivos,
+        # verificar que sea palabra completa
+        if kw_lower in KEYWORDS_PALABRA_COMPLETA:
+            if es_palabra_completa(objeto_lower, kw_lower):
+                encontradas[kw] = peso
+        else:
+            # Para keywords normales, búsqueda por subcadena
+            if kw_lower in objeto_lower:
+                encontradas[kw] = peso
+
     return encontradas
 
 
