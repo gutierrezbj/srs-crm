@@ -20,7 +20,15 @@ import {
     Brain,
     AlertTriangle,
     Zap,
-    Info
+    Info,
+    FileText,
+    Mail,
+    Phone,
+    Shield,
+    Server,
+    Award,
+    Lightbulb,
+    ChevronRight
 } from "lucide-react";
 import {
     Tooltip,
@@ -57,6 +65,13 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogDescription,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -107,6 +122,10 @@ export default function Oportunidades({ user }) {
     const [reclassifying, setReclassifying] = useState(false);
     const [analyzingPain, setAnalyzingPain] = useState({});
     const [analyzingBatch, setAnalyzingBatch] = useState(false);
+    const [analyzingPliego, setAnalyzingPliego] = useState({});
+    const [resumenOperadorOpen, setResumenOperadorOpen] = useState(false);
+    const [resumenOperador, setResumenOperador] = useState(null);
+    const [loadingResumen, setLoadingResumen] = useState(false);
 
     const fetchOportunidades = useCallback(async () => {
         try {
@@ -272,6 +291,96 @@ export default function Oportunidades({ user }) {
         } finally {
             setAnalyzingBatch(false);
         }
+    };
+
+    const handleAnalyzePliego = async (oportunidadId) => {
+        setAnalyzingPliego(prev => ({ ...prev, [oportunidadId]: true }));
+        toast.info("Analizando pliego... Esto puede tardar 30-60 segundos", { duration: 5000 });
+
+        try {
+            const response = await axios.post(
+                `${API}/oportunidades/${oportunidadId}/analizar-pliego`,
+                {},
+                { withCredentials: true, timeout: 120000 } // 2 min timeout
+            );
+
+            if (response.data.success) {
+                const analisis = response.data.analisis;
+                const nivelOp = analisis.resumen_operador?.nivel_oportunidad || "bronce";
+                const tieneIt = analisis.tiene_it ? "Sí" : "No";
+
+                toast.success(
+                    `Análisis completado en ${response.data.tiempo_analisis.toFixed(1)}s. IT: ${tieneIt}, Nivel: ${nivelOp.toUpperCase()}`,
+                    { duration: 5000 }
+                );
+
+                // Mostrar resumen del operador automáticamente
+                setResumenOperador({
+                    ...analisis.resumen_operador,
+                    oportunidad_id: oportunidadId,
+                    empresa: response.data.analisis.oportunidad_id,
+                    importe: analisis.importe
+                });
+                setResumenOperadorOpen(true);
+
+                fetchOportunidades();
+            } else {
+                toast.error("Error en análisis de pliego");
+            }
+        } catch (error) {
+            if (error.code === 'ECONNABORTED') {
+                toast.error("Timeout: El análisis tardó demasiado. Inténtalo de nuevo.");
+            } else {
+                toast.error(error.response?.data?.detail || "Error al analizar pliego");
+            }
+            console.error("Error analyzing pliego:", error);
+        } finally {
+            setAnalyzingPliego(prev => ({ ...prev, [oportunidadId]: false }));
+        }
+    };
+
+    const handleViewResumenOperador = async (oportunidad) => {
+        // Si ya tiene análisis de pliego, mostrar el resumen
+        if (oportunidad.analisis_pliego) {
+            setResumenOperador({
+                ...oportunidad.analisis_pliego.resumen_operador,
+                oportunidad_id: oportunidad.oportunidad_id,
+                empresa: oportunidad.adjudicatario,
+                objeto: oportunidad.objeto,
+                importe: oportunidad.importe
+            });
+            setResumenOperadorOpen(true);
+            return;
+        }
+
+        // Si no tiene, intentar obtenerlo del endpoint
+        setLoadingResumen(true);
+        try {
+            const response = await axios.get(
+                `${API}/oportunidades/${oportunidad.oportunidad_id}/resumen-operador`,
+                { withCredentials: true }
+            );
+            setResumenOperador(response.data);
+            setResumenOperadorOpen(true);
+        } catch (error) {
+            if (error.response?.status === 400) {
+                toast.info("Esta oportunidad no tiene análisis de pliego. Usa 'Analizar Pliego' primero.");
+            } else {
+                toast.error("Error al obtener resumen");
+            }
+        } finally {
+            setLoadingResumen(false);
+        }
+    };
+
+    const getNivelOportunidadBadge = (nivel) => {
+        const config = {
+            oro: { color: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30", icon: Award },
+            plata: { color: "bg-slate-400/20 text-slate-300 border-slate-400/30", icon: Award },
+            bronce: { color: "bg-orange-700/20 text-orange-400 border-orange-700/30", icon: Award },
+            descartar: { color: "bg-red-500/20 text-red-400 border-red-500/30", icon: X }
+        };
+        return config[nivel] || config.bronce;
     };
 
     const formatCurrency = (value) => {
@@ -625,6 +734,53 @@ export default function Oportunidades({ user }) {
                                         </TableCell>
                                         <TableCell className="text-right">
                                             <div className="flex items-center justify-end gap-2">
+                                                {/* Botón Analizar Pliego */}
+                                                <TooltipProvider>
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                onClick={() => handleAnalyzePliego(oportunidad.oportunidad_id)}
+                                                                disabled={analyzingPliego[oportunidad.oportunidad_id]}
+                                                                className={`${oportunidad.analisis_pliego ? 'text-green-400 border-green-500/30' : 'text-cyan-400 border-cyan-500/30'} hover:bg-cyan-500/10`}
+                                                            >
+                                                                {analyzingPliego[oportunidad.oportunidad_id] ? (
+                                                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                                                ) : (
+                                                                    <FileText className="w-4 h-4" />
+                                                                )}
+                                                            </Button>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>
+                                                            {oportunidad.analisis_pliego
+                                                                ? "Re-analizar pliego (ya analizado)"
+                                                                : "Analizar pliego completo con IA"}
+                                                        </TooltipContent>
+                                                    </Tooltip>
+                                                </TooltipProvider>
+
+                                                {/* Botón Ver Resumen Operador */}
+                                                {oportunidad.analisis_pliego && (
+                                                    <TooltipProvider>
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    onClick={() => handleViewResumenOperador(oportunidad)}
+                                                                    className="text-purple-400 border-purple-500/30 hover:bg-purple-500/10"
+                                                                >
+                                                                    <Lightbulb className="w-4 h-4" />
+                                                                </Button>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent>
+                                                                Ver resumen para el operador
+                                                            </TooltipContent>
+                                                        </Tooltip>
+                                                    </TooltipProvider>
+                                                )}
+
                                                 {!oportunidad.convertido_lead && (
                                                     <Button
                                                         size="sm"
@@ -689,6 +845,164 @@ export default function Oportunidades({ user }) {
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
+
+            {/* Resumen Operador Dialog */}
+            <Dialog open={resumenOperadorOpen} onOpenChange={setResumenOperadorOpen}>
+                <DialogContent className="bg-slate-900 border-white/10 max-w-3xl max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle className="text-white flex items-center gap-2">
+                            <Lightbulb className="w-5 h-5 text-yellow-400" />
+                            Resumen para el Operador
+                        </DialogTitle>
+                        <DialogDescription className="text-slate-400">
+                            Información clave para preparar el contacto comercial
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    {resumenOperador && (
+                        <div className="space-y-6 mt-4">
+                            {/* Header con nivel de oportunidad */}
+                            <div className="flex items-center justify-between p-4 rounded-lg bg-slate-800/50">
+                                <div>
+                                    <p className="text-white font-semibold text-lg">{resumenOperador.empresa}</p>
+                                    <p className="text-slate-400 text-sm">{resumenOperador.objeto?.substring(0, 100)}...</p>
+                                </div>
+                                <div className="flex flex-col items-end gap-2">
+                                    <Badge className={getNivelOportunidadBadge(resumenOperador.nivel_oportunidad).color}>
+                                        {resumenOperador.nivel_oportunidad?.toUpperCase()}
+                                    </Badge>
+                                    {resumenOperador.tiene_it && (
+                                        <Badge className="bg-cyan-500/20 text-cyan-400 border-cyan-500/30">
+                                            <Server className="w-3 h-3 mr-1" />
+                                            Contiene IT
+                                        </Badge>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Dolor Principal */}
+                            {resumenOperador.dolor_principal && (
+                                <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/20">
+                                    <h3 className="text-red-400 font-semibold flex items-center gap-2 mb-2">
+                                        <AlertTriangle className="w-4 h-4" />
+                                        Dolor Principal
+                                    </h3>
+                                    <p className="text-white">{resumenOperador.dolor_principal}</p>
+                                </div>
+                            )}
+
+                            {/* Gancho para Email/Llamada */}
+                            {resumenOperador.gancho_inicial && (
+                                <div className="p-4 rounded-lg bg-purple-500/10 border border-purple-500/20">
+                                    <h3 className="text-purple-400 font-semibold flex items-center gap-2 mb-2">
+                                        <Mail className="w-4 h-4" />
+                                        Gancho para el Primer Contacto
+                                    </h3>
+                                    <p className="text-white italic">"{resumenOperador.gancho_inicial}"</p>
+                                </div>
+                            )}
+
+                            {/* Puntos de Dolor para Email */}
+                            {resumenOperador.puntos_dolor_email?.length > 0 && (
+                                <div className="p-4 rounded-lg bg-slate-800">
+                                    <h3 className="text-cyan-400 font-semibold flex items-center gap-2 mb-3">
+                                        <ChevronRight className="w-4 h-4" />
+                                        Puntos de Dolor para el Email
+                                    </h3>
+                                    <ul className="space-y-2">
+                                        {resumenOperador.puntos_dolor_email.map((punto, idx) => (
+                                            <li key={idx} className="text-slate-300 flex items-start gap-2">
+                                                <span className="text-cyan-400 mt-1">•</span>
+                                                {punto}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
+
+                            {/* Preguntas de Cualificación */}
+                            {resumenOperador.preguntas_cualificacion?.length > 0 && (
+                                <div className="p-4 rounded-lg bg-slate-800">
+                                    <h3 className="text-yellow-400 font-semibold flex items-center gap-2 mb-3">
+                                        <Phone className="w-4 h-4" />
+                                        Preguntas para la Llamada
+                                    </h3>
+                                    <ul className="space-y-2">
+                                        {resumenOperador.preguntas_cualificacion.map((pregunta, idx) => (
+                                            <li key={idx} className="text-slate-300 flex items-start gap-2">
+                                                <span className="text-yellow-400 font-bold">{idx + 1}.</span>
+                                                {pregunta}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
+
+                            {/* Tecnologías y Certificaciones */}
+                            <div className="grid grid-cols-2 gap-4">
+                                {resumenOperador.tecnologias_mencionadas?.length > 0 && (
+                                    <div className="p-4 rounded-lg bg-slate-800">
+                                        <h3 className="text-green-400 font-semibold flex items-center gap-2 mb-2">
+                                            <Server className="w-4 h-4" />
+                                            Tecnologías
+                                        </h3>
+                                        <div className="flex flex-wrap gap-2">
+                                            {resumenOperador.tecnologias_mencionadas.map((tech, idx) => (
+                                                <Badge key={idx} variant="outline" className="text-green-300 border-green-500/30">
+                                                    {tech}
+                                                </Badge>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {resumenOperador.certificaciones_requeridas?.length > 0 && (
+                                    <div className="p-4 rounded-lg bg-slate-800">
+                                        <h3 className="text-orange-400 font-semibold flex items-center gap-2 mb-2">
+                                            <Shield className="w-4 h-4" />
+                                            Certificaciones Requeridas
+                                        </h3>
+                                        <div className="flex flex-wrap gap-2">
+                                            {resumenOperador.certificaciones_requeridas.map((cert, idx) => (
+                                                <Badge key={idx} variant="outline" className="text-orange-300 border-orange-500/30">
+                                                    {cert}
+                                                </Badge>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Alertas */}
+                            {resumenOperador.alertas?.length > 0 && (
+                                <div className="p-4 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
+                                    <h3 className="text-yellow-400 font-semibold flex items-center gap-2 mb-2">
+                                        <AlertTriangle className="w-4 h-4" />
+                                        Alertas
+                                    </h3>
+                                    <ul className="space-y-1">
+                                        {resumenOperador.alertas.map((alerta, idx) => (
+                                            <li key={idx} className="text-yellow-200 text-sm">
+                                                ⚠️ {alerta}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
+
+                            {/* Metadata */}
+                            <div className="flex justify-between items-center text-xs text-slate-500 pt-4 border-t border-slate-700">
+                                <span>
+                                    Confianza: {resumenOperador.confianza_analisis || "N/A"}
+                                </span>
+                                <span>
+                                    {resumenOperador.paginas_analizadas} páginas • {resumenOperador.palabras_analizadas?.toLocaleString()} palabras
+                                </span>
+                            </div>
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

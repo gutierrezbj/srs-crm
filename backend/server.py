@@ -1955,6 +1955,141 @@ async def analizar_pain_batch(
         )
 
 
+@api_router.post("/oportunidades/{oportunidad_id}/analizar-pliego")
+async def analizar_pliego_exhaustivo(
+    oportunidad_id: str,
+    background_tasks: BackgroundTasks,
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """
+    Análisis EXHAUSTIVO del pliego de una oportunidad.
+    Descarga el PDF/HTML, extrae texto, analiza con IA buscando IT oculto.
+    Genera resumen orientado al operador comercial.
+
+    SIN RESTRICCIONES DE TIEMPO - La calidad es prioritaria.
+    Puede tardar 30-90 segundos dependiendo del tamaño del pliego.
+    """
+    try:
+        from app.spotter.pliego_analyzer import analizar_pliego_completo
+
+        # Buscar la oportunidad
+        oportunidad = await db.oportunidades_placsp.find_one(
+            {"oportunidad_id": oportunidad_id}
+        )
+
+        if not oportunidad:
+            raise HTTPException(status_code=404, detail="Oportunidad no encontrada")
+
+        # Buscar URL del pliego
+        url_pliego = None
+        pliegos = oportunidad.get("pliegos", {})
+
+        # Priorizar pliego técnico, luego administrativo
+        if pliegos.get("url_pliego_tecnico"):
+            url_pliego = pliegos["url_pliego_tecnico"]
+        elif pliegos.get("url_pliego_administrativo"):
+            url_pliego = pliegos["url_pliego_administrativo"]
+        elif oportunidad.get("url_licitacion"):
+            # Fallback a URL de la licitación
+            url_pliego = oportunidad["url_licitacion"]
+
+        if not url_pliego:
+            raise HTTPException(
+                status_code=400,
+                detail="No se encontró URL de pliego para esta oportunidad"
+            )
+
+        # Ejecutar análisis exhaustivo (sin timeout restrictivo)
+        resultado = await analizar_pliego_completo(
+            oportunidad_id=oportunidad_id,
+            url_pliego=url_pliego,
+            objeto=oportunidad.get("objeto", ""),
+            importe=oportunidad.get("importe", 0)
+        )
+
+        # Guardar resultado en BD
+        await db.oportunidades_placsp.update_one(
+            {"oportunidad_id": oportunidad_id},
+            {
+                "$set": {
+                    "analisis_pliego": resultado,
+                    "analisis_pliego_fecha": datetime.now(timezone.utc).isoformat(),
+                    "tiene_it_confirmado": resultado.get("tiene_it", False),
+                    "pain_score": resultado.get("pain_score", 0),
+                    "nivel_urgencia": resultado.get("nivel_urgencia", "bajo")
+                }
+            }
+        )
+
+        return {
+            "success": True,
+            "oportunidad_id": oportunidad_id,
+            "url_pliego_analizado": url_pliego,
+            "tiempo_analisis": resultado.get("tiempo_analisis_segundos", 0),
+            "analisis": resultado
+        }
+
+    except ImportError as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error importando módulo pliego_analyzer: {str(e)}"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error en análisis de pliego: {str(e)}"
+        )
+
+
+@api_router.get("/oportunidades/{oportunidad_id}/resumen-operador")
+async def obtener_resumen_operador(
+    oportunidad_id: str,
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """
+    Obtiene el resumen orientado al OPERADOR de una oportunidad.
+    Ideal para preparar correos/llamadas con el dolor específico del cliente.
+
+    Requiere que se haya ejecutado primero /analizar-pliego
+    """
+    oportunidad = await db.oportunidades_placsp.find_one(
+        {"oportunidad_id": oportunidad_id},
+        {"analisis_pliego": 1, "objeto": 1, "adjudicatario": 1, "importe": 1}
+    )
+
+    if not oportunidad:
+        raise HTTPException(status_code=404, detail="Oportunidad no encontrada")
+
+    analisis = oportunidad.get("analisis_pliego")
+
+    if not analisis:
+        raise HTTPException(
+            status_code=400,
+            detail="Esta oportunidad no tiene análisis de pliego. Ejecute primero POST /analizar-pliego"
+        )
+
+    resumen = analisis.get("resumen_operador", {})
+
+    return {
+        "oportunidad_id": oportunidad_id,
+        "empresa": oportunidad.get("adjudicatario", ""),
+        "objeto": oportunidad.get("objeto", ""),
+        "importe": oportunidad.get("importe", 0),
+        "tiene_it": resumen.get("tiene_it", False),
+        "nivel_oportunidad": resumen.get("nivel_oportunidad", ""),
+        "dolor_principal": resumen.get("dolor_principal", ""),
+        "gancho_email": resumen.get("gancho_inicial", ""),
+        "puntos_dolor": resumen.get("puntos_dolor_email", []),
+        "preguntas_cualificacion": resumen.get("preguntas_cualificacion", []),
+        "tecnologias": resumen.get("tecnologias_mencionadas", []),
+        "certificaciones": resumen.get("certificaciones_requeridas", []),
+        "alertas": resumen.get("alertas", []),
+        "confianza": resumen.get("confianza_analisis", "")
+    }
+
+
 @api_router.post("/oportunidades/{oportunidad_id}/convertir-lead")
 async def convert_oportunidad_to_lead(
     oportunidad_id: str,
