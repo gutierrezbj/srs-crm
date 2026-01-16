@@ -18,6 +18,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useTheme } from "@/context/ThemeContext";
+import srsLogo from "@/assets/sr-logo-dark.png";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -97,13 +98,9 @@ export default function Layout({ children, user }) {
           {/* Logo */}
           <div className="p-6 border-b" style={{ borderColor: 'var(--theme-border)' }}>
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/20">
-                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-              </div>
+              <img src={srsLogo} alt="SRS" className="w-10 h-10 rounded-lg" />
               <div>
-                <h1 className="font-bold theme-text text-sm">System Rapid</h1>
+                <h1 className="font-bold theme-text text-sm">System Rapid Solutions</h1>
                 <p className="text-xs theme-text-muted">CRM</p>
               </div>
             </div>
@@ -178,11 +175,7 @@ export default function Layout({ children, user }) {
               <Menu className="w-6 h-6" />
             </Button>
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center">
-                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-              </div>
+              <img src={srsLogo} alt="SRS" className="w-8 h-8 rounded-lg" />
               <span className="font-semibold theme-text text-sm">SRS CRM</span>
             </div>
             <Avatar className="w-8 h-8">

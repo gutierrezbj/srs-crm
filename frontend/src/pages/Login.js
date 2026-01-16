@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import axios from "axios";
+import srsLogo from "@/assets/sr-logo-dark.png";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -53,11 +54,7 @@ export default function Login() {
         {/* Logo/Brand */}
         <div className="mb-12 text-center">
           <div className="inline-flex items-center gap-3 mb-4">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-cyan-400 to-blue-600 flex items-center justify-center">
-              <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-            </div>
+            <img src={srsLogo} alt="System Rapid Solutions" className="w-16 h-16" />
             <span className="text-2xl font-bold text-white">System Rapid Solutions</span>
           </div>
           <p className="text-slate-400 text-lg">CRM Interno</p>
