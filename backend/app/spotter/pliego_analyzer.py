@@ -105,12 +105,17 @@ class AnalisisPliego:
     # Para el operador
     resumen_operador: ResumenOperador
 
+    # Datos de contacto extraídos del pliego
+    email_contacto: Optional[str] = None  # Email de contacto encontrado
+    telefono_contacto: Optional[str] = None  # Teléfono de contacto encontrado
+    resumen_it: Optional[str] = None  # Breve resumen del componente IT
+
     # Metadata
-    url_pliego: str
-    tipo_documento: str  # pdf, html
-    fecha_analisis: str
-    proveedor_ia: str
-    tiempo_analisis_segundos: float
+    url_pliego: str = ""
+    tipo_documento: str = ""  # pdf, html
+    fecha_analisis: str = ""
+    proveedor_ia: str = ""
+    tiempo_analisis_segundos: float = 0.0
     error: Optional[str] = None
 
     def to_dict(self) -> Dict:
@@ -337,7 +342,11 @@ ANALIZA EL PLIEGO Y RESPONDE EN JSON con esta estructura EXACTA:
 
   "nivel_oportunidad": "oro|plata|bronce|descartar",  // Basado en fit con SRS
 
-  "confianza_analisis": "alta|media|baja"
+  "confianza_analisis": "alta|media|baja",
+
+  "email_contacto": "email@ejemplo.es o null si no se encuentra",
+  "telefono_contacto": "+34 XXX XXX XXX o null si no se encuentra",
+  "resumen_it": "Breve resumen (2-3 frases) del componente IT del contrato para el operador comercial"
 }}
 
 CRITERIOS PARA pain_score:
@@ -359,6 +368,8 @@ IMPORTANTE:
 - Extrae fragmentos LITERALES del pliego como evidencia
 - El gancho_inicial debe ser ESPECÍFICO al dolor detectado, no genérico
 - Las preguntas de cualificación deben ayudar a entender si es oportunidad real
+- Busca emails y teléfonos de contacto en el pliego (del órgano contratante o responsable técnico)
+- El resumen_it debe ser conciso pero informativo para un comercial que va a llamar
 
 RESPONDE SOLO JSON, sin explicaciones adicionales."""
 
@@ -626,6 +637,9 @@ RESPONDE SOLO JSON, sin explicaciones adicionales."""
             dolores=dolores,
             componentes_it=componentes,
             resumen_operador=resumen,
+            email_contacto=resultado_ia.get("email_contacto"),
+            telefono_contacto=resultado_ia.get("telefono_contacto"),
+            resumen_it=resultado_ia.get("resumen_it"),
             url_pliego=url_pliego,
             tipo_documento=tipo_doc,
             fecha_analisis=datetime.now().isoformat(),

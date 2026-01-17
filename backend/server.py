@@ -7,7 +7,7 @@ import os
 import logging
 from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict, EmailStr
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 import uuid
 from datetime import datetime, timezone, timedelta
 import csv
@@ -239,6 +239,15 @@ class OportunidadPLACSPBase(BaseModel):
     estado_revision: str = "nueva"  # nueva, revisada, descartada
     fecha_revision: Optional[datetime] = None
     revisado_por: Optional[str] = None
+    # Pain Score y análisis
+    pain_score: Optional[int] = None  # 0-100
+    nivel_urgencia: Optional[str] = None  # critico, alto, medio, bajo
+    pain_analysis: Optional[Dict[str, Any]] = None
+    analisis_fecha: Optional[str] = None
+    # Análisis exhaustivo del pliego
+    analisis_pliego: Optional[Dict[str, Any]] = None
+    analisis_pliego_fecha: Optional[str] = None
+    tiene_it_confirmado: Optional[bool] = None
 
 class OportunidadPLACSPCreate(OportunidadPLACSPBase):
     pass

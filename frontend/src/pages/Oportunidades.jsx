@@ -338,7 +338,15 @@ export default function Oportunidades({ user }) {
                     oportunidad_id: oportunidadId,
                     organismo: oportunidad?.adjudicatario || oportunidad?.organo_contratacion || "Organismo",
                     objeto: oportunidad?.objeto || "",
-                    importe: oportunidad?.importe || analisis.importe
+                    importe: oportunidad?.importe || analisis.importe,
+                    // Datos del adjudicatario para contacto
+                    adjudicatario: oportunidad?.adjudicatario,
+                    nif: oportunidad?.nif,
+                    organo_contratacion: oportunidad?.organo_contratacion,
+                    email_contacto: analisis.email_contacto,
+                    telefono_contacto: analisis.telefono_contacto,
+                    resumen_it: analisis.resumen_it,
+                    tiene_it: analisis.tiene_it
                 });
                 setResumenOperadorOpen(true);
 
@@ -392,7 +400,15 @@ export default function Oportunidades({ user }) {
                 oportunidad_id: oportunidad.oportunidad_id,
                 organismo: oportunidad.adjudicatario || oportunidad.organo_contratacion || "Organismo",
                 objeto: oportunidad.objeto,
-                importe: oportunidad.importe
+                importe: oportunidad.importe,
+                // Datos del adjudicatario para contacto
+                adjudicatario: oportunidad.adjudicatario,
+                nif: oportunidad.nif,
+                organo_contratacion: oportunidad.organo_contratacion,
+                email_contacto: oportunidad.analisis_pliego.email_contacto,
+                telefono_contacto: oportunidad.analisis_pliego.telefono_contacto,
+                resumen_it: oportunidad.analisis_pliego.resumen_it,
+                tiene_it: oportunidad.analisis_pliego.tiene_it
             });
             setResumenOperadorOpen(true);
             return;
@@ -1022,6 +1038,59 @@ export default function Oportunidades({ user }) {
                                     )}
                                 </div>
                             </div>
+
+                            {/* Datos del Adjudicatario para Contacto */}
+                            <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                                <h3 className="text-blue-400 font-semibold flex items-center gap-2 mb-3">
+                                    <Building2 className="w-4 h-4" />
+                                    Datos del Adjudicatario
+                                </h3>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <p className="text-slate-400 text-xs mb-1">Empresa</p>
+                                        <p className="text-white font-medium">{resumenOperador.adjudicatario || resumenOperador.organismo || "-"}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-slate-400 text-xs mb-1">NIF</p>
+                                        <p className="text-white font-medium">{resumenOperador.nif || "-"}</p>
+                                    </div>
+                                    {resumenOperador.email_contacto && (
+                                        <div>
+                                            <p className="text-slate-400 text-xs mb-1">Email</p>
+                                            <a href={`mailto:${resumenOperador.email_contacto}`} className="text-blue-400 hover:underline flex items-center gap-1">
+                                                <Mail className="w-3 h-3" />
+                                                {resumenOperador.email_contacto}
+                                            </a>
+                                        </div>
+                                    )}
+                                    {resumenOperador.telefono_contacto && (
+                                        <div>
+                                            <p className="text-slate-400 text-xs mb-1">Teléfono</p>
+                                            <a href={`tel:${resumenOperador.telefono_contacto}`} className="text-blue-400 hover:underline flex items-center gap-1">
+                                                <Phone className="w-3 h-3" />
+                                                {resumenOperador.telefono_contacto}
+                                            </a>
+                                        </div>
+                                    )}
+                                </div>
+                                {resumenOperador.organo_contratacion && (
+                                    <div className="mt-3 pt-3 border-t border-blue-500/20">
+                                        <p className="text-slate-400 text-xs mb-1">Órgano de Contratación</p>
+                                        <p className="text-slate-300 text-sm">{resumenOperador.organo_contratacion}</p>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Resumen IT */}
+                            {resumenOperador.resumen_it && (
+                                <div className="p-4 rounded-lg bg-cyan-500/10 border border-cyan-500/20">
+                                    <h3 className="text-cyan-400 font-semibold flex items-center gap-2 mb-2">
+                                        <Server className="w-4 h-4" />
+                                        Resumen Componente IT
+                                    </h3>
+                                    <p className="text-white text-sm">{resumenOperador.resumen_it}</p>
+                                </div>
+                            )}
 
                             {/* Dolor Principal */}
                             {resumenOperador.dolor_principal && (
