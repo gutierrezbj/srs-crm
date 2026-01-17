@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, UploadFile, File, Response, Request, Depends
+from fastapi import FastAPI, APIRouter, HTTPException, UploadFile, File, Response, Request, Depends, BackgroundTasks
 from fastapi.responses import StreamingResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -1958,7 +1958,6 @@ async def analizar_pain_batch(
 @api_router.post("/oportunidades/{oportunidad_id}/analizar-pliego")
 async def analizar_pliego_exhaustivo(
     oportunidad_id: str,
-    background_tasks: BackgroundTasks,
     current_user: UserResponse = Depends(get_current_user)
 ):
     """
