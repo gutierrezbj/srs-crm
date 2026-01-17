@@ -28,7 +28,11 @@ import {
     Server,
     Award,
     Lightbulb,
-    ChevronRight
+    ChevronRight,
+    Eye,
+    EyeOff,
+    Sparkles,
+    Ban
 } from "lucide-react";
 import {
     Tooltip,
@@ -110,10 +114,21 @@ const getNivelUrgenciaLabel = (nivel) => {
     return labels[nivel] || labels.medio;
 };
 
+// Estado de revisión config
+const getEstadoRevisionConfig = (estado) => {
+    const config = {
+        nueva: { label: "Nueva", icon: Sparkles, color: "bg-blue-500/20 text-blue-400 border-blue-500/30" },
+        revisada: { label: "Revisada", icon: Eye, color: "bg-green-500/20 text-green-400 border-green-500/30" },
+        descartada: { label: "Descartada", icon: Ban, color: "bg-slate-500/20 text-slate-400 border-slate-500/30" }
+    };
+    return config[estado] || config.nueva;
+};
+
 export default function Oportunidades({ user }) {
     const [oportunidades, setOportunidades] = useState([]);
     const [loading, setLoading] = useState(true);
     const [tipoSrsFilter, setTipoSrsFilter] = useState("all");
+    const [estadoRevisionFilter, setEstadoRevisionFilter] = useState("all");
     const [tiposSrs, setTiposSrs] = useState([]);
     const [convertDialogOpen, setConvertDialogOpen] = useState(false);
     const [selectedOportunidad, setSelectedOportunidad] = useState(null);
@@ -343,7 +358,33 @@ export default function Oportunidades({ user }) {
         }
     };
 
+    const handleUpdateEstadoRevision = async (oportunidadId, nuevoEstado) => {
+        try {
+            await axios.patch(
+                `${API}/oportunidades/${oportunidadId}/estado-revision`,
+                { estado: nuevoEstado },
+                { withCredentials: true }
+            );
+            // Actualizar localmente sin refetch completo
+            setOportunidades(prev => prev.map(op =>
+                op.oportunidad_id === oportunidadId
+                    ? { ...op, estado_revision: nuevoEstado }
+                    : op
+            ));
+            if (nuevoEstado === "descartada") {
+                toast.success("Oportunidad marcada como descartada");
+            }
+        } catch (error) {
+            console.error("Error updating estado revision:", error);
+        }
+    };
+
     const handleViewResumenOperador = async (oportunidad) => {
+        // Auto-marcar como revisada si era nueva
+        if (!oportunidad.estado_revision || oportunidad.estado_revision === "nueva") {
+            handleUpdateEstadoRevision(oportunidad.oportunidad_id, "revisada");
+        }
+
         // Si ya tiene análisis de pliego, mostrar el resumen
         if (oportunidad.analisis_pliego) {
             setResumenOperador({
@@ -408,14 +449,23 @@ export default function Oportunidades({ user }) {
 
     const clearFilters = () => {
         setTipoSrsFilter("all");
+        setEstadoRevisionFilter("all");
     };
 
-    const hasFilters = tipoSrsFilter !== "all";
+    const hasFilters = tipoSrsFilter !== "all" || estadoRevisionFilter !== "all";
 
-    // Stats
-    const totalOportunidades = oportunidades.length;
-    const pendientes = oportunidades.filter(o => !o.convertido_lead).length;
-    const convertidas = oportunidades.filter(o => o.convertido_lead).length;
+    // Filtrar oportunidades por estado de revisión (cliente-side)
+    const filteredOportunidades = oportunidades.filter(o => {
+        if (estadoRevisionFilter === "all") return true;
+        const estado = o.estado_revision || "nueva";
+        return estado === estadoRevisionFilter;
+    });
+
+    // Stats (sobre datos filtrados)
+    const totalOportunidades = filteredOportunidades.length;
+    const pendientes = filteredOportunidades.filter(o => !o.convertido_lead).length;
+    const convertidas = filteredOportunidades.filter(o => o.convertido_lead).length;
+    const nuevas = oportunidades.filter(o => !o.estado_revision || o.estado_revision === "nueva").length;
     const avgScore = oportunidades.length > 0
         ? Math.round(oportunidades.reduce((sum, o) => sum + o.score, 0) / oportunidades.length)
         : 0;
@@ -496,7 +546,22 @@ export default function Oportunidades({ user }) {
             </div>
 
             {/* Stats Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                <Card
+                    className={`theme-bg-secondary p-4 cursor-pointer transition-all hover:ring-2 hover:ring-blue-500/50 ${estadoRevisionFilter === "nueva" ? "ring-2 ring-blue-500" : ""}`}
+                    style={{ border: '1px solid var(--theme-border)' }}
+                    onClick={() => setEstadoRevisionFilter(estadoRevisionFilter === "nueva" ? "all" : "nueva")}
+                >
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 rounded-lg bg-blue-500/10">
+                            <Sparkles className="w-5 h-5 text-blue-400" />
+                        </div>
+                        <div>
+                            <p className="theme-text-muted text-xs">Nuevas</p>
+                            <p className="theme-text font-bold text-xl">{nuevas}</p>
+                        </div>
+                    </div>
+                </Card>
                 <Card className="theme-bg-secondary p-4" style={{ border: '1px solid var(--theme-border)' }}>
                     <div className="flex items-center gap-3">
                         <div className="p-2 rounded-lg bg-cyan-500/10">
@@ -566,6 +631,35 @@ export default function Oportunidades({ user }) {
                                 ))}
                             </SelectContent>
                         </Select>
+                        <Select value={estadoRevisionFilter} onValueChange={setEstadoRevisionFilter}>
+                            <SelectTrigger
+                                className="w-[180px] theme-bg-tertiary"
+                                style={{ borderColor: 'var(--theme-border)' }}
+                            >
+                                <SelectValue placeholder="Estado revisión" />
+                            </SelectTrigger>
+                            <SelectContent className="theme-bg-secondary" style={{ borderColor: 'var(--theme-border)' }}>
+                                <SelectItem value="all">Todos los estados</SelectItem>
+                                <SelectItem value="nueva">
+                                    <span className="flex items-center gap-2">
+                                        <Sparkles className="w-3 h-3 text-blue-400" />
+                                        Nuevas
+                                    </span>
+                                </SelectItem>
+                                <SelectItem value="revisada">
+                                    <span className="flex items-center gap-2">
+                                        <Eye className="w-3 h-3 text-green-400" />
+                                        Revisadas
+                                    </span>
+                                </SelectItem>
+                                <SelectItem value="descartada">
+                                    <span className="flex items-center gap-2">
+                                        <Ban className="w-3 h-3 text-slate-400" />
+                                        Descartadas
+                                    </span>
+                                </SelectItem>
+                            </SelectContent>
+                        </Select>
                         {hasFilters && (
                             <Button
                                 variant="ghost"
@@ -619,15 +713,18 @@ export default function Oportunidades({ user }) {
                                     <TableHead className="theme-text-secondary font-semibold">Importe</TableHead>
                                     <TableHead className="theme-text-secondary font-semibold">Tipo SRS</TableHead>
                                     <TableHead className="theme-text-secondary font-semibold">Días Restantes</TableHead>
-                                    <TableHead className="theme-text-secondary font-semibold">Estado</TableHead>
+                                    <TableHead className="theme-text-secondary font-semibold">Revisión</TableHead>
+                                    <TableHead className="theme-text-secondary font-semibold">Lead</TableHead>
                                     <TableHead className="theme-text-secondary font-semibold text-right">Acciones</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {oportunidades.map((oportunidad) => (
+                                {filteredOportunidades.map((oportunidad) => (
                                     <TableRow
                                         key={oportunidad.oportunidad_id}
-                                        className="border-b hover:bg-white/5 transition-colors"
+                                        className={`border-b hover:bg-white/5 transition-colors ${
+                                            oportunidad.estado_revision === "descartada" ? "opacity-50" : ""
+                                        }`}
                                         style={{ borderColor: 'var(--theme-border)' }}
                                         data-testid={`oportunidad-row-${oportunidad.oportunidad_id}`}
                                     >
@@ -724,6 +821,39 @@ export default function Oportunidades({ user }) {
                                                 <span className="theme-text-muted">-</span>
                                             )}
                                         </TableCell>
+                                        {/* Estado de Revisión */}
+                                        <TableCell>
+                                            <TooltipProvider>
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <Badge
+                                                            className={`${getEstadoRevisionConfig(oportunidad.estado_revision || "nueva").color} cursor-pointer`}
+                                                            onClick={() => {
+                                                                const estados = ["nueva", "revisada", "descartada"];
+                                                                const currentIdx = estados.indexOf(oportunidad.estado_revision || "nueva");
+                                                                const nextEstado = estados[(currentIdx + 1) % estados.length];
+                                                                handleUpdateEstadoRevision(oportunidad.oportunidad_id, nextEstado);
+                                                            }}
+                                                        >
+                                                            {(() => {
+                                                                const config = getEstadoRevisionConfig(oportunidad.estado_revision || "nueva");
+                                                                const Icon = config.icon;
+                                                                return (
+                                                                    <>
+                                                                        <Icon className="w-3 h-3 mr-1" />
+                                                                        {config.label}
+                                                                    </>
+                                                                );
+                                                            })()}
+                                                        </Badge>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent>
+                                                        Click para cambiar estado
+                                                    </TooltipContent>
+                                                </Tooltip>
+                                            </TooltipProvider>
+                                        </TableCell>
+                                        {/* Estado Lead */}
                                         <TableCell>
                                             {oportunidad.convertido_lead ? (
                                                 <Badge className="bg-green-500/20 text-green-400 border-green-500/30">

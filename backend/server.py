@@ -235,6 +235,10 @@ class OportunidadPLACSPBase(BaseModel):
     es_pyme: bool = False
     convertido_lead: bool = False
     fecha_deteccion: datetime
+    # Estado de revisión del operador
+    estado_revision: str = "nueva"  # nueva, revisada, descartada
+    fecha_revision: Optional[datetime] = None
+    revisado_por: Optional[str] = None
 
 class OportunidadPLACSPCreate(OportunidadPLACSPBase):
     pass
@@ -2089,26 +2093,101 @@ async def obtener_resumen_operador(
     }
 
 
+class EstadoRevisionUpdate(BaseModel):
+    estado: str  # nueva, revisada, descartada
+
+
+@api_router.patch("/oportunidades/{oportunidad_id}/estado-revision")
+async def update_estado_revision(
+    oportunidad_id: str,
+    data: EstadoRevisionUpdate,
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """Actualizar estado de revisión de una oportunidad"""
+    estados_validos = ["nueva", "revisada", "descartada"]
+    if data.estado not in estados_validos:
+        raise HTTPException(status_code=400, detail=f"Estado inválido. Use: {estados_validos}")
+
+    result = await db.oportunidades_placsp.update_one(
+        {"oportunidad_id": oportunidad_id},
+        {"$set": {
+            "estado_revision": data.estado,
+            "fecha_revision": datetime.now(timezone.utc).isoformat(),
+            "revisado_por": current_user.user_id
+        }}
+    )
+
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Oportunidad no encontrada")
+
+    return {
+        "success": True,
+        "oportunidad_id": oportunidad_id,
+        "estado_revision": data.estado
+    }
+
+
 @api_router.post("/oportunidades/{oportunidad_id}/convertir-lead")
 async def convert_oportunidad_to_lead(
     oportunidad_id: str,
     current_user: UserResponse = Depends(get_current_user)
 ):
-    """Convert opportunity to lead"""
+    """Convert opportunity to lead, incluyendo datos del análisis de pliego"""
     oportunidad = await db.oportunidades_placsp.find_one(
         {"oportunidad_id": oportunidad_id}, {"_id": 0}
     )
-    
+
     if not oportunidad:
         raise HTTPException(status_code=404, detail="Oportunidad no encontrada")
-    
+
     if oportunidad.get("convertido_lead"):
         raise HTTPException(status_code=400, detail="Ya convertido a lead")
-    
+
     # Create lead from oportunidad
     lead_id = f"lead_{uuid.uuid4().hex[:12]}"
     now = datetime.now(timezone.utc)
-    
+
+    # Extraer datos del análisis de pliego si existe
+    analisis_pliego = oportunidad.get("analisis_pliego", {})
+    resumen_operador = analisis_pliego.get("resumen_operador", {})
+
+    # Construir notas enriquecidas
+    notas_base = f"Origen: PLACSP - {oportunidad['expediente']}\n"
+    notas_base += f"Objeto: {oportunidad['objeto']}\n"
+    notas_base += f"Score: {oportunidad['score']}\n"
+    notas_base += f"CPV: {oportunidad['cpv']}\n"
+    notas_base += f"Órgano: {oportunidad['organo_contratacion']}\n"
+    notas_base += f"URL: {oportunidad['url_licitacion']}\n"
+
+    # Añadir info del análisis de pliego
+    if resumen_operador:
+        notas_base += f"\n--- ANÁLISIS IA ---\n"
+        if resumen_operador.get("dolor_principal"):
+            notas_base += f"Dolor principal: {resumen_operador['dolor_principal']}\n"
+        if resumen_operador.get("gancho_inicial"):
+            notas_base += f"Gancho: {resumen_operador['gancho_inicial']}\n"
+        if resumen_operador.get("nivel_oportunidad"):
+            notas_base += f"Nivel: {resumen_operador['nivel_oportunidad'].upper()}\n"
+        if resumen_operador.get("puntos_dolor_email"):
+            notas_base += f"Puntos dolor: {', '.join(resumen_operador['puntos_dolor_email'][:3])}\n"
+        if resumen_operador.get("tecnologias_mencionadas"):
+            notas_base += f"Tecnologías: {', '.join(resumen_operador['tecnologias_mencionadas'][:5])}\n"
+        if resumen_operador.get("certificaciones_requeridas"):
+            notas_base += f"Certificaciones: {', '.join(resumen_operador['certificaciones_requeridas'])}\n"
+
+    # Determinar urgencia basada en días restantes
+    dias_restantes = oportunidad.get("dias_restantes")
+    urgencia = "Sin definir"
+    if dias_restantes is not None:
+        if dias_restantes < 30:
+            urgencia = "Inmediata (< 1 mes)"
+        elif dias_restantes < 90:
+            urgencia = "Corto plazo (1-3 meses)"
+        elif dias_restantes < 180:
+            urgencia = "Medio plazo (3-6 meses)"
+        else:
+            urgencia = "Largo plazo (6+ meses)"
+
     lead_doc = {
         "lead_id": lead_id,
         "empresa": oportunidad["adjudicatario"],
@@ -2119,33 +2198,34 @@ async def convert_oportunidad_to_lead(
         "sector": oportunidad.get("tipo_srs", "Otro"),
         "valor_estimado": oportunidad.get("importe", 0),
         "etapa": "nuevo",
-        "notas": f"Origen: PLACSP - {oportunidad['expediente']}\n"
-                 f"Objeto: {oportunidad['objeto']}\n"
-                 f"Score: {oportunidad['score']}\n"
-                 f"CPV: {oportunidad['cpv']}\n"
-                 f"Órgano: {oportunidad['organo_contratacion']}\n"
-                 f"URL: {oportunidad['url_licitacion']}",
+        "notas": notas_base,
         "propietario": current_user.user_id,
         "servicios": [],
         "fuente": "Licitación",
-        "urgencia": "Sin definir",
+        "urgencia": urgencia,
         "fecha_creacion": now.isoformat(),
         "fecha_ultimo_contacto": now.isoformat(),
-        "created_by": current_user.user_id
+        "created_by": current_user.user_id,
+        # Datos extra del pliego para referencia
+        "oportunidad_origen": oportunidad_id,
+        "nivel_oportunidad": resumen_operador.get("nivel_oportunidad"),
+        "dolor_principal": resumen_operador.get("dolor_principal"),
+        "gancho_inicial": resumen_operador.get("gancho_inicial")
     }
-    
+
     await db.leads.insert_one(lead_doc)
-    
+
     # Mark oportunidad as converted
     await db.oportunidades_placsp.update_one(
         {"oportunidad_id": oportunidad_id},
         {"$set": {"convertido_lead": True}}
     )
-    
+
     return {
         "message": "Oportunidad convertida a lead",
         "lead_id": lead_id,
-        "oportunidad_id": oportunidad_id
+        "oportunidad_id": oportunidad_id,
+        "datos_pliego_incluidos": bool(resumen_operador)
     }
 
 # ============== ROOT ==============
