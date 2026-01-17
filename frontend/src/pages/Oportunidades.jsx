@@ -297,6 +297,9 @@ export default function Oportunidades({ user }) {
         setAnalyzingPliego(prev => ({ ...prev, [oportunidadId]: true }));
         toast.info("Analizando pliego... Esto puede tardar 30-60 segundos", { duration: 5000 });
 
+        // Buscar la oportunidad para obtener datos del organismo
+        const oportunidad = oportunidades.find(o => o.oportunidad_id === oportunidadId);
+
         try {
             const response = await axios.post(
                 `${API}/oportunidades/${oportunidadId}/analizar-pliego`,
@@ -318,8 +321,9 @@ export default function Oportunidades({ user }) {
                 setResumenOperador({
                     ...analisis.resumen_operador,
                     oportunidad_id: oportunidadId,
-                    empresa: response.data.analisis.oportunidad_id,
-                    importe: analisis.importe
+                    organismo: oportunidad?.adjudicatario || oportunidad?.organo_contratacion || "Organismo",
+                    objeto: oportunidad?.objeto || "",
+                    importe: oportunidad?.importe || analisis.importe
                 });
                 setResumenOperadorOpen(true);
 
@@ -345,7 +349,7 @@ export default function Oportunidades({ user }) {
             setResumenOperador({
                 ...oportunidad.analisis_pliego.resumen_operador,
                 oportunidad_id: oportunidad.oportunidad_id,
-                empresa: oportunidad.adjudicatario,
+                organismo: oportunidad.adjudicatario || oportunidad.organo_contratacion || "Organismo",
                 objeto: oportunidad.objeto,
                 importe: oportunidad.importe
             });
@@ -863,9 +867,12 @@ export default function Oportunidades({ user }) {
                         <div className="space-y-6 mt-4">
                             {/* Header con nivel de oportunidad */}
                             <div className="flex items-center justify-between p-4 rounded-lg bg-slate-800/50">
-                                <div>
-                                    <p className="text-white font-semibold text-lg">{resumenOperador.empresa}</p>
-                                    <p className="text-slate-400 text-sm">{resumenOperador.objeto?.substring(0, 100)}...</p>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-white font-semibold text-lg">{resumenOperador.organismo || resumenOperador.empresa || "Organismo"}</p>
+                                    <p className="text-slate-400 text-sm truncate">{resumenOperador.objeto?.substring(0, 150)}...</p>
+                                    {resumenOperador.importe > 0 && (
+                                        <p className="text-cyan-400 font-medium mt-1">{formatCurrency(resumenOperador.importe)}</p>
+                                    )}
                                 </div>
                                 <div className="flex flex-col items-end gap-2">
                                     <Badge className={getNivelOportunidadBadge(resumenOperador.nivel_oportunidad).color}>
