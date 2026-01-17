@@ -488,8 +488,7 @@ export default function Oportunidades({ user }) {
                         onClick={handleAnalyzePainBatch}
                         disabled={analyzingBatch || reclassifying || executingSpotter}
                         variant="outline"
-                        className="theme-text-secondary hover:theme-text"
-                        style={{ borderColor: 'var(--theme-border)' }}
+                        className="bg-purple-500/20 text-purple-300 border-purple-500/50 hover:bg-purple-500/30 hover:text-purple-200"
                         title="Analizar pain de oportunidades pendientes con IA"
                     >
                         {analyzingBatch ? (
@@ -508,8 +507,7 @@ export default function Oportunidades({ user }) {
                         onClick={handleReclassify}
                         disabled={reclassifying || executingSpotter || analyzingBatch}
                         variant="outline"
-                        className="theme-text-secondary hover:theme-text"
-                        style={{ borderColor: 'var(--theme-border)' }}
+                        className="bg-amber-500/20 text-amber-300 border-amber-500/50 hover:bg-amber-500/30 hover:text-amber-200"
                         title="Reclasificar oportunidades existentes con el algoritmo actualizado"
                     >
                         {reclassifying ? (
@@ -740,16 +738,21 @@ export default function Oportunidades({ user }) {
                                                 {oportunidad.pain_score !== undefined ? (
                                                     <Tooltip>
                                                         <TooltipTrigger asChild>
-                                                            <div className="flex items-center gap-1">
+                                                            <div className="flex flex-col items-start gap-0.5">
                                                                 <Badge
-                                                                    variant="outline"
-                                                                    className={`${getPainScoreColor(oportunidad.pain_score)} font-bold cursor-help`}
+                                                                    className={`${getPainScoreColor(oportunidad.pain_score)} font-bold px-2.5 py-1 text-sm shadow-lg`}
                                                                 >
+                                                                    <Brain className="w-3 h-3 mr-1" />
                                                                     {oportunidad.pain_score}
                                                                 </Badge>
-                                                                {oportunidad.nivel_urgencia === "critico" && (
-                                                                    <AlertTriangle className="w-3 h-3 text-red-400" />
-                                                                )}
+                                                                <span className={`text-[10px] font-medium ${
+                                                                    oportunidad.nivel_urgencia === "critico" ? "text-red-400" :
+                                                                    oportunidad.nivel_urgencia === "alto" ? "text-orange-400" :
+                                                                    oportunidad.nivel_urgencia === "medio" ? "text-yellow-400" :
+                                                                    "text-green-400"
+                                                                }`}>
+                                                                    {getNivelUrgenciaLabel(oportunidad.nivel_urgencia).text}
+                                                                </span>
                                                             </div>
                                                         </TooltipTrigger>
                                                         <TooltipContent side="right" className="max-w-xs bg-slate-900 border-slate-700">
@@ -771,16 +774,19 @@ export default function Oportunidades({ user }) {
                                                 ) : (
                                                     <Button
                                                         size="sm"
-                                                        variant="ghost"
+                                                        variant="outline"
                                                         onClick={() => handleAnalyzePain(oportunidad.oportunidad_id)}
                                                         disabled={analyzingPain[oportunidad.oportunidad_id]}
-                                                        className="text-slate-500 hover:text-cyan-400"
+                                                        className="text-slate-400 border-slate-600 hover:text-purple-400 hover:border-purple-500/50 hover:bg-purple-500/10"
                                                         title="Analizar con IA"
                                                     >
                                                         {analyzingPain[oportunidad.oportunidad_id] ? (
                                                             <Loader2 className="w-4 h-4 animate-spin" />
                                                         ) : (
-                                                            <Brain className="w-4 h-4" />
+                                                            <>
+                                                                <Brain className="w-4 h-4 mr-1" />
+                                                                <span className="text-xs">Analizar</span>
+                                                            </>
                                                         )}
                                                     </Button>
                                                 )}
