@@ -141,6 +141,7 @@ export default function Oportunidades({ user }) {
     const [resumenOperadorOpen, setResumenOperadorOpen] = useState(false);
     const [resumenOperador, setResumenOperador] = useState(null);
     const [loadingResumen, setLoadingResumen] = useState(false);
+    const [enrichingAdjudicatario, setEnrichingAdjudicatario] = useState(false);
 
     const fetchOportunidades = useCallback(async () => {
         try {
@@ -346,7 +347,9 @@ export default function Oportunidades({ user }) {
                     email_contacto: analisis.email_contacto,
                     telefono_contacto: analisis.telefono_contacto,
                     resumen_it: analisis.resumen_it,
-                    tiene_it: analisis.tiene_it
+                    tiene_it: analisis.tiene_it,
+                    // Datos enriquecidos (si ya existen)
+                    datos_adjudicatario: oportunidad?.datos_adjudicatario
                 });
                 setResumenOperadorOpen(true);
 
@@ -408,7 +411,9 @@ export default function Oportunidades({ user }) {
                 email_contacto: oportunidad.analisis_pliego.email_contacto,
                 telefono_contacto: oportunidad.analisis_pliego.telefono_contacto,
                 resumen_it: oportunidad.analisis_pliego.resumen_it,
-                tiene_it: oportunidad.analisis_pliego.tiene_it
+                tiene_it: oportunidad.analisis_pliego.tiene_it,
+                // Datos enriquecidos del adjudicatario
+                datos_adjudicatario: oportunidad.datos_adjudicatario
             });
             setResumenOperadorOpen(true);
             return;
@@ -431,6 +436,47 @@ export default function Oportunidades({ user }) {
             }
         } finally {
             setLoadingResumen(false);
+        }
+    };
+
+    const handleEnrichAdjudicatario = async (oportunidadId) => {
+        setEnrichingAdjudicatario(true);
+        toast.info("Buscando datos del adjudicatario...", { duration: 3000 });
+
+        try {
+            const response = await axios.post(
+                `${API}/oportunidades/${oportunidadId}/enriquecer-adjudicatario`,
+                {},
+                { withCredentials: true, timeout: 60000 }
+            );
+
+            if (response.data.success) {
+                const datos = response.data.datos_adjudicatario;
+                const confianza = datos.confianza || "baja";
+
+                toast.success(
+                    `Datos obtenidos (confianza: ${confianza}). Fuente: ${datos.fuente || "N/A"}`,
+                    { duration: 4000 }
+                );
+
+                // Actualizar el resumenOperador con los nuevos datos
+                setResumenOperador(prev => ({
+                    ...prev,
+                    datos_adjudicatario: datos,
+                    telefono_contacto: datos.telefono || prev?.telefono_contacto,
+                    email_contacto: datos.email || prev?.email_contacto
+                }));
+
+                // Refrescar oportunidades para que se guarden los datos
+                fetchOportunidades();
+            } else {
+                toast.error("No se pudieron obtener datos adicionales");
+            }
+        } catch (error) {
+            toast.error(error.response?.data?.detail || "Error al buscar datos del adjudicatario");
+            console.error("Error enriching adjudicatario:", error);
+        } finally {
+            setEnrichingAdjudicatario(false);
         }
     };
 
@@ -1041,42 +1087,105 @@ export default function Oportunidades({ user }) {
 
                             {/* Datos del Adjudicatario para Contacto */}
                             <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20">
-                                <h3 className="text-blue-400 font-semibold flex items-center gap-2 mb-3">
-                                    <Building2 className="w-4 h-4" />
-                                    Datos del Adjudicatario
-                                </h3>
+                                <div className="flex items-center justify-between mb-3">
+                                    <h3 className="text-blue-400 font-semibold flex items-center gap-2">
+                                        <Building2 className="w-4 h-4" />
+                                        Datos del Adjudicatario
+                                    </h3>
+                                    {!resumenOperador.datos_adjudicatario?.telefono && !resumenOperador.telefono_contacto && (
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            className="text-blue-400 border-blue-500/30 hover:bg-blue-500/20 h-7 text-xs"
+                                            onClick={() => handleEnrichAdjudicatario(resumenOperador.oportunidad_id)}
+                                            disabled={enrichingAdjudicatario}
+                                        >
+                                            {enrichingAdjudicatario ? (
+                                                <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                                            ) : (
+                                                <Search className="w-3 h-3 mr-1" />
+                                            )}
+                                            Buscar datos
+                                        </Button>
+                                    )}
+                                </div>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
                                         <p className="text-slate-400 text-xs mb-1">Empresa</p>
-                                        <p className="text-white font-medium">{resumenOperador.adjudicatario || resumenOperador.organismo || "-"}</p>
+                                        <p className="text-white font-medium">
+                                            {resumenOperador.datos_adjudicatario?.nombre_comercial || resumenOperador.adjudicatario || resumenOperador.organismo || "-"}
+                                        </p>
                                     </div>
                                     <div>
                                         <p className="text-slate-400 text-xs mb-1">NIF</p>
                                         <p className="text-white font-medium">{resumenOperador.nif || "-"}</p>
                                     </div>
-                                    {resumenOperador.email_contacto && (
+                                    {(resumenOperador.datos_adjudicatario?.email || resumenOperador.email_contacto) && (
                                         <div>
                                             <p className="text-slate-400 text-xs mb-1">Email</p>
-                                            <a href={`mailto:${resumenOperador.email_contacto}`} className="text-blue-400 hover:underline flex items-center gap-1">
+                                            <a
+                                                href={`mailto:${resumenOperador.datos_adjudicatario?.email || resumenOperador.email_contacto}`}
+                                                className="text-blue-400 hover:underline flex items-center gap-1"
+                                            >
                                                 <Mail className="w-3 h-3" />
-                                                {resumenOperador.email_contacto}
+                                                {resumenOperador.datos_adjudicatario?.email || resumenOperador.email_contacto}
                                             </a>
                                         </div>
                                     )}
-                                    {resumenOperador.telefono_contacto && (
+                                    {(resumenOperador.datos_adjudicatario?.telefono || resumenOperador.telefono_contacto) && (
                                         <div>
                                             <p className="text-slate-400 text-xs mb-1">Teléfono</p>
-                                            <a href={`tel:${resumenOperador.telefono_contacto}`} className="text-blue-400 hover:underline flex items-center gap-1">
+                                            <a
+                                                href={`tel:${resumenOperador.datos_adjudicatario?.telefono || resumenOperador.telefono_contacto}`}
+                                                className="text-blue-400 hover:underline flex items-center gap-1"
+                                            >
                                                 <Phone className="w-3 h-3" />
-                                                {resumenOperador.telefono_contacto}
+                                                {resumenOperador.datos_adjudicatario?.telefono || resumenOperador.telefono_contacto}
                                             </a>
+                                        </div>
+                                    )}
+                                    {resumenOperador.datos_adjudicatario?.web && (
+                                        <div>
+                                            <p className="text-slate-400 text-xs mb-1">Web</p>
+                                            <a
+                                                href={resumenOperador.datos_adjudicatario.web.startsWith('http') ? resumenOperador.datos_adjudicatario.web : `https://${resumenOperador.datos_adjudicatario.web}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-blue-400 hover:underline flex items-center gap-1"
+                                            >
+                                                <ExternalLink className="w-3 h-3" />
+                                                {resumenOperador.datos_adjudicatario.web}
+                                            </a>
+                                        </div>
+                                    )}
+                                    {resumenOperador.datos_adjudicatario?.direccion && (
+                                        <div className="col-span-2">
+                                            <p className="text-slate-400 text-xs mb-1">Dirección</p>
+                                            <p className="text-slate-300 text-sm">
+                                                {resumenOperador.datos_adjudicatario.direccion}
+                                                {resumenOperador.datos_adjudicatario.localidad && `, ${resumenOperador.datos_adjudicatario.localidad}`}
+                                                {resumenOperador.datos_adjudicatario.provincia && ` (${resumenOperador.datos_adjudicatario.provincia})`}
+                                            </p>
                                         </div>
                                     )}
                                 </div>
+                                {resumenOperador.datos_adjudicatario?.actividad && (
+                                    <div className="mt-3 pt-3 border-t border-blue-500/20">
+                                        <p className="text-slate-400 text-xs mb-1">Actividad</p>
+                                        <p className="text-slate-300 text-sm">{resumenOperador.datos_adjudicatario.actividad}</p>
+                                    </div>
+                                )}
                                 {resumenOperador.organo_contratacion && (
                                     <div className="mt-3 pt-3 border-t border-blue-500/20">
                                         <p className="text-slate-400 text-xs mb-1">Órgano de Contratación</p>
                                         <p className="text-slate-300 text-sm">{resumenOperador.organo_contratacion}</p>
+                                    </div>
+                                )}
+                                {resumenOperador.datos_adjudicatario?.fuente && (
+                                    <div className="mt-2 flex justify-end">
+                                        <span className="text-xs text-slate-500">
+                                            Fuente: {resumenOperador.datos_adjudicatario.fuente} | Confianza: {resumenOperador.datos_adjudicatario.confianza}
+                                        </span>
                                     </div>
                                 )}
                             </div>

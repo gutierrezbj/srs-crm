@@ -248,6 +248,8 @@ class OportunidadPLACSPBase(BaseModel):
     analisis_pliego: Optional[Dict[str, Any]] = None
     analisis_pliego_fecha: Optional[str] = None
     tiene_it_confirmado: Optional[bool] = None
+    # Datos enriquecidos del adjudicatario
+    datos_adjudicatario: Optional[Dict[str, Any]] = None  # {nombre, nif, direccion, telefono, email, web, sector, empleados, fuente, fecha_enriquecimiento}
 
 class OportunidadPLACSPCreate(OportunidadPLACSPBase):
     pass
@@ -2100,6 +2102,76 @@ async def obtener_resumen_operador(
         "alertas": resumen.get("alertas", []),
         "confianza": resumen.get("confianza_analisis", "")
     }
+
+
+@api_router.post("/oportunidades/{oportunidad_id}/enriquecer-adjudicatario")
+async def enriquecer_adjudicatario_endpoint(
+    oportunidad_id: str,
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """
+    Enriquece los datos del adjudicatario desde fuentes externas.
+
+    Busca información adicional como:
+    - Dirección completa
+    - Teléfono de contacto
+    - Email de contacto
+    - Sitio web
+    - Actividad/CNAE
+    - Número de empleados
+
+    Fuentes: Infocif.es, Einforma.com, PLACSP
+    """
+    try:
+        from app.spotter.adjudicatario_enricher import enriquecer_adjudicatario
+
+        # Obtener la oportunidad
+        oportunidad = await db.oportunidades_placsp.find_one(
+            {"oportunidad_id": oportunidad_id},
+            {"_id": 0, "adjudicatario": 1, "nif": 1, "url_licitacion": 1, "datos_adjudicatario": 1}
+        )
+
+        if not oportunidad:
+            raise HTTPException(status_code=404, detail="Oportunidad no encontrada")
+
+        nombre = oportunidad.get("adjudicatario", "")
+        nif = oportunidad.get("nif", "")
+        url_licitacion = oportunidad.get("url_licitacion")
+
+        if not nif:
+            raise HTTPException(status_code=400, detail="La oportunidad no tiene NIF del adjudicatario")
+
+        # Enriquecer datos
+        datos = await enriquecer_adjudicatario(
+            nombre=nombre,
+            nif=nif,
+            url_licitacion=url_licitacion
+        )
+
+        # Guardar en la base de datos
+        await db.oportunidades_placsp.update_one(
+            {"oportunidad_id": oportunidad_id},
+            {"$set": {"datos_adjudicatario": datos}}
+        )
+
+        return {
+            "success": True,
+            "oportunidad_id": oportunidad_id,
+            "datos_adjudicatario": datos
+        }
+
+    except ImportError as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error importando módulo adjudicatario_enricher: {str(e)}"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error enriqueciendo adjudicatario: {str(e)}"
+        )
 
 
 class EstadoRevisionUpdate(BaseModel):
