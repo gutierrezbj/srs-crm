@@ -1448,29 +1448,6 @@ export default function Oportunidades({ user }) {
                                 </div>
                             )}
 
-                            {/* Resumen IT */}
-                            {resumenOperador.resumen_it && (
-                                <div className="p-4 rounded-lg bg-cyan-500/10 border border-cyan-500/20">
-                                    <h3 className="text-cyan-400 font-semibold flex items-center gap-2 mb-2">
-                                        <Server className="w-4 h-4" />
-                                        Resumen Componente IT
-                                    </h3>
-                                    <p className="text-white text-sm">{resumenOperador.resumen_it}</p>
-                                </div>
-                            )}
-
-                            {/* Dolor Principal */}
-                            {resumenOperador.dolor_principal && (
-                                <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/20">
-                                    <h3 className="text-red-400 font-semibold flex items-center gap-2 mb-2">
-                                        <AlertTriangle className="w-4 h-4" />
-                                        Dolor Principal
-                                    </h3>
-                                    <p className="text-white">{resumenOperador.dolor_principal}</p>
-                                </div>
-                            )}
-
-
                             {/* Empresas Competidoras (otras que licitaron) */}
                             {resumenOperador.datos_adjudicatario?.empresas_competidoras?.length > 0 && (
                                 <div className="p-4 rounded-lg bg-amber-500/10 border border-amber-500/20">

@@ -9,3 +9,4 @@ __pycache__/
 *.backup
 frontend/.env
 frontend/of -i :80
+.env
