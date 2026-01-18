@@ -1092,22 +1092,20 @@ export default function Oportunidades({ user }) {
                                         <Building2 className="w-4 h-4" />
                                         Datos del Adjudicatario
                                     </h3>
-                                    {!resumenOperador.datos_adjudicatario?.telefono && !resumenOperador.telefono_contacto && (
-                                        <Button
-                                            size="sm"
-                                            variant="outline"
-                                            className="text-blue-400 border-blue-500/30 hover:bg-blue-500/20 h-7 text-xs"
-                                            onClick={() => handleEnrichAdjudicatario(resumenOperador.oportunidad_id)}
-                                            disabled={enrichingAdjudicatario}
-                                        >
-                                            {enrichingAdjudicatario ? (
-                                                <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                                            ) : (
-                                                <Search className="w-3 h-3 mr-1" />
-                                            )}
-                                            Buscar datos
-                                        </Button>
-                                    )}
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="text-blue-400 border-blue-500/30 hover:bg-blue-500/20 h-7 text-xs"
+                                        onClick={() => handleEnrichAdjudicatario(resumenOperador.oportunidad_id)}
+                                        disabled={enrichingAdjudicatario || !resumenOperador.oportunidad_id}
+                                    >
+                                        {enrichingAdjudicatario ? (
+                                            <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                                        ) : (
+                                            <Search className="w-3 h-3 mr-1" />
+                                        )}
+                                        {resumenOperador.datos_adjudicatario?.telefono ? "Actualizar" : "Buscar datos"}
+                                    </Button>
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
