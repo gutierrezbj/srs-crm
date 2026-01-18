@@ -1181,29 +1181,11 @@ export default function Oportunidades({ user }) {
                                         <p className="text-slate-300 text-sm">{resumenOperador.datos_adjudicatario.lugar_ejecucion}</p>
                                     </div>
                                 )}
-                                {resumenOperador.organo_contratacion && (
-                                    <div className="mt-3 pt-3 border-t border-blue-500/20">
-                                        <p className="text-slate-400 text-xs mb-1">Órgano de Contratación</p>
-                                        <p className="text-slate-300 text-sm">{resumenOperador.organo_contratacion}</p>
-                                    </div>
-                                )}
-                                {resumenOperador.datos_adjudicatario?.documentos?.length > 0 && (
-                                    <div className="mt-3 pt-3 border-t border-blue-500/20">
-                                        <p className="text-slate-400 text-xs mb-2">Documentos Disponibles</p>
-                                        <div className="flex flex-wrap gap-2">
-                                            {resumenOperador.datos_adjudicatario.documentos.slice(0, 5).map((doc, idx) => (
-                                                <a
-                                                    key={idx}
-                                                    href={doc.url}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="text-xs px-2 py-1 bg-blue-500/20 text-blue-300 rounded hover:bg-blue-500/30 flex items-center gap-1"
-                                                >
-                                                    <FileText className="w-3 h-3" />
-                                                    {doc.titulo?.substring(0, 30) || "Documento"}
-                                                </a>
-                                            ))}
-                                        </div>
+                                {resumenOperador.datos_adjudicatario?.es_pyme !== undefined && (
+                                    <div className="mt-2">
+                                        <Badge className={resumenOperador.datos_adjudicatario.es_pyme ? "bg-green-500/20 text-green-400" : "bg-slate-500/20 text-slate-400"}>
+                                            {resumenOperador.datos_adjudicatario.es_pyme ? "PYME" : "Gran Empresa"}
+                                        </Badge>
                                     </div>
                                 )}
                                 {resumenOperador.datos_adjudicatario?.fuente && (
@@ -1214,6 +1196,145 @@ export default function Oportunidades({ user }) {
                                     </div>
                                 )}
                             </div>
+
+                            {/* Datos del Órgano Contratante (EL CLIENTE) */}
+                            {(resumenOperador.organo_contratacion || resumenOperador.datos_adjudicatario?.organo_contratacion) && (
+                                <div className="p-4 rounded-lg bg-green-500/10 border border-green-500/20">
+                                    <h3 className="text-green-400 font-semibold flex items-center gap-2 mb-3">
+                                        <Target className="w-4 h-4" />
+                                        Órgano Contratante (Cliente)
+                                    </h3>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="col-span-2">
+                                            <p className="text-slate-400 text-xs mb-1">Entidad</p>
+                                            <p className="text-white font-medium">
+                                                {resumenOperador.datos_adjudicatario?.organo_contratacion || resumenOperador.organo_contratacion}
+                                            </p>
+                                        </div>
+                                        {resumenOperador.datos_adjudicatario?.organo_email && (
+                                            <div>
+                                                <p className="text-slate-400 text-xs mb-1">Email</p>
+                                                <a
+                                                    href={`mailto:${resumenOperador.datos_adjudicatario.organo_email}`}
+                                                    className="text-green-400 hover:underline flex items-center gap-1"
+                                                >
+                                                    <Mail className="w-3 h-3" />
+                                                    {resumenOperador.datos_adjudicatario.organo_email}
+                                                </a>
+                                            </div>
+                                        )}
+                                        {resumenOperador.datos_adjudicatario?.organo_telefono && (
+                                            <div>
+                                                <p className="text-slate-400 text-xs mb-1">Teléfono</p>
+                                                <a
+                                                    href={`tel:${resumenOperador.datos_adjudicatario.organo_telefono}`}
+                                                    className="text-green-400 hover:underline flex items-center gap-1"
+                                                >
+                                                    <Phone className="w-3 h-3" />
+                                                    {resumenOperador.datos_adjudicatario.organo_telefono}
+                                                </a>
+                                            </div>
+                                        )}
+                                        {resumenOperador.datos_adjudicatario?.organo_web && (
+                                            <div>
+                                                <p className="text-slate-400 text-xs mb-1">Web</p>
+                                                <a
+                                                    href={resumenOperador.datos_adjudicatario.organo_web.startsWith('http') ? resumenOperador.datos_adjudicatario.organo_web : `https://${resumenOperador.datos_adjudicatario.organo_web}`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="text-green-400 hover:underline flex items-center gap-1"
+                                                >
+                                                    <ExternalLink className="w-3 h-3" />
+                                                    {resumenOperador.datos_adjudicatario.organo_web}
+                                                </a>
+                                            </div>
+                                        )}
+                                    </div>
+                                    {resumenOperador.datos_adjudicatario?.financiacion_ue && (
+                                        <div className="mt-3 pt-3 border-t border-green-500/20">
+                                            <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30">
+                                                <Euro className="w-3 h-3 mr-1" />
+                                                {resumenOperador.datos_adjudicatario.financiacion_ue}
+                                            </Badge>
+                                            {resumenOperador.datos_adjudicatario.programa_financiacion && (
+                                                <p className="text-slate-400 text-xs mt-1">{resumenOperador.datos_adjudicatario.programa_financiacion}</p>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Datos del Contrato */}
+                            {(resumenOperador.datos_adjudicatario?.importe_adjudicacion || resumenOperador.datos_adjudicatario?.fecha_adjudicacion) && (
+                                <div className="p-4 rounded-lg bg-slate-800/50">
+                                    <h3 className="text-slate-300 font-semibold flex items-center gap-2 mb-3">
+                                        <FileText className="w-4 h-4" />
+                                        Datos del Contrato
+                                    </h3>
+                                    <div className="grid grid-cols-2 gap-4 text-sm">
+                                        {resumenOperador.datos_adjudicatario?.importe_adjudicacion && (
+                                            <div>
+                                                <p className="text-slate-400 text-xs mb-1">Importe Adjudicación</p>
+                                                <p className="text-cyan-400 font-medium">{resumenOperador.datos_adjudicatario.importe_adjudicacion}</p>
+                                            </div>
+                                        )}
+                                        {resumenOperador.datos_adjudicatario?.importe_con_iva && (
+                                            <div>
+                                                <p className="text-slate-400 text-xs mb-1">Importe con IVA</p>
+                                                <p className="text-slate-300">{resumenOperador.datos_adjudicatario.importe_con_iva}</p>
+                                            </div>
+                                        )}
+                                        {resumenOperador.datos_adjudicatario?.fecha_adjudicacion && (
+                                            <div>
+                                                <p className="text-slate-400 text-xs mb-1">Fecha Adjudicación</p>
+                                                <p className="text-slate-300">{resumenOperador.datos_adjudicatario.fecha_adjudicacion}</p>
+                                            </div>
+                                        )}
+                                        {resumenOperador.datos_adjudicatario?.duracion_contrato && (
+                                            <div>
+                                                <p className="text-slate-400 text-xs mb-1">Duración</p>
+                                                <p className="text-slate-300">{resumenOperador.datos_adjudicatario.duracion_contrato}</p>
+                                            </div>
+                                        )}
+                                        {resumenOperador.datos_adjudicatario?.numero_ofertas && (
+                                            <div>
+                                                <p className="text-slate-400 text-xs mb-1">Ofertas Recibidas</p>
+                                                <p className="text-slate-300">{resumenOperador.datos_adjudicatario.numero_ofertas}</p>
+                                            </div>
+                                        )}
+                                        {resumenOperador.datos_adjudicatario?.lugar_ejecucion && (
+                                            <div>
+                                                <p className="text-slate-400 text-xs mb-1">Lugar Ejecución</p>
+                                                <p className="text-slate-300">{resumenOperador.datos_adjudicatario.lugar_ejecucion}</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Documentos Disponibles */}
+                            {resumenOperador.datos_adjudicatario?.documentos?.length > 0 && (
+                                <div className="p-4 rounded-lg bg-slate-800/50">
+                                    <h3 className="text-slate-300 font-semibold flex items-center gap-2 mb-3">
+                                        <FileText className="w-4 h-4" />
+                                        Documentos Disponibles
+                                    </h3>
+                                    <div className="flex flex-wrap gap-2">
+                                        {resumenOperador.datos_adjudicatario.documentos.slice(0, 8).map((doc, idx) => (
+                                            <a
+                                                key={idx}
+                                                href={doc.url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-xs px-2 py-1 bg-slate-700 text-slate-300 rounded hover:bg-slate-600 flex items-center gap-1"
+                                            >
+                                                <FileText className="w-3 h-3" />
+                                                {doc.titulo} ({doc.tipo?.toUpperCase() || "DOC"})
+                                            </a>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Resumen IT */}
                             {resumenOperador.resumen_it && (
