@@ -32,7 +32,9 @@ import {
     Eye,
     EyeOff,
     Sparkles,
-    Ban
+    Ban,
+    Users,
+    Trophy
 } from "lucide-react";
 import {
     Tooltip,
@@ -477,6 +479,36 @@ export default function Oportunidades({ user }) {
             console.error("Error enriching adjudicatario:", error);
         } finally {
             setEnrichingAdjudicatario(false);
+        }
+    };
+
+    const handleCreateLeadFromCompetidor = async (empresa) => {
+        try {
+            // Crear un lead directamente desde la empresa competidora
+            const leadData = {
+                nombre_empresa: empresa.nombre,
+                nif: empresa.nif,
+                fuente: "Licitación",
+                notas: `Empresa que participó en licitación (puntuación: ${empresa.puntuacion || 'N/A'} pts). Posible cliente potencial - no ganaron la adjudicación.`,
+                stage: "nuevo"
+            };
+
+            const response = await axios.post(
+                `${API}/leads`,
+                leadData,
+                { withCredentials: true }
+            );
+
+            if (response.data) {
+                toast.success(`Lead creado: ${empresa.nombre}`, { duration: 3000 });
+            }
+        } catch (error) {
+            if (error.response?.status === 400 && error.response?.data?.detail?.includes("ya existe")) {
+                toast.info(`Ya existe un lead para ${empresa.nombre}`);
+            } else {
+                toast.error(error.response?.data?.detail || "Error al crear lead");
+            }
+            console.error("Error creating lead from competidor:", error);
         }
     };
 
@@ -1385,21 +1417,68 @@ export default function Oportunidades({ user }) {
                                 </div>
                             )}
 
-                            {/* Preguntas de Cualificación */}
-                            {resumenOperador.preguntas_cualificacion?.length > 0 && (
-                                <div className="p-4 rounded-lg bg-slate-800">
-                                    <h3 className="text-yellow-400 font-semibold flex items-center gap-2 mb-3">
-                                        <Phone className="w-4 h-4" />
-                                        Preguntas para la Llamada
+                            {/* Empresas Competidoras (otras que licitaron) */}
+                            {resumenOperador.datos_adjudicatario?.empresas_competidoras?.length > 0 && (
+                                <div className="p-4 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                                    <h3 className="text-amber-400 font-semibold flex items-center gap-2 mb-3">
+                                        <Users className="w-4 h-4" />
+                                        Otras Empresas que Licitaron
+                                        <Badge className="bg-amber-500/20 text-amber-300 text-xs ml-2">
+                                            {resumenOperador.datos_adjudicatario.empresas_competidoras.length} empresas
+                                        </Badge>
                                     </h3>
-                                    <ul className="space-y-2">
-                                        {resumenOperador.preguntas_cualificacion.map((pregunta, idx) => (
-                                            <li key={idx} className="text-slate-300 flex items-start gap-2">
-                                                <span className="text-yellow-400 font-bold">{idx + 1}.</span>
-                                                {pregunta}
-                                            </li>
+                                    <p className="text-slate-400 text-xs mb-3">
+                                        Estas empresas participaron en la licitación pero no ganaron. Son posibles clientes potenciales.
+                                    </p>
+                                    <div className="space-y-2">
+                                        {resumenOperador.datos_adjudicatario.empresas_competidoras.map((empresa, idx) => (
+                                            <div
+                                                key={idx}
+                                                className="flex items-center justify-between p-3 rounded-lg bg-slate-800/50 hover:bg-slate-800 transition-colors"
+                                            >
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-amber-400 font-bold text-sm">#{idx + 2}</span>
+                                                        <p className="text-white font-medium truncate" title={empresa.nombre}>
+                                                            {empresa.nombre}
+                                                        </p>
+                                                    </div>
+                                                    <div className="flex items-center gap-3 mt-1">
+                                                        <span className="text-slate-400 text-xs">
+                                                            NIF: {empresa.nif}
+                                                        </span>
+                                                        {empresa.puntuacion && (
+                                                            <span className="text-slate-400 text-xs flex items-center gap-1">
+                                                                <Trophy className="w-3 h-3 text-amber-400" />
+                                                                {empresa.puntuacion} pts
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                <TooltipProvider>
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                className="text-amber-400 border-amber-500/30 hover:bg-amber-500/20 h-8"
+                                                                onClick={() => {
+                                                                    // Crear lead desde competidor
+                                                                    handleCreateLeadFromCompetidor(empresa);
+                                                                }}
+                                                            >
+                                                                <UserPlus className="w-3 h-3 mr-1" />
+                                                                Lead
+                                                            </Button>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>
+                                                            Crear lead desde esta empresa
+                                                        </TooltipContent>
+                                                    </Tooltip>
+                                                </TooltipProvider>
+                                            </div>
                                         ))}
-                                    </ul>
+                                    </div>
                                 </div>
                             )}
 
