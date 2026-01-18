@@ -1083,7 +1083,7 @@ export default function Oportunidades({ user }) {
 
             {/* Resumen Operador Dialog */}
             <Dialog open={resumenOperadorOpen} onOpenChange={setResumenOperadorOpen}>
-                <DialogContent className="bg-slate-900 border-white/10 max-w-2xl w-full max-h-[90vh] overflow-y-auto overflow-x-hidden">
+                <DialogContent className="bg-slate-900 border-white/10 max-w-xl sm:max-w-2xl md:max-w-3xl w-[95vw] max-h-[90vh] overflow-y-auto overflow-x-hidden p-4 sm:p-6">
                     <DialogHeader>
                         <DialogTitle className="text-white flex items-center gap-2">
                             <Lightbulb className="w-5 h-5 text-yellow-400" />
@@ -1097,7 +1097,7 @@ export default function Oportunidades({ user }) {
                     {resumenOperador && (
                         <div className="space-y-6 mt-4">
                             {/* Header con nivel de oportunidad */}
-                            <div className="p-4 rounded-lg bg-slate-800/50">
+                            <div className="p-4 rounded-lg bg-slate-800/50 overflow-hidden">
                                 <div className="flex items-center gap-2 mb-2 flex-wrap">
                                     <Badge className={getNivelOportunidadBadge(resumenOperador.nivel_oportunidad).color}>
                                         {resumenOperador.nivel_oportunidad?.toUpperCase()}
@@ -1117,7 +1117,7 @@ export default function Oportunidades({ user }) {
                             </div>
 
                             {/* Datos del Adjudicatario para Contacto */}
-                            <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                            <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20 overflow-hidden">
                                 <div className="flex flex-col gap-2 mb-3">
                                     <h3 className="text-blue-400 font-semibold flex items-center gap-2">
                                         <Building2 className="w-4 h-4" />
@@ -1228,7 +1228,7 @@ export default function Oportunidades({ user }) {
 
                             {/* Datos del Órgano Contratante (EL CLIENTE) */}
                             {(resumenOperador.organo_contratacion || resumenOperador.datos_adjudicatario?.organo_contratacion) && (
-                                <div className="p-4 rounded-lg bg-green-500/10 border border-green-500/20">
+                                <div className="p-4 rounded-lg bg-green-500/10 border border-green-500/20 overflow-hidden">
                                     <h3 className="text-green-400 font-semibold flex items-center gap-2 mb-3">
                                         <Target className="w-4 h-4" />
                                         Órgano Contratante (Cliente)
@@ -1295,12 +1295,12 @@ export default function Oportunidades({ user }) {
 
                             {/* Datos del Contrato */}
                             {(resumenOperador.datos_adjudicatario?.importe_adjudicacion || resumenOperador.datos_adjudicatario?.fecha_adjudicacion) && (
-                                <div className="p-4 rounded-lg bg-slate-800/50">
+                                <div className="p-4 rounded-lg bg-slate-800/50 overflow-hidden">
                                     <h3 className="text-slate-300 font-semibold flex items-center gap-2 mb-3">
                                         <FileText className="w-4 h-4" />
                                         Datos del Contrato
                                     </h3>
-                                    <div className="grid grid-cols-2 gap-3 text-sm">
+                                    <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
                                         {resumenOperador.datos_adjudicatario?.importe_adjudicacion && (
                                             <div>
                                                 <p className="text-slate-400 text-xs mb-1">Importe</p>
