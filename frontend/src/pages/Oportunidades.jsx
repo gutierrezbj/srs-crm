@@ -1097,15 +1097,8 @@ export default function Oportunidades({ user }) {
                     {resumenOperador && (
                         <div className="space-y-6 mt-4">
                             {/* Header con nivel de oportunidad */}
-                            <div className="flex items-center justify-between p-4 rounded-lg bg-slate-800/50">
-                                <div className="flex-1 min-w-0">
-                                    <p className="text-white font-semibold text-lg">{resumenOperador.organismo || resumenOperador.empresa || "Organismo"}</p>
-                                    <p className="text-slate-400 text-sm truncate">{resumenOperador.objeto?.substring(0, 150)}...</p>
-                                    {resumenOperador.importe > 0 && (
-                                        <p className="text-cyan-400 font-medium mt-1">{formatCurrency(resumenOperador.importe)}</p>
-                                    )}
-                                </div>
-                                <div className="flex flex-col items-end gap-2">
+                            <div className="p-4 rounded-lg bg-slate-800/50">
+                                <div className="flex items-center gap-2 mb-2 flex-wrap">
                                     <Badge className={getNivelOportunidadBadge(resumenOperador.nivel_oportunidad).color}>
                                         {resumenOperador.nivel_oportunidad?.toUpperCase()}
                                     </Badge>
@@ -1116,11 +1109,16 @@ export default function Oportunidades({ user }) {
                                         </Badge>
                                     )}
                                 </div>
+                                <p className="text-white font-semibold text-lg break-words">{resumenOperador.organismo || resumenOperador.empresa || "Organismo"}</p>
+                                <p className="text-slate-400 text-sm break-words mt-1">{resumenOperador.objeto}</p>
+                                {resumenOperador.importe > 0 && (
+                                    <p className="text-cyan-400 font-medium mt-2">{formatCurrency(resumenOperador.importe)}</p>
+                                )}
                             </div>
 
                             {/* Datos del Adjudicatario para Contacto */}
                             <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20">
-                                <div className="flex items-center justify-between mb-3">
+                                <div className="flex flex-col gap-2 mb-3">
                                     <h3 className="text-blue-400 font-semibold flex items-center gap-2">
                                         <Building2 className="w-4 h-4" />
                                         Datos del Adjudicatario
@@ -1128,19 +1126,19 @@ export default function Oportunidades({ user }) {
                                     <Button
                                         size="sm"
                                         variant="outline"
-                                        className="text-blue-400 border-blue-500/30 hover:bg-blue-500/20 h-7 text-xs"
+                                        className="text-blue-400 border-blue-500/30 hover:bg-blue-500/20 w-full"
                                         onClick={() => handleEnrichAdjudicatario(resumenOperador.oportunidad_id)}
                                         disabled={enrichingAdjudicatario || !resumenOperador.oportunidad_id}
                                     >
                                         {enrichingAdjudicatario ? (
-                                            <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                                         ) : (
-                                            <Search className="w-3 h-3 mr-1" />
+                                            <Search className="w-4 h-4 mr-2" />
                                         )}
-                                        {resumenOperador.datos_adjudicatario?.telefono ? "Actualizar" : "Buscar datos"}
+                                        {resumenOperador.datos_adjudicatario?.telefono ? "Actualizar datos" : "Buscar datos"}
                                     </Button>
                                 </div>
-                                <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-3">
                                     <div>
                                         <p className="text-slate-400 text-xs mb-1">Empresa</p>
                                         <p className="text-white font-medium">
@@ -1235,10 +1233,10 @@ export default function Oportunidades({ user }) {
                                         <Target className="w-4 h-4" />
                                         Órgano Contratante (Cliente)
                                     </h3>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="col-span-2">
+                                    <div className="space-y-3">
+                                        <div>
                                             <p className="text-slate-400 text-xs mb-1">Entidad</p>
-                                            <p className="text-white font-medium">
+                                            <p className="text-white font-medium break-words">
                                                 {resumenOperador.datos_adjudicatario?.organo_contratacion || resumenOperador.organo_contratacion}
                                             </p>
                                         </div>
@@ -1247,9 +1245,9 @@ export default function Oportunidades({ user }) {
                                                 <p className="text-slate-400 text-xs mb-1">Email</p>
                                                 <a
                                                     href={`mailto:${resumenOperador.datos_adjudicatario.organo_email}`}
-                                                    className="text-green-400 hover:underline flex items-center gap-1"
+                                                    className="text-green-400 hover:underline flex items-center gap-1 break-all"
                                                 >
-                                                    <Mail className="w-3 h-3" />
+                                                    <Mail className="w-3 h-3 flex-shrink-0" />
                                                     {resumenOperador.datos_adjudicatario.organo_email}
                                                 </a>
                                             </div>
@@ -1261,7 +1259,7 @@ export default function Oportunidades({ user }) {
                                                     href={`tel:${resumenOperador.datos_adjudicatario.organo_telefono}`}
                                                     className="text-green-400 hover:underline flex items-center gap-1"
                                                 >
-                                                    <Phone className="w-3 h-3" />
+                                                    <Phone className="w-3 h-3 flex-shrink-0" />
                                                     {resumenOperador.datos_adjudicatario.organo_telefono}
                                                 </a>
                                             </div>
@@ -1273,9 +1271,9 @@ export default function Oportunidades({ user }) {
                                                     href={resumenOperador.datos_adjudicatario.organo_web.startsWith('http') ? resumenOperador.datos_adjudicatario.organo_web : `https://${resumenOperador.datos_adjudicatario.organo_web}`}
                                                     target="_blank"
                                                     rel="noopener noreferrer"
-                                                    className="text-green-400 hover:underline flex items-center gap-1"
+                                                    className="text-green-400 hover:underline flex items-center gap-1 break-all"
                                                 >
-                                                    <ExternalLink className="w-3 h-3" />
+                                                    <ExternalLink className="w-3 h-3 flex-shrink-0" />
                                                     {resumenOperador.datos_adjudicatario.organo_web}
                                                 </a>
                                             </div>
@@ -1302,22 +1300,16 @@ export default function Oportunidades({ user }) {
                                         <FileText className="w-4 h-4" />
                                         Datos del Contrato
                                     </h3>
-                                    <div className="grid grid-cols-2 gap-4 text-sm">
+                                    <div className="grid grid-cols-2 gap-3 text-sm">
                                         {resumenOperador.datos_adjudicatario?.importe_adjudicacion && (
                                             <div>
-                                                <p className="text-slate-400 text-xs mb-1">Importe Adjudicación</p>
+                                                <p className="text-slate-400 text-xs mb-1">Importe</p>
                                                 <p className="text-cyan-400 font-medium">{resumenOperador.datos_adjudicatario.importe_adjudicacion}</p>
-                                            </div>
-                                        )}
-                                        {resumenOperador.datos_adjudicatario?.importe_con_iva && (
-                                            <div>
-                                                <p className="text-slate-400 text-xs mb-1">Importe con IVA</p>
-                                                <p className="text-slate-300">{resumenOperador.datos_adjudicatario.importe_con_iva}</p>
                                             </div>
                                         )}
                                         {resumenOperador.datos_adjudicatario?.fecha_adjudicacion && (
                                             <div>
-                                                <p className="text-slate-400 text-xs mb-1">Fecha Adjudicación</p>
+                                                <p className="text-slate-400 text-xs mb-1">Fecha</p>
                                                 <p className="text-slate-300">{resumenOperador.datos_adjudicatario.fecha_adjudicacion}</p>
                                             </div>
                                         )}
@@ -1329,14 +1321,8 @@ export default function Oportunidades({ user }) {
                                         )}
                                         {resumenOperador.datos_adjudicatario?.numero_ofertas && (
                                             <div>
-                                                <p className="text-slate-400 text-xs mb-1">Ofertas Recibidas</p>
+                                                <p className="text-slate-400 text-xs mb-1">Ofertas</p>
                                                 <p className="text-slate-300">{resumenOperador.datos_adjudicatario.numero_ofertas}</p>
-                                            </div>
-                                        )}
-                                        {resumenOperador.datos_adjudicatario?.lugar_ejecucion && (
-                                            <div>
-                                                <p className="text-slate-400 text-xs mb-1">Lugar Ejecución</p>
-                                                <p className="text-slate-300">{resumenOperador.datos_adjudicatario.lugar_ejecucion}</p>
                                             </div>
                                         )}
                                     </div>
@@ -1345,36 +1331,32 @@ export default function Oportunidades({ user }) {
 
                             {/* Botón Analizar Pliego - SIEMPRE visible */}
                             <div className="p-4 rounded-lg bg-slate-800/50">
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <h3 className="text-slate-300 font-semibold flex items-center gap-2">
-                                            <Brain className="w-4 h-4 text-green-400" />
-                                            Análisis de Pliego con IA
-                                        </h3>
-                                        <p className="text-slate-500 text-xs mt-1">
-                                            Detecta oportunidades IT y servicios donde SRS puede ayudar
-                                        </p>
-                                    </div>
-                                    <Button
-                                        size="sm"
-                                        variant="outline"
-                                        className="text-green-400 border-green-500/30 hover:bg-green-500/20"
-                                        onClick={() => handleAnalyzePliego(resumenOperador.oportunidad_id)}
-                                        disabled={analyzingPliego || !resumenOperador.oportunidad_id}
-                                    >
-                                        {analyzingPliego ? (
-                                            <>
-                                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                                Analizando...
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Sparkles className="w-4 h-4 mr-2" />
-                                                Analizar Pliego
-                                            </>
-                                        )}
-                                    </Button>
-                                </div>
+                                <h3 className="text-slate-300 font-semibold flex items-center gap-2">
+                                    <Brain className="w-4 h-4 text-green-400" />
+                                    Análisis de Pliego con IA
+                                </h3>
+                                <p className="text-slate-500 text-xs mt-1 mb-3">
+                                    Detecta oportunidades IT y servicios donde SRS puede ayudar
+                                </p>
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="text-green-400 border-green-500/30 hover:bg-green-500/20 w-full"
+                                    onClick={() => handleAnalyzePliego(resumenOperador.oportunidad_id)}
+                                    disabled={analyzingPliego || !resumenOperador.oportunidad_id}
+                                >
+                                    {analyzingPliego ? (
+                                        <>
+                                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                            Analizando...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Sparkles className="w-4 h-4 mr-2" />
+                                            Analizar Pliego
+                                        </>
+                                    )}
+                                </Button>
                             </div>
 
                             {/* Documentos Disponibles (si existen) */}
@@ -1554,40 +1536,39 @@ export default function Oportunidades({ user }) {
                                 </div>
                             )}
 
-                            {/* Tecnologías y Certificaciones */}
-                            <div className="grid grid-cols-2 gap-4">
-                                {resumenOperador.tecnologias_mencionadas?.length > 0 && (
-                                    <div className="p-4 rounded-lg bg-slate-800">
-                                        <h3 className="text-green-400 font-semibold flex items-center gap-2 mb-2">
-                                            <Server className="w-4 h-4" />
-                                            Tecnologías
-                                        </h3>
-                                        <div className="flex flex-wrap gap-2">
-                                            {resumenOperador.tecnologias_mencionadas.map((tech, idx) => (
-                                                <Badge key={idx} variant="outline" className="text-green-300 border-green-500/30">
-                                                    {tech}
-                                                </Badge>
-                                            ))}
-                                        </div>
+                            {/* Tecnologías */}
+                            {resumenOperador.tecnologias_mencionadas?.length > 0 && (
+                                <div className="p-4 rounded-lg bg-slate-800">
+                                    <h3 className="text-green-400 font-semibold flex items-center gap-2 mb-2">
+                                        <Server className="w-4 h-4" />
+                                        Tecnologías
+                                    </h3>
+                                    <div className="flex flex-wrap gap-2">
+                                        {resumenOperador.tecnologias_mencionadas.map((tech, idx) => (
+                                            <Badge key={idx} variant="outline" className="text-green-300 border-green-500/30">
+                                                {tech}
+                                            </Badge>
+                                        ))}
                                     </div>
-                                )}
+                                </div>
+                            )}
 
-                                {resumenOperador.certificaciones_requeridas?.length > 0 && (
-                                    <div className="p-4 rounded-lg bg-slate-800">
-                                        <h3 className="text-orange-400 font-semibold flex items-center gap-2 mb-2">
-                                            <Shield className="w-4 h-4" />
-                                            Certificaciones Requeridas
-                                        </h3>
-                                        <div className="flex flex-wrap gap-2">
-                                            {resumenOperador.certificaciones_requeridas.map((cert, idx) => (
-                                                <Badge key={idx} variant="outline" className="text-orange-300 border-orange-500/30">
-                                                    {cert}
-                                                </Badge>
-                                            ))}
-                                        </div>
+                            {/* Certificaciones */}
+                            {resumenOperador.certificaciones_requeridas?.length > 0 && (
+                                <div className="p-4 rounded-lg bg-slate-800">
+                                    <h3 className="text-orange-400 font-semibold flex items-center gap-2 mb-2">
+                                        <Shield className="w-4 h-4" />
+                                        Certificaciones Requeridas
+                                    </h3>
+                                    <div className="flex flex-wrap gap-2">
+                                        {resumenOperador.certificaciones_requeridas.map((cert, idx) => (
+                                            <Badge key={idx} variant="outline" className="text-orange-300 border-orange-500/30">
+                                                {cert}
+                                            </Badge>
+                                        ))}
                                     </div>
-                                )}
-                            </div>
+                                </div>
+                            )}
 
                             {/* Alertas */}
                             {resumenOperador.alertas?.length > 0 && (
