@@ -483,32 +483,6 @@ export default function Oportunidades({ user }) {
         }
     };
 
-    const handleAnalyzePliego = async (oportunidadId) => {
-        setAnalyzingPliego(true);
-        setAnalisisPliego(null);
-        toast.info("Analizando pliego con IA... esto puede tardar 30-60 segundos", { duration: 5000 });
-
-        try {
-            const response = await axios.post(
-                `${API}/oportunidades/${oportunidadId}/analizar-pliego`,
-                {},
-                { withCredentials: true }
-            );
-
-            if (response.data?.success) {
-                setAnalisisPliego(response.data.analisis);
-                toast.success("Análisis de pliego completado", { duration: 3000 });
-                // Refrescar datos
-                fetchOportunidades();
-            }
-        } catch (error) {
-            toast.error(error.response?.data?.detail || "Error al analizar el pliego");
-            console.error("Error analyzing pliego:", error);
-        } finally {
-            setAnalyzingPliego(false);
-        }
-    };
-
     const handleCreateLeadFromCompetidor = async (empresa) => {
         try {
             // Crear un lead directamente desde la empresa competidora
