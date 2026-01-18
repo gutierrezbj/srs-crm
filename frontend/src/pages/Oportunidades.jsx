@@ -1050,7 +1050,7 @@ export default function Oportunidades({ user }) {
 
             {/* Resumen Operador Dialog */}
             <Dialog open={resumenOperadorOpen} onOpenChange={setResumenOperadorOpen}>
-                <DialogContent className="bg-slate-900 border-white/10 max-w-3xl max-h-[90vh] overflow-y-auto">
+                <DialogContent className="bg-slate-900 border-white/10 max-w-4xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle className="text-white flex items-center gap-2">
                             <Lightbulb className="w-5 h-5 text-yellow-400" />

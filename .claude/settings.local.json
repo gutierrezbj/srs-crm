@@ -18,7 +18,10 @@
       "Bash(grep:*)",
       "Bash(python:*)",
       "Bash(npm run build:*)",
-      "Bash(npx eslint:*)"
+      "Bash(npx eslint:*)",
+      "Bash(npx:*)",
+      "Bash(npm install:*)",
+      "Bash(curl:*)"
     ]
   }
 }
