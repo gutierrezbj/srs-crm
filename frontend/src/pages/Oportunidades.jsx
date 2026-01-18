@@ -139,7 +139,6 @@ export default function Oportunidades({ user }) {
     const [reclassifying, setReclassifying] = useState(false);
     const [analyzingPain, setAnalyzingPain] = useState({});
     const [analyzingBatch, setAnalyzingBatch] = useState(false);
-    const [analyzingPliego, setAnalyzingPliego] = useState({});
     const [resumenOperadorOpen, setResumenOperadorOpen] = useState(false);
     const [resumenOperador, setResumenOperador] = useState(null);
     const [loadingResumen, setLoadingResumen] = useState(false);
