@@ -24,12 +24,12 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class DatosAdjudicatario:
-    """Datos enriquecidos del adjudicatario"""
+    """Datos enriquecidos del adjudicatario y del contrato"""
     # Datos básicos (ya disponibles en CRM)
     nombre: str
     nif: str
 
-    # Datos enriquecidos
+    # Datos de contacto enriquecidos
     nombre_comercial: Optional[str] = None
     direccion: Optional[str] = None
     codigo_postal: Optional[str] = None
@@ -39,7 +39,7 @@ class DatosAdjudicatario:
     email: Optional[str] = None
     web: Optional[str] = None
 
-    # Datos de la empresa
+    # Datos de la empresa (de Infocif/Einforma)
     forma_juridica: Optional[str] = None  # S.L., S.A., etc.
     fecha_constitucion: Optional[str] = None
     capital_social: Optional[float] = None
@@ -47,6 +47,23 @@ class DatosAdjudicatario:
     actividad: Optional[str] = None
     empleados: Optional[int] = None
     facturacion: Optional[float] = None
+
+    # Datos del contrato (de PLACSP)
+    organo_contratacion: Optional[str] = None
+    expediente: Optional[str] = None
+    objeto: Optional[str] = None
+    estado: Optional[str] = None
+    resultado: Optional[str] = None
+    importe_adjudicacion: Optional[str] = None
+    valor_estimado: Optional[str] = None
+    presupuesto_base: Optional[str] = None
+    lugar_ejecucion: Optional[str] = None
+    cpv: Optional[str] = None
+    tipo_contrato: Optional[str] = None
+    procedimiento: Optional[str] = None
+    financiacion_ue: Optional[str] = None
+    num_licitadores: Optional[str] = None
+    documentos: Optional[list] = None  # Lista de {titulo, url}
 
     # Metadata
     fuente: str = "manual"  # placsp, infocif, einforma, manual
@@ -92,24 +109,26 @@ class AdjudicatarioEnricher:
             fecha_enriquecimiento=datetime.now().isoformat()
         )
 
-        # 1. Intentar Infocif (mejor fuente gratuita)
-        datos_infocif = await self._scrape_infocif(nif)
-        if datos_infocif:
-            datos = self._merge_datos(datos, datos_infocif, "infocif")
-            logger.info(f"Datos obtenidos de Infocif para {nif}")
+        # 1. PRIMERO: Extraer datos de PLACSP (fuente oficial y más completa)
+        if url_licitacion:
+            datos_placsp = await self._scrape_placsp(url_licitacion)
+            if datos_placsp:
+                datos = self._merge_datos(datos, datos_placsp, "placsp")
+                logger.info(f"Datos obtenidos de PLACSP: {list(datos_placsp.keys())}")
 
-        # 2. Si no hay datos suficientes, intentar Einforma
+        # 2. Complementar con Infocif si faltan datos de contacto
+        if not datos.telefono or not datos.email:
+            datos_infocif = await self._scrape_infocif(nif)
+            if datos_infocif:
+                datos = self._merge_datos(datos, datos_infocif, "infocif")
+                logger.info(f"Datos complementados desde Infocif para {nif}")
+
+        # 3. Último recurso: Einforma
         if not datos.telefono and not datos.email:
             datos_einforma = await self._scrape_einforma(nif)
             if datos_einforma:
                 datos = self._merge_datos(datos, datos_einforma, "einforma")
                 logger.info(f"Datos obtenidos de Einforma para {nif}")
-
-        # 3. Extraer datos de PLACSP si hay URL
-        if url_licitacion:
-            datos_placsp = await self._scrape_placsp(url_licitacion)
-            if datos_placsp:
-                datos = self._merge_datos(datos, datos_placsp, "placsp")
 
         # Calcular confianza
         datos.confianza = self._calcular_confianza(datos)
@@ -269,9 +288,18 @@ class AdjudicatarioEnricher:
 
     async def _scrape_placsp(self, url_licitacion: str) -> Optional[Dict[str, Any]]:
         """
-        Extrae datos adicionales de la página de detalle de PLACSP.
-        Nota: PLACSP no tiene datos de contacto del adjudicatario,
-        solo del órgano contratante.
+        Extrae datos completos de la página de detalle de PLACSP.
+
+        La página tiene estructura de tabla con filas:
+        - Órgano de contratación
+        - Expediente
+        - Objeto del contrato
+        - Estado de la Licitación
+        - Adjudicatario
+        - Importe de Adjudicación
+        - Lugar de ejecución
+        - Código CPV
+        - Y más...
         """
         try:
             async with httpx.AsyncClient(timeout=self.timeout, verify=False) as client:
@@ -282,31 +310,112 @@ class AdjudicatarioEnricher:
                 )
 
                 if response.status_code != 200:
+                    logger.warning(f"PLACSP retornó {response.status_code}")
                     return None
 
                 soup = BeautifulSoup(response.text, 'html.parser')
-
                 datos = {}
 
-                # PLACSP muestra datos del adjudicatario en sección específica
-                # Buscar en la sección de "Resultado" o "Adjudicación"
+                # Mapeo de labels de PLACSP a campos
+                mapeo_campos = {
+                    'adjudicatario': 'nombre_comercial',
+                    'contratista': 'nombre_comercial',
+                    'órgano de contratación': 'organo_contratacion',
+                    'organo de contratacion': 'organo_contratacion',
+                    'expediente': 'expediente',
+                    'objeto del contrato': 'objeto',
+                    'estado de la licitación': 'estado',
+                    'estado de la licitacion': 'estado',
+                    'importe de adjudicación': 'importe_adjudicacion',
+                    'importe de adjudicacion': 'importe_adjudicacion',
+                    'valor estimado del contrato': 'valor_estimado',
+                    'presupuesto base de licitación sin impuestos': 'presupuesto_base',
+                    'presupuesto base de licitacion sin impuestos': 'presupuesto_base',
+                    'lugar de ejecución': 'lugar_ejecucion',
+                    'lugar de ejecucion': 'lugar_ejecucion',
+                    'código cpv': 'cpv',
+                    'codigo cpv': 'cpv',
+                    'tipo de contrato': 'tipo_contrato',
+                    'procedimiento de contratación': 'procedimiento',
+                    'procedimiento de contratacion': 'procedimiento',
+                    'financiación ue': 'financiacion_ue',
+                    'financiacion ue': 'financiacion_ue',
+                    'resultado': 'resultado',
+                    'nº de licitadores presentados': 'num_licitadores',
+                    'n° de licitadores presentados': 'num_licitadores',
+                }
 
-                # Buscar tablas con datos
-                for table in soup.find_all('table'):
-                    for row in table.find_all('tr'):
-                        cells = row.find_all(['td', 'th'])
-                        if len(cells) >= 2:
-                            label = cells[0].get_text(strip=True).lower()
-                            value = cells[1].get_text(strip=True)
+                # Buscar en todas las filas de tabla
+                for row in soup.find_all('tr'):
+                    cells = row.find_all(['td', 'th'])
+                    if len(cells) >= 2:
+                        label = cells[0].get_text(strip=True).lower()
+                        value = cells[1].get_text(strip=True)
 
-                            if 'adjudicatario' in label or 'contratista' in label:
-                                if value and not datos.get('nombre_comercial'):
-                                    datos['nombre_comercial'] = value
-                            elif 'nif' in label or 'cif' in label:
-                                if value and len(value) == 9:
-                                    datos['nif_verificado'] = value
+                        if not value:
+                            continue
 
+                        # Buscar coincidencia en el mapeo
+                        for key_label, campo in mapeo_campos.items():
+                            if key_label in label:
+                                datos[campo] = value
+                                break
+
+                # También buscar en divs con estructura label/valor
+                # PLACSP a veces usa divs en lugar de tablas
+                for div in soup.find_all('div', class_=re.compile(r'campo|field|row', re.I)):
+                    label_elem = div.find(class_=re.compile(r'label|titulo|etiqueta', re.I))
+                    value_elem = div.find(class_=re.compile(r'value|valor|dato', re.I))
+
+                    if label_elem and value_elem:
+                        label = label_elem.get_text(strip=True).lower()
+                        value = value_elem.get_text(strip=True)
+
+                        for key_label, campo in mapeo_campos.items():
+                            if key_label in label:
+                                if campo not in datos:
+                                    datos[campo] = value
+                                break
+
+                # Extraer enlaces a documentos (pliegos, adjudicación, etc.)
+                documentos = []
+                for link in soup.find_all('a', href=True):
+                    href = link.get('href', '')
+                    texto = link.get_text(strip=True).lower()
+
+                    # Buscar enlaces a documentos PDF
+                    if '.pdf' in href.lower() or any(doc in texto for doc in ['pliego', 'adjudicación', 'adjudicacion', 'formalización', 'formalizacion', 'anuncio']):
+                        doc_info = {
+                            'titulo': link.get_text(strip=True),
+                            'url': href if href.startswith('http') else f"https://contrataciondelestado.es{href}"
+                        }
+                        documentos.append(doc_info)
+
+                if documentos:
+                    datos['documentos'] = documentos[:10]  # Limitar a 10 documentos
+
+                # Buscar emails en toda la página
+                email_pattern = r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'
+                emails = re.findall(email_pattern, response.text)
+                emails = [e for e in emails if not any(x in e.lower() for x in ['example', 'contratacion', 'hacienda', 'cookie', 'noreply'])]
+                if emails:
+                    datos['email_contacto'] = emails[0]
+
+                # Buscar teléfonos
+                tel_pattern = r'(?:\+34|0034)?[\s.-]?[6789]\d{2}[\s.-]?\d{3}[\s.-]?\d{3}'
+                telefonos = re.findall(tel_pattern, response.text)
+                if telefonos:
+                    # Limpiar y tomar el primero
+                    tel = re.sub(r'[^\d+]', '', telefonos[0])
+                    if len(tel) >= 9:
+                        datos['telefono_contacto'] = tel
+
+                logger.info(f"PLACSP extrajo {len(datos)} campos")
                 return datos if datos else None
+
+        except Exception as e:
+            logger.error(f"Error scraping PLACSP: {e}")
+            return None
 
         except Exception as e:
             logger.error(f"Error scraping PLACSP: {e}")

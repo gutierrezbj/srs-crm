@@ -1175,10 +1175,35 @@ export default function Oportunidades({ user }) {
                                         <p className="text-slate-300 text-sm">{resumenOperador.datos_adjudicatario.actividad}</p>
                                     </div>
                                 )}
+                                {resumenOperador.datos_adjudicatario?.lugar_ejecucion && (
+                                    <div className="mt-3 pt-3 border-t border-blue-500/20">
+                                        <p className="text-slate-400 text-xs mb-1">Lugar de Ejecución</p>
+                                        <p className="text-slate-300 text-sm">{resumenOperador.datos_adjudicatario.lugar_ejecucion}</p>
+                                    </div>
+                                )}
                                 {resumenOperador.organo_contratacion && (
                                     <div className="mt-3 pt-3 border-t border-blue-500/20">
                                         <p className="text-slate-400 text-xs mb-1">Órgano de Contratación</p>
                                         <p className="text-slate-300 text-sm">{resumenOperador.organo_contratacion}</p>
+                                    </div>
+                                )}
+                                {resumenOperador.datos_adjudicatario?.documentos?.length > 0 && (
+                                    <div className="mt-3 pt-3 border-t border-blue-500/20">
+                                        <p className="text-slate-400 text-xs mb-2">Documentos Disponibles</p>
+                                        <div className="flex flex-wrap gap-2">
+                                            {resumenOperador.datos_adjudicatario.documentos.slice(0, 5).map((doc, idx) => (
+                                                <a
+                                                    key={idx}
+                                                    href={doc.url}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="text-xs px-2 py-1 bg-blue-500/20 text-blue-300 rounded hover:bg-blue-500/30 flex items-center gap-1"
+                                                >
+                                                    <FileText className="w-3 h-3" />
+                                                    {doc.titulo?.substring(0, 30) || "Documento"}
+                                                </a>
+                                            ))}
+                                        </div>
                                     </div>
                                 )}
                                 {resumenOperador.datos_adjudicatario?.fuente && (

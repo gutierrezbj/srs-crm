@@ -14,7 +14,11 @@
       "Bash(git fetch:*)",
       "Bash(git merge:*)",
       "Bash(ssh:*)",
-      "Bash(git pull:*)"
+      "Bash(git pull:*)",
+      "Bash(grep:*)",
+      "Bash(python:*)",
+      "Bash(npm run build:*)",
+      "Bash(npx eslint:*)"
     ]
   }
 }
