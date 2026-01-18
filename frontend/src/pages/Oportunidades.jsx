@@ -1343,34 +1343,47 @@ export default function Oportunidades({ user }) {
                                 </div>
                             )}
 
-                            {/* Documentos Disponibles y Análisis de Pliego */}
+                            {/* Botón Analizar Pliego - SIEMPRE visible */}
+                            <div className="p-4 rounded-lg bg-slate-800/50">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <h3 className="text-slate-300 font-semibold flex items-center gap-2">
+                                            <Brain className="w-4 h-4 text-green-400" />
+                                            Análisis de Pliego con IA
+                                        </h3>
+                                        <p className="text-slate-500 text-xs mt-1">
+                                            Detecta oportunidades IT y servicios donde SRS puede ayudar
+                                        </p>
+                                    </div>
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="text-green-400 border-green-500/30 hover:bg-green-500/20"
+                                        onClick={() => handleAnalyzePliego(resumenOperador.oportunidad_id)}
+                                        disabled={analyzingPliego || !resumenOperador.oportunidad_id}
+                                    >
+                                        {analyzingPliego ? (
+                                            <>
+                                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                                Analizando...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Sparkles className="w-4 h-4 mr-2" />
+                                                Analizar Pliego
+                                            </>
+                                        )}
+                                    </Button>
+                                </div>
+                            </div>
+
+                            {/* Documentos Disponibles (si existen) */}
                             {resumenOperador.datos_adjudicatario?.documentos?.length > 0 && (
                                 <div className="p-4 rounded-lg bg-slate-800/50">
-                                    <div className="flex items-center justify-between mb-3">
-                                        <h3 className="text-slate-300 font-semibold flex items-center gap-2">
-                                            <FileText className="w-4 h-4" />
-                                            Documentos Disponibles
-                                        </h3>
-                                        <Button
-                                            size="sm"
-                                            variant="outline"
-                                            className="text-green-400 border-green-500/30 hover:bg-green-500/20 h-7 text-xs"
-                                            onClick={() => handleAnalyzePliego(resumenOperador.oportunidad_id)}
-                                            disabled={analyzingPliego || !resumenOperador.oportunidad_id}
-                                        >
-                                            {analyzingPliego ? (
-                                                <>
-                                                    <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                                                    Analizando...
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <Brain className="w-3 h-3 mr-1" />
-                                                    Analizar Pliego
-                                                </>
-                                            )}
-                                        </Button>
-                                    </div>
+                                    <h3 className="text-slate-300 font-semibold flex items-center gap-2 mb-3">
+                                        <FileText className="w-4 h-4" />
+                                        Documentos Disponibles
+                                    </h3>
                                     <div className="flex flex-wrap gap-2">
                                         {resumenOperador.datos_adjudicatario.documentos.slice(0, 8).map((doc, idx) => (
                                             <a
