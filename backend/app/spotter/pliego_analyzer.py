@@ -378,10 +378,14 @@ class PliegoAnalyzer:
 
     def _generar_prompt_analisis(self, texto: str, objeto: str, importe: float) -> str:
         """Genera prompt para análisis exhaustivo con IA"""
+        from app.spotter.catalogo_srs import SERVICIOS_RESUMEN_PROMPT
+
         # Limitar texto a ~50k caracteres para no exceder contexto
         texto_truncado = texto[:50000] if len(texto) > 50000 else texto
 
-        return f"""Eres un analista experto en licitaciones públicas de IT/Infraestructura para una empresa de servicios tecnológicos (SRS).
+        return f"""Eres un analista experto en licitaciones públicas de IT/Infraestructura para SRS (System Rapid Solutions), empresa especializada en servicios de soporte IT, cableado estructurado e infraestructura.
+
+{SERVICIOS_RESUMEN_PROMPT}
 
 CONTEXTO DE LA LICITACIÓN:
 - Objeto: {objeto}
@@ -392,7 +396,7 @@ TEXTO DEL PLIEGO (extracto):
 {texto_truncado}
 ---
 
-ANALIZA EL PLIEGO Y RESPONDE EN JSON con esta estructura EXACTA:
+ANALIZA EL PLIEGO buscando ESPECÍFICAMENTE servicios del catálogo SRS y responde en JSON con esta estructura EXACTA:
 
 {{
   "tiene_it": true/false,  // ¿Tiene componentes IT/Infraestructura?
@@ -413,11 +417,11 @@ ANALIZA EL PLIEGO Y RESPONDE EN JSON con esta estructura EXACTA:
 
   "componentes_it": [
     {{
-      "tipo": "infraestructura|software|servicios|comunicaciones|seguridad",
-      "nombre": "Nombre del componente",
-      "descripcion": "Descripción breve",
+      "tipo": "servicios|infraestructura|comunicaciones|software|seguridad",
+      "nombre": "Nombre EXACTO del servicio del catálogo SRS (ej: 'Soporte técnico Nivel 1', 'Cableado estructurado cobre')",
+      "descripcion": "Descripción específica de lo que pide el pliego",
       "urgencia": "critica|alta|media|baja",
-      "extracto_pliego": "Fragmento que menciona esto"
+      "extracto_pliego": "Fragmento LITERAL del pliego que evidencia esta necesidad"
     }}
   ],
 
@@ -464,12 +468,16 @@ CRITERIOS PARA nivel_oportunidad:
 - DESCARTAR: No hay IT o no encaja con SRS
 
 IMPORTANTE:
+- USA NOMBRES DEL CATÁLOGO SRS para los componentes_it (ej: "Soporte técnico Nivel 1", no "soporte técnico")
 - Busca IT OCULTO en contratos que parecen de otra cosa (obras, suministros, etc.)
+- Busca especialmente: cableado, puntos de red, fibra, racks, switches, CPD, servidores, backup, monitorización
 - Extrae fragmentos LITERALES del pliego como evidencia
 - El gancho_inicial debe ser ESPECÍFICO al dolor detectado, no genérico
 - Las preguntas de cualificación deben ayudar a entender si es oportunidad real
 - Busca emails y teléfonos de contacto en el pliego (del órgano contratante o responsable técnico)
 - El resumen_it debe ser conciso pero informativo para un comercial que va a llamar
+- Si detectas servicios de soporte/helpdesk, indica los niveles (N1, N2, N3) y horarios (24x7, 8x5)
+- Si detectas cableado, especifica tipo (cobre Cat6/Cat6A, fibra monomodo/multimodo)
 
 RESPONDE SOLO JSON, sin explicaciones adicionales."""
 
