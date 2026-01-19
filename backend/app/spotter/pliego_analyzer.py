@@ -444,7 +444,15 @@ ANALIZA EL PLIEGO buscando ESPECÍFICAMENTE servicios del catálogo SRS y respon
 
   "competidores_potenciales": ["Si se mencionan empresas incumbentes"],
 
-  "nivel_oportunidad": "oro|plata|bronce|descartar",  // Basado en fit con SRS
+  "ubicacion": {{
+    "provincia": "Provincia detectada o null",
+    "localidad": "Ciudad/localidad si se menciona",
+    "zona_srs": "base|cercana|expansion",
+    "multisede": true/false,
+    "sedes_detectadas": ["Lista de sedes si hay varias"]
+  }},
+
+  "nivel_oportunidad": "oro|plata|bronce|descartar",  // Basado en fit con SRS + ubicación
 
   "confianza_analisis": "alta|media|baja",
 
@@ -460,12 +468,14 @@ CRITERIOS PARA pain_score:
 - +15: Urgencia explícita / Plazos cortos
 - +10: Multisede / Complejidad técnica
 - +10: Penalizaciones por incumplimiento
+- +20: Ubicación en zona BASE SRS (Madrid, Andalucía)
+- +10: Ubicación en zona CERCANA SRS (Castilla, Extremadura, Murcia)
 
 CRITERIOS PARA nivel_oportunidad:
-- ORO: IT es el núcleo del contrato, alto importe, alta urgencia
+- ORO: IT es el núcleo del contrato, alto importe, alta urgencia, zona BASE
 - PLATA: IT relevante, buen importe, oportunidad clara
 - BRONCE: IT secundario pero presente, vale la pena explorar
-- DESCARTAR: No hay IT o no encaja con SRS
+- DESCARTAR: No hay IT o no encaja con SRS o ubicación muy lejana sin justificación
 
 IMPORTANTE:
 - USA NOMBRES DEL CATÁLOGO SRS para los componentes_it (ej: "Soporte técnico Nivel 1", no "soporte técnico")
@@ -478,6 +488,9 @@ IMPORTANTE:
 - El resumen_it debe ser conciso pero informativo para un comercial que va a llamar
 - Si detectas servicios de soporte/helpdesk, indica los niveles (N1, N2, N3) y horarios (24x7, 8x5)
 - Si detectas cableado, especifica tipo (cobre Cat6/Cat6A, fibra monomodo/multimodo)
+- DETECTA LA UBICACIÓN: busca provincia, localidad, dirección del lugar de ejecución
+- Evalúa si es multisede (varias ubicaciones) y lista las sedes detectadas
+- Clasifica la zona_srs según las provincias del catálogo
 
 RESPONDE SOLO JSON, sin explicaciones adicionales."""
 

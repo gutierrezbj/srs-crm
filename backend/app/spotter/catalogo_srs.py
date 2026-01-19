@@ -6,7 +6,129 @@ organizados por categoría. Se usa para:
 1. Detectar oportunidades en pliegos de licitaciones
 2. Clasificar componentes IT detectados
 3. Generar prompts para análisis con IA
+4. Evaluar zonas de cobertura geográfica
 """
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ZONAS DE COBERTURA GEOGRÁFICA
+# ═══════════════════════════════════════════════════════════════════════════════
+
+ZONAS_COBERTURA = {
+    "base": {
+        "descripcion": "Presencia directa, respuesta inmediata, sin coste desplazamiento",
+        "tiempo_respuesta": "mismo día",
+        "coste_desplazamiento": "incluido",
+        "prioridad_score": 20,  # Bonus para scoring de oportunidad
+        "provincias": [
+            "Madrid",
+            "Sevilla",
+            "Málaga",
+            "Cádiz",
+            "Granada",
+            "Córdoba",
+            "Huelva",
+            "Jaén",
+            "Almería"
+        ]
+    },
+    "cercana": {
+        "descripcion": "Desplazamiento corto, respuesta 24-48h",
+        "tiempo_respuesta": "24-48h",
+        "coste_desplazamiento": "reducido",
+        "prioridad_score": 10,
+        "provincias": [
+            "Toledo",
+            "Ciudad Real",
+            "Guadalajara",
+            "Cuenca",
+            "Albacete",
+            "Badajoz",
+            "Cáceres",
+            "Ávila",
+            "Segovia",
+            "Murcia"
+        ]
+    },
+    "expansion": {
+        "descripcion": "Cobertura nacional, planificación previa",
+        "tiempo_respuesta": "48-72h",
+        "coste_desplazamiento": "estándar",
+        "prioridad_score": 0,
+        "provincias": [
+            "Barcelona",
+            "Valencia",
+            "Alicante",
+            "Castellón",
+            "Tarragona",
+            "Girona",
+            "Lleida",
+            "Zaragoza",
+            "Huesca",
+            "Teruel",
+            "Navarra",
+            "La Rioja",
+            "Álava",
+            "Vizcaya",
+            "Guipúzcoa",
+            "Cantabria",
+            "Asturias",
+            "León",
+            "Palencia",
+            "Burgos",
+            "Soria",
+            "Valladolid",
+            "Zamora",
+            "Salamanca",
+            "A Coruña",
+            "Lugo",
+            "Ourense",
+            "Pontevedra",
+            "Islas Baleares",
+            "Las Palmas",
+            "Santa Cruz de Tenerife",
+            "Ceuta",
+            "Melilla"
+        ]
+    }
+}
+
+
+def obtener_zona_cobertura(provincia: str) -> dict:
+    """
+    Determina la zona de cobertura para una provincia.
+    Retorna info de la zona o None si no se encuentra.
+    """
+    provincia_normalizada = provincia.strip().title()
+
+    for zona, datos in ZONAS_COBERTURA.items():
+        if provincia_normalizada in datos["provincias"]:
+            return {
+                "zona": zona,
+                "tiempo_respuesta": datos["tiempo_respuesta"],
+                "coste_desplazamiento": datos["coste_desplazamiento"],
+                "prioridad_score": datos["prioridad_score"],
+                "descripcion": datos["descripcion"]
+            }
+
+    # Si no está en ninguna zona conocida
+    return {
+        "zona": "expansion",
+        "tiempo_respuesta": "a determinar",
+        "coste_desplazamiento": "a cotizar",
+        "prioridad_score": -5,
+        "descripcion": "Zona no habitual, requiere evaluación"
+    }
+
+
+def es_zona_prioritaria(provincia: str) -> bool:
+    """Retorna True si la provincia está en zona base o cercana"""
+    zona = obtener_zona_cobertura(provincia)
+    return zona["zona"] in ["base", "cercana"]
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# CATÁLOGO DE SERVICIOS
+# ═══════════════════════════════════════════════════════════════════════════════
 
 CATALOGO_SRS = [
     # ═══════════════════════════════════════════════════════════════════════════
@@ -342,4 +464,12 @@ SEGURIDAD:
 - IAM, PAM, MFA, SSO
 - Cumplimiento (ENS, ISO 27001, GDPR)
 - BCP/DRP, backup inmutable
+
+ZONAS DE COBERTURA SRS (evalúa ubicación):
+- ZONA BASE (respuesta mismo día, sin coste desplazamiento):
+  Madrid, Sevilla, Málaga, Cádiz, Granada, Córdoba, Huelva, Jaén, Almería
+- ZONA CERCANA (respuesta 24-48h, coste reducido):
+  Toledo, Ciudad Real, Guadalajara, Cuenca, Albacete, Badajoz, Cáceres, Ávila, Segovia, Murcia
+- ZONA EXPANSIÓN (respuesta 48-72h, coste estándar):
+  Resto de España (Cataluña, Valencia, País Vasco, Galicia, etc.)
 """
