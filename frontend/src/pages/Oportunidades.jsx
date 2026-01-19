@@ -145,6 +145,7 @@ export default function Oportunidades({ user }) {
     const [enrichingAdjudicatario, setEnrichingAdjudicatario] = useState(false);
     const [analyzingPliego, setAnalyzingPliego] = useState({});
     const [analisisPliego, setAnalisisPliego] = useState(null);
+    const [searchQuery, setSearchQuery] = useState("");
 
     const fetchOportunidades = useCallback(async () => {
         try {
@@ -340,6 +341,7 @@ export default function Oportunidades({ user }) {
                 setResumenOperador({
                     ...analisis.resumen_operador,
                     oportunidad_id: oportunidadId,
+                    ref_code: oportunidad?.ref_code,
                     organismo: oportunidad?.adjudicatario || oportunidad?.organo_contratacion || "Organismo",
                     objeto: oportunidad?.objeto || "",
                     importe: oportunidad?.importe || analisis.importe,
@@ -410,6 +412,7 @@ export default function Oportunidades({ user }) {
             setResumenOperador({
                 ...oportunidad.analisis_pliego.resumen_operador,
                 oportunidad_id: oportunidad.oportunidad_id,
+                ref_code: oportunidad.ref_code,
                 organismo: oportunidad.adjudicatario || oportunidad.organo_contratacion || "Organismo",
                 objeto: oportunidad.objeto,
                 importe: oportunidad.importe,
@@ -562,15 +565,37 @@ export default function Oportunidades({ user }) {
     const clearFilters = () => {
         setTipoSrsFilter("all");
         setEstadoRevisionFilter("all");
+        setSearchQuery("");
     };
 
-    const hasFilters = tipoSrsFilter !== "all" || estadoRevisionFilter !== "all";
+    const hasFilters = tipoSrsFilter !== "all" || estadoRevisionFilter !== "all" || searchQuery !== "";
 
-    // Filtrar oportunidades por estado de revisión (cliente-side)
+    // Filtrar oportunidades por estado de revisión y búsqueda (cliente-side)
     const filteredOportunidades = oportunidades.filter(o => {
-        if (estadoRevisionFilter === "all") return true;
-        const estado = o.estado_revision || "nueva";
-        return estado === estadoRevisionFilter;
+        // Filtro por estado
+        if (estadoRevisionFilter !== "all") {
+            const estado = o.estado_revision || "nueva";
+            if (estado !== estadoRevisionFilter) return false;
+        }
+
+        // Filtro por búsqueda (ref_code, adjudicatario, objeto, NIF)
+        if (searchQuery) {
+            const query = searchQuery.toLowerCase().trim();
+            const refCode = (o.ref_code || "").toLowerCase();
+            const adjudicatario = (o.adjudicatario || "").toLowerCase();
+            const objeto = (o.objeto || "").toLowerCase();
+            const nif = (o.nif || "").toLowerCase();
+
+            // Buscar coincidencia en cualquiera de los campos
+            if (!refCode.includes(query) &&
+                !adjudicatario.includes(query) &&
+                !objeto.includes(query) &&
+                !nif.includes(query)) {
+                return false;
+            }
+        }
+
+        return true;
     });
 
     // Stats (sobre datos filtrados)
@@ -722,10 +747,19 @@ export default function Oportunidades({ user }) {
             <Card className="theme-bg-secondary p-4" style={{ border: '1px solid var(--theme-border)' }}>
                 <div className="flex flex-col sm:flex-row gap-4 items-center">
                     <div className="flex items-center gap-2 flex-1">
-                        <Filter className="w-4 h-4 theme-text-muted" />
-                        <span className="theme-text-secondary text-sm">Filtrar por:</span>
+                        <div className="relative w-full max-w-xs">
+                            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 theme-text-muted" />
+                            <Input
+                                placeholder="Buscar por ref, empresa, NIF..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="pl-9 theme-bg-tertiary w-full"
+                                style={{ borderColor: 'var(--theme-border)' }}
+                            />
+                        </div>
                     </div>
-                    <div className="flex gap-2 flex-wrap">
+                    <div className="flex gap-2 flex-wrap items-center">
+                        <Filter className="w-4 h-4 theme-text-muted" />
                         <Select value={tipoSrsFilter} onValueChange={setTipoSrsFilter}>
                             <SelectTrigger
                                 className="w-[200px] theme-bg-tertiary"
@@ -807,6 +841,7 @@ export default function Oportunidades({ user }) {
                         <Table>
                             <TableHeader>
                                 <TableRow className="border-b" style={{ borderColor: 'var(--theme-border)' }}>
+                                    <TableHead className="theme-text-secondary font-semibold w-12">Ref</TableHead>
                                     <TableHead className="theme-text-secondary font-semibold">
                                         <div className="flex items-center gap-1">
                                             Score
@@ -838,6 +873,9 @@ export default function Oportunidades({ user }) {
                                         style={{ borderColor: 'var(--theme-border)' }}
                                         data-testid={`oportunidad-row-${oportunidad.oportunidad_id}`}
                                     >
+                                        <TableCell className="font-mono text-sm theme-text-secondary">
+                                            {oportunidad.ref_code || "-"}
+                                        </TableCell>
                                         <TableCell>
                                             <Badge
                                                 className={`${getScoreBadgeClass(oportunidad.score)} shadow-lg font-bold px-3 py-1`}
@@ -1105,6 +1143,11 @@ export default function Oportunidades({ user }) {
                         <DialogTitle className="text-white flex items-center gap-2">
                             <Lightbulb className="w-5 h-5 text-yellow-400" />
                             Resumen para el Operador
+                            {resumenOperador?.ref_code && (
+                                <Badge variant="outline" className="ml-2 font-mono text-xs bg-slate-700/50 text-slate-300 border-slate-600">
+                                    #{resumenOperador.ref_code}
+                                </Badge>
+                            )}
                         </DialogTitle>
                         <DialogDescription className="text-slate-400">
                             Información clave para preparar el contacto comercial
