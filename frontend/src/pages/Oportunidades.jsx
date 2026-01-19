@@ -1159,7 +1159,15 @@ export default function Oportunidades({ user }) {
                                     <div>
                                         <p className="text-slate-400 text-xs mb-1">Empresa</p>
                                         <p className="text-white font-medium">
-                                            {resumenOperador.datos_adjudicatario?.nombre_comercial || resumenOperador.adjudicatario || resumenOperador.organismo || "-"}
+                                            {(() => {
+                                                const nombreComercial = resumenOperador.datos_adjudicatario?.nombre_comercial;
+                                                // Ignorar valores placeholder inválidos
+                                                const esValido = nombreComercial &&
+                                                    !nombreComercial.toLowerCase().includes('the bid') &&
+                                                    !nombreComercial.toLowerCase().includes('file number') &&
+                                                    nombreComercial.length > 2;
+                                                return esValido ? nombreComercial : (resumenOperador.adjudicatario || resumenOperador.organismo || "-");
+                                            })()}
                                         </p>
                                     </div>
                                     <div>

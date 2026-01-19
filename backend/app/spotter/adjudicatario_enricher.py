@@ -853,7 +853,11 @@ class AdjudicatarioEnricher:
                             subtag = sub.tag.split('}')[-1] if '}' in sub.tag else sub.tag
 
                             if subtag == 'Name' and sub.text:
-                                datos['nombre_comercial'] = sub.text.strip()
+                                nombre = sub.text.strip()
+                                # Ignorar valores placeholder o en inglés que no son nombres reales
+                                textos_invalidos = ['the bid', 'file number', 'not available', 'n/a', 'unknown']
+                                if not any(inv in nombre.lower() for inv in textos_invalidos) and len(nombre) > 2:
+                                    datos['nombre_comercial'] = nombre
                             elif subtag == 'ID' and sub.text:
                                 # NIF/CIF
                                 if len(sub.text.strip()) == 9:

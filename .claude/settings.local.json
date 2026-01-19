@@ -21,7 +21,9 @@
       "Bash(npx eslint:*)",
       "Bash(npx:*)",
       "Bash(npm install:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(wc:*)",
+      "Bash(ls:*)"
     ]
   }
 }
