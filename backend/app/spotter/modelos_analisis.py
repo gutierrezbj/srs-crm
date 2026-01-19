@@ -351,6 +351,15 @@ class ResumenOperador:
     siguiente_accion: str = ""
     fecha_limite_contacto: Optional[str] = None  # YYYY-MM-DD
 
+    # ═══ CAMPOS DE COMPATIBILIDAD CON FRONTEND LEGACY ═══
+    # Estos campos se mapean desde la estructura nueva para compatibilidad
+    tiene_it: bool = True
+    puntos_dolor_email: List[str] = field(default_factory=list)  # alias de dolores_secundarios
+    tecnologias_mencionadas: List[str] = field(default_factory=list)
+    certificaciones_requeridas: List[str] = field(default_factory=list)
+    alertas: List[str] = field(default_factory=list)
+    confianza_analisis: str = "media"  # alta|media|baja
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # METADATA DEL ANÁLISIS
@@ -722,6 +731,19 @@ def construir_desde_json(data: Dict) -> AnalisisComercial:
             respuesta=obj_data.get("respuesta", "")
         ))
 
+    # Extraer alertas como lista de strings para compatibilidad
+    alertas_texto = [a.mensaje for a in alertas] if alertas else []
+
+    # Extraer dolores secundarios
+    dolores_secundarios = res_data.get("dolores_secundarios", [])
+
+    # Determinar confianza del análisis
+    meta_conf = data.get("metadata_analisis", {}).get("confianza_global", 0.8)
+    confianza_str = "alta" if meta_conf >= 0.8 else ("media" if meta_conf >= 0.5 else "baja")
+
+    # Detectar si tiene componentes IT
+    tiene_it = len(data.get("componentes_it", [])) > 0
+
     resumen_operador = ResumenOperador(
         nivel_oportunidad=res_data.get("nivel_oportunidad", "bronce"),
         score_total=res_data.get("score_total", 0),
@@ -739,7 +761,7 @@ def construir_desde_json(data: Dict) -> AnalisisComercial:
             por_que_ahora=en30_data.get("por_que_ahora", "")
         ) if en30_data else None,
         dolor_principal=res_data.get("dolor_principal", ""),
-        dolores_secundarios=res_data.get("dolores_secundarios", []),
+        dolores_secundarios=dolores_secundarios,
         servicios_srs_aplicables=servicios_aplicables,
         gancho_inicial=GanchoInicial(
             whatsapp=gancho_data.get("whatsapp", ""),
@@ -751,7 +773,14 @@ def construir_desde_json(data: Dict) -> AnalisisComercial:
         preguntas_cualificacion=res_data.get("preguntas_cualificacion", []),
         objeciones_probables=objeciones,
         siguiente_accion=res_data.get("siguiente_accion", ""),
-        fecha_limite_contacto=res_data.get("fecha_limite_contacto")
+        fecha_limite_contacto=res_data.get("fecha_limite_contacto"),
+        # ═══ CAMPOS DE COMPATIBILIDAD ═══
+        tiene_it=tiene_it,
+        puntos_dolor_email=dolores_secundarios,  # Alias
+        tecnologias_mencionadas=data.get("tecnologias_mencionadas", []),
+        certificaciones_requeridas=data.get("certificaciones_requeridas", []),
+        alertas=alertas_texto,
+        confianza_analisis=confianza_str
     ) if res_data else None
 
     # Metadata del análisis IA
