@@ -196,6 +196,41 @@ class AdjudicatarioEnricher:
 
         return datos
 
+    async def extraer_datos_placsp(
+        self,
+        url_licitacion: str,
+        nombre_adjudicatario: str = "",
+        nif_adjudicatario: str = ""
+    ) -> Dict[str, Any]:
+        """
+        Método público para extraer datos de la página de PLACSP.
+
+        Este método es usado por el endpoint /analizar-pliego para obtener
+        las URLs de los pliegos antes de analizar.
+
+        Args:
+            url_licitacion: URL de la página de detalle en PLACSP
+            nombre_adjudicatario: Nombre del adjudicatario (opcional)
+            nif_adjudicatario: NIF del adjudicatario (opcional)
+
+        Returns:
+            Dict con todos los datos extraídos, incluyendo url_pliego_tecnico y url_pliego_administrativo
+        """
+        logger.info(f"Extrayendo datos de PLACSP para: {url_licitacion[:80]}...")
+
+        datos = await self._scrape_placsp(url_licitacion)
+        if datos:
+            # Añadir info del adjudicatario si se proporcionó
+            if nombre_adjudicatario and not datos.get('nombre'):
+                datos['nombre'] = nombre_adjudicatario
+            if nif_adjudicatario and not datos.get('nif'):
+                datos['nif'] = nif_adjudicatario
+
+            logger.info(f"Datos extraídos de PLACSP: PPT={bool(datos.get('url_pliego_tecnico'))}, PCAP={bool(datos.get('url_pliego_administrativo'))}")
+            return datos
+
+        return {}
+
     async def _scrape_infocif(self, nif: str) -> Optional[Dict[str, Any]]:
         """
         Extrae datos de empresa desde Infocif.es
@@ -762,6 +797,49 @@ class AdjudicatarioEnricher:
 
                 logger.info(f"Documentos encontrados: XML_adj={bool(xml_adjudicacion)}, HTML_adj={bool(html_adjudicacion)}, XML_form={bool(xml_formalizacion)}, PDF_acta={bool(pdf_acta_resolucion)}, PPT={bool(url_pliego_tecnico)}, PCAP={bool(url_pliego_administrativo)}")
 
+                # =====================================================================
+                # Si no encontramos PPT/PCAP directamente, buscar enlace a "Documento de Pliegos"
+                # y navegar a esa página para extraer los PDFs reales
+                # =====================================================================
+                if not url_pliego_tecnico:
+                    logger.info("No se encontró PPT directamente, buscando enlace a página de pliegos...")
+
+                    # Buscar enlace a la página "Documento de Pliegos"
+                    url_pagina_pliegos = None
+                    for row in soup.find_all('tr'):
+                        row_text = row.get_text(strip=True).lower()
+                        if 'pliego' in row_text and ('documento' in row_text or 'anuncio' not in row_text):
+                            for link in row.find_all('a', href=True):
+                                href = link.get('href', '')
+                                # Los enlaces a páginas de pliegos suelen ser HTML, no PDF
+                                if 'GetDocumentByIdServlet' in href or 'viewDocument' in href.lower() or 'detalle' in href.lower():
+                                    tipo = identificar_tipo_documento(link, href, link.get_text(strip=True))
+                                    # Si es HTML o no tiene tipo claro, podría ser la página de pliegos
+                                    if tipo in ['html', None]:
+                                        if href.startswith('http'):
+                                            url_pagina_pliegos = href
+                                        elif href.startswith('/'):
+                                            url_pagina_pliegos = f"https://contrataciondelestado.es{href}"
+                                        logger.info(f"Encontrado enlace a página de pliegos: {url_pagina_pliegos[:80]}...")
+                                        break
+                        if url_pagina_pliegos:
+                            break
+
+                    # Si encontramos la página de pliegos, navegar y extraer PDFs reales
+                    if url_pagina_pliegos:
+                        pliegos_urls = await self._extraer_pliegos_de_pagina(url_pagina_pliegos)
+                        if pliegos_urls:
+                            if pliegos_urls.get('url_pliego_tecnico') and not url_pliego_tecnico:
+                                url_pliego_tecnico = pliegos_urls['url_pliego_tecnico']
+                                datos['url_pliego_tecnico'] = url_pliego_tecnico
+                                logger.info(f"✓ PPT extraído de página de pliegos: {url_pliego_tecnico[:80]}")
+                                documentos.append({'titulo': 'Pliego Técnico (PPT)', 'url': url_pliego_tecnico, 'tipo': 'pdf'})
+                            if pliegos_urls.get('url_pliego_administrativo') and not url_pliego_administrativo:
+                                url_pliego_administrativo = pliegos_urls['url_pliego_administrativo']
+                                datos['url_pliego_administrativo'] = url_pliego_administrativo
+                                logger.info(f"✓ PCAP extraído de página de pliegos: {url_pliego_administrativo[:80]}")
+                                documentos.append({'titulo': 'Pliego Administrativo (PCAP)', 'url': url_pliego_administrativo, 'tipo': 'pdf'})
+
                 if documentos:
                     # Eliminar duplicados manteniendo orden
                     seen = set()
@@ -847,6 +925,144 @@ class AdjudicatarioEnricher:
 
         except Exception as e:
             logger.error(f"Error scraping PLACSP: {e}", exc_info=True)
+            return None
+
+    async def _extraer_pliegos_de_pagina(self, url_pagina_pliegos: str) -> Optional[Dict[str, str]]:
+        """
+        Navega a la página de "Documento de Pliegos" y extrae los enlaces reales a los PDFs.
+
+        La página de pliegos de PLACSP contiene enlaces a:
+        - Pliego de Prescripciones Técnicas (PPT) - PDF
+        - Pliego de Cláusulas Administrativas (PCAP) - PDF
+
+        Args:
+            url_pagina_pliegos: URL de la página de pliegos
+
+        Returns:
+            Dict con url_pliego_tecnico y/o url_pliego_administrativo
+        """
+        try:
+            logger.info(f"Navegando a página de pliegos: {url_pagina_pliegos[:80]}...")
+
+            async with httpx.AsyncClient(timeout=self.timeout, verify=False) as client:
+                response = await client.get(
+                    url_pagina_pliegos,
+                    headers={"User-Agent": self.USER_AGENT},
+                    follow_redirects=True
+                )
+
+                if response.status_code != 200:
+                    logger.warning(f"Página de pliegos retornó {response.status_code}")
+                    return None
+
+                soup = BeautifulSoup(response.text, 'html.parser')
+                resultado = {}
+
+                # Keywords para identificar PPT (Pliego Prescripciones Técnicas)
+                keywords_ppt = [
+                    'prescripciones técnicas',
+                    'prescripciones tecnicas',
+                    'pliego técnico',
+                    'pliego tecnico',
+                    'ppt',
+                ]
+
+                # Keywords para identificar PCAP (Pliego Cláusulas Administrativas)
+                keywords_pcap = [
+                    'cláusulas administrativas',
+                    'clausulas administrativas',
+                    'pliego administrativo',
+                    'pcap',
+                ]
+
+                # Buscar todos los enlaces en la página
+                for link in soup.find_all('a', href=True):
+                    href = link.get('href', '')
+                    link_text = link.get_text(strip=True).lower()
+
+                    # Buscar también en el contexto (fila padre)
+                    parent = link.find_parent('tr') or link.find_parent('div') or link.find_parent('li')
+                    parent_text = parent.get_text(strip=True).lower() if parent else ''
+
+                    # Texto combinado para búsqueda
+                    texto_busqueda = f"{link_text} {parent_text}"
+
+                    # Verificar si es un PDF
+                    es_pdf = '.pdf' in href.lower()
+
+                    # También verificar si el icono o atributos indican PDF
+                    img = link.find('img')
+                    if img:
+                        img_alt = (img.get('alt', '') + ' ' + img.get('title', '')).lower()
+                        if 'pdf' in img_alt:
+                            es_pdf = True
+
+                    # Para GetDocumentByIdServlet, verificar tipo por contexto
+                    if 'GetDocumentByIdServlet' in href:
+                        # Si el contexto menciona PDF o no hay indicación clara de HTML
+                        if 'pdf' in texto_busqueda or 'descargar' in texto_busqueda:
+                            es_pdf = True
+                        # También puede ser PDF si tiene el icono correspondiente
+                        title_attr = link.get('title', '').lower()
+                        if 'pdf' in title_attr:
+                            es_pdf = True
+
+                    if not es_pdf:
+                        continue
+
+                    # Construir URL completa
+                    if href.startswith('http'):
+                        full_url = href
+                    elif href.startswith('/'):
+                        full_url = f"https://contrataciondelestado.es{href}"
+                    else:
+                        continue
+
+                    # Clasificar como PPT o PCAP
+                    if any(kw in texto_busqueda for kw in keywords_ppt):
+                        if 'url_pliego_tecnico' not in resultado:
+                            resultado['url_pliego_tecnico'] = full_url
+                            logger.info(f"✓ Encontrado PPT en página de pliegos: {full_url[:80]}")
+                    elif any(kw in texto_busqueda for kw in keywords_pcap):
+                        if 'url_pliego_administrativo' not in resultado:
+                            resultado['url_pliego_administrativo'] = full_url
+                            logger.info(f"✓ Encontrado PCAP en página de pliegos: {full_url[:80]}")
+                    elif 'pliego' in texto_busqueda:
+                        # Si es un pliego genérico, asignar al primer slot vacío
+                        # Priorizar PPT ya que es más útil para análisis
+                        if 'url_pliego_tecnico' not in resultado:
+                            resultado['url_pliego_tecnico'] = full_url
+                            logger.info(f"✓ Encontrado pliego genérico (asumido PPT): {full_url[:80]}")
+                        elif 'url_pliego_administrativo' not in resultado:
+                            resultado['url_pliego_administrativo'] = full_url
+
+                # Si no encontramos nada con el método anterior, buscar cualquier PDF
+                if not resultado:
+                    logger.debug("Buscando cualquier PDF en la página de pliegos...")
+                    pdfs_encontrados = []
+                    for link in soup.find_all('a', href=True):
+                        href = link.get('href', '')
+                        if '.pdf' in href.lower() or ('GetDocumentByIdServlet' in href and 'pdf' in link.get_text().lower()):
+                            if href.startswith('http'):
+                                full_url = href
+                            elif href.startswith('/'):
+                                full_url = f"https://contrataciondelestado.es{href}"
+                            else:
+                                continue
+                            pdfs_encontrados.append(full_url)
+
+                    # Asignar los primeros PDFs encontrados
+                    if len(pdfs_encontrados) >= 1:
+                        resultado['url_pliego_tecnico'] = pdfs_encontrados[0]
+                        logger.info(f"✓ Primer PDF encontrado (asumido PPT): {pdfs_encontrados[0][:80]}")
+                    if len(pdfs_encontrados) >= 2:
+                        resultado['url_pliego_administrativo'] = pdfs_encontrados[1]
+                        logger.info(f"✓ Segundo PDF encontrado (asumido PCAP): {pdfs_encontrados[1][:80]}")
+
+                return resultado if resultado else None
+
+        except Exception as e:
+            logger.error(f"Error extrayendo pliegos de página: {e}", exc_info=True)
             return None
 
     async def _parse_xml_adjudicacion(self, xml_url: str) -> Optional[Dict[str, Any]]:
