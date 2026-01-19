@@ -1335,6 +1335,8 @@ class AdjudicatarioEnricher:
 
                 # Financiación UE
                 if 'fondos de la ue' in texto_completo or 'financiación con fondos' in texto_completo or 'financiacion' in texto_completo:
+                    # Usar texto limpio (sin HTML) para extraer programa de financiación
+                    texto_limpio = soup.get_text(separator=' ', strip=True)
                     ue_patterns = [
                         r'(Plan\s*de\s*Recuperaci[óo]n[^.]{0,50})',
                         r'(Fondos?\s*(?:de\s*la\s*)?UE[^.]{0,30})',
@@ -1342,10 +1344,14 @@ class AdjudicatarioEnricher:
                         r'(NextGeneration[^.]{0,30})',
                     ]
                     for pattern in ue_patterns:
-                        ue_match = re.search(pattern, texto_raw, re.I)
+                        ue_match = re.search(pattern, texto_limpio, re.I)
                         if ue_match:
                             datos['financiacion_ue'] = 'Sí - Fondos UE'
-                            datos['programa_financiacion'] = ue_match.group(1).strip()
+                            # Limpiar cualquier HTML residual del resultado
+                            programa = ue_match.group(1).strip()
+                            programa = re.sub(r'<[^>]+>', '', programa)  # Eliminar tags HTML
+                            programa = re.sub(r'\s+', ' ', programa).strip()  # Normalizar espacios
+                            datos['programa_financiacion'] = programa
                             logger.debug(f"Financiación UE: {datos['programa_financiacion']}")
                             break
                     if 'financiacion_ue' not in datos:
