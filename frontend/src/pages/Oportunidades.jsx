@@ -352,7 +352,9 @@ export default function Oportunidades({ user }) {
                     resumen_it: analisis.resumen_it,
                     tiene_it: analisis.tiene_it,
                     // Datos enriquecidos (si ya existen)
-                    datos_adjudicatario: oportunidad?.datos_adjudicatario
+                    datos_adjudicatario: oportunidad?.datos_adjudicatario,
+                    // Incluir análisis completo para mostrar componentes IT y pain score
+                    analisis_pliego: analisis
                 });
                 setResumenOperadorOpen(true);
 
