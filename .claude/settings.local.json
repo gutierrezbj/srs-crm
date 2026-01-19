@@ -23,7 +23,11 @@
       "Bash(npm install:*)",
       "Bash(curl:*)",
       "Bash(wc:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(PYTHONPATH=. python3:*)",
+      "Bash(pip install:*)",
+      "Bash(pip3 install:*)",
+      "Bash(chmod:*)"
     ]
   }
 }

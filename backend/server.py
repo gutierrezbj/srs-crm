@@ -2072,9 +2072,43 @@ async def analizar_pliego_exhaustivo(
             url_pliego = pliegos["url_pliego_administrativo"]
         elif datos_adj.get("url_pliego_administrativo"):
             url_pliego = datos_adj["url_pliego_administrativo"]
-        elif oportunidad.get("url_licitacion"):
-            # Fallback a URL de la licitación
+
+        # Si no hay URL de pliego, intentar extraerla de la página de PLACSP
+        if not url_pliego and oportunidad.get("url_licitacion"):
+            logger.info(f"No hay URL de pliego guardada, extrayendo de PLACSP...")
+            try:
+                from app.spotter.adjudicatario_enricher import AdjudicatarioEnricher
+                enricher = AdjudicatarioEnricher()
+
+                # Extraer datos de la página de licitación (incluye URLs de pliegos)
+                datos_extraidos = await enricher.extraer_datos_placsp(
+                    url_licitacion=oportunidad["url_licitacion"],
+                    nombre_adjudicatario=oportunidad.get("adjudicatario", ""),
+                    nif_adjudicatario=oportunidad.get("nif", "")
+                )
+
+                # Buscar URL de pliego en los datos extraídos
+                if datos_extraidos.get("url_pliego_tecnico"):
+                    url_pliego = datos_extraidos["url_pliego_tecnico"]
+                    logger.info(f"✓ PPT extraído de PLACSP: {url_pliego[:80]}")
+                elif datos_extraidos.get("url_pliego_administrativo"):
+                    url_pliego = datos_extraidos["url_pliego_administrativo"]
+                    logger.info(f"✓ PCAP extraído de PLACSP: {url_pliego[:80]}")
+
+                # Guardar datos extraídos para futuras consultas
+                if datos_extraidos:
+                    await db.oportunidades_placsp.update_one(
+                        {"oportunidad_id": oportunidad_id},
+                        {"$set": {"datos_adjudicatario": datos_extraidos}}
+                    )
+                    logger.info(f"✓ Datos adjudicatario guardados con URLs de pliegos")
+            except Exception as e:
+                logger.warning(f"Error extrayendo datos de PLACSP: {e}")
+
+        # Último fallback: usar URL de licitación (analizará la página HTML)
+        if not url_pliego and oportunidad.get("url_licitacion"):
             url_pliego = oportunidad["url_licitacion"]
+            logger.warning(f"Usando URL de licitación como fallback (no es el PDF del pliego)")
 
         if not url_pliego:
             raise HTTPException(

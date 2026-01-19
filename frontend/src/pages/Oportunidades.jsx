@@ -1500,6 +1500,7 @@ export default function Oportunidades({ user }) {
                             {/* Documentos Disponibles (si existen) */}
                             {(resumenOperador.datos_adjudicatario?.documentos?.length > 0 ||
                               resumenOperador.pliegos?.url_pliego_tecnico ||
+                              resumenOperador.datos_adjudicatario?.url_pliego_tecnico ||
                               (analisisPliego || resumenOperador.analisis_pliego)?.metadata?.url_pliego) && (
                                 <div className="p-4 rounded-lg bg-slate-800/50">
                                     <h3 className="text-slate-300 font-semibold flex items-center gap-2 mb-3">
@@ -1509,9 +1510,11 @@ export default function Oportunidades({ user }) {
                                     <div className="flex flex-wrap gap-2">
                                         {/* Pliego Técnico Analizado (destacado) */}
                                         {(resumenOperador.pliegos?.url_pliego_tecnico ||
+                                          resumenOperador.datos_adjudicatario?.url_pliego_tecnico ||
                                           (analisisPliego || resumenOperador.analisis_pliego)?.metadata?.url_pliego) && (
                                             <a
                                                 href={resumenOperador.pliegos?.url_pliego_tecnico ||
+                                                      resumenOperador.datos_adjudicatario?.url_pliego_tecnico ||
                                                       (analisisPliego || resumenOperador.analisis_pliego)?.metadata?.url_pliego}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
