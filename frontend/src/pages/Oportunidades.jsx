@@ -1385,14 +1385,31 @@ export default function Oportunidades({ user }) {
                             </div>
 
                             {/* Documentos Disponibles (si existen) */}
-                            {resumenOperador.datos_adjudicatario?.documentos?.length > 0 && (
+                            {(resumenOperador.datos_adjudicatario?.documentos?.length > 0 ||
+                              resumenOperador.pliegos?.url_pliego_tecnico ||
+                              (analisisPliego || resumenOperador.analisis_pliego)?.metadata?.url_pliego) && (
                                 <div className="p-4 rounded-lg bg-slate-800/50">
                                     <h3 className="text-slate-300 font-semibold flex items-center gap-2 mb-3">
                                         <FileText className="w-4 h-4" />
                                         Documentos Disponibles
                                     </h3>
                                     <div className="flex flex-wrap gap-2">
-                                        {resumenOperador.datos_adjudicatario.documentos.slice(0, 8).map((doc, idx) => (
+                                        {/* Pliego Técnico Analizado (destacado) */}
+                                        {(resumenOperador.pliegos?.url_pliego_tecnico ||
+                                          (analisisPliego || resumenOperador.analisis_pliego)?.metadata?.url_pliego) && (
+                                            <a
+                                                href={resumenOperador.pliegos?.url_pliego_tecnico ||
+                                                      (analisisPliego || resumenOperador.analisis_pliego)?.metadata?.url_pliego}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-xs px-2 py-1 bg-emerald-700 text-emerald-100 rounded hover:bg-emerald-600 flex items-center gap-1 font-medium"
+                                            >
+                                                <FileText className="w-3 h-3" />
+                                                Pliego Técnico (PDF)
+                                            </a>
+                                        )}
+                                        {/* Otros documentos */}
+                                        {resumenOperador.datos_adjudicatario?.documentos?.slice(0, 8).map((doc, idx) => (
                                             <a
                                                 key={idx}
                                                 href={doc.url}
@@ -1572,22 +1589,7 @@ export default function Oportunidades({ user }) {
                                 </div>
                             )}
 
-                            {/* Alertas */}
-                            {resumenOperador.alertas?.length > 0 && (
-                                <div className="p-4 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
-                                    <h3 className="text-yellow-400 font-semibold flex items-center gap-2 mb-2">
-                                        <AlertTriangle className="w-4 h-4" />
-                                        Alertas
-                                    </h3>
-                                    <ul className="space-y-1">
-                                        {resumenOperador.alertas.map((alerta, idx) => (
-                                            <li key={idx} className="text-yellow-200 text-sm">
-                                                ⚠️ {alerta}
-                                            </li>
-                                        ))}
-                                    </ul>
-                                </div>
-                            )}
+{/* Alertas eliminadas - ya se muestran en Oportunidades para SRS */}
 
                             {/* Metadata */}
                             <div className="flex justify-between items-center text-xs text-slate-500 pt-4 border-t border-slate-700">
