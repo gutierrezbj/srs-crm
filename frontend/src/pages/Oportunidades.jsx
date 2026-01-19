@@ -143,7 +143,7 @@ export default function Oportunidades({ user }) {
     const [resumenOperador, setResumenOperador] = useState(null);
     const [loadingResumen, setLoadingResumen] = useState(false);
     const [enrichingAdjudicatario, setEnrichingAdjudicatario] = useState(false);
-    const [analyzingPliego, setAnalyzingPliego] = useState(false);
+    const [analyzingPliego, setAnalyzingPliego] = useState({});
     const [analisisPliego, setAnalisisPliego] = useState(null);
 
     const fetchOportunidades = useCallback(async () => {
@@ -323,7 +323,7 @@ export default function Oportunidades({ user }) {
             const response = await axios.post(
                 `${API}/oportunidades/${oportunidadId}/analizar-pliego`,
                 {},
-                { withCredentials: true, timeout: 120000 } // 2 min timeout
+                { withCredentials: true, timeout: 180000 } // 3 min timeout para análisis largos
             );
 
             if (response.data.success) {
@@ -443,14 +443,20 @@ export default function Oportunidades({ user }) {
     };
 
     const handleEnrichAdjudicatario = async (oportunidadId) => {
+        // Verificar si tenemos NIF antes de hacer la llamada
+        if (!resumenOperador.nif) {
+            toast.warning("Esta oportunidad no tiene NIF del adjudicatario. No es posible enriquecer los datos.", { duration: 5000 });
+            return;
+        }
+
         setEnrichingAdjudicatario(true);
-        toast.info("Buscando datos del adjudicatario...", { duration: 3000 });
+        toast.info("Buscando datos del adjudicatario... Esto puede tardar unos segundos.", { duration: 3000 });
 
         try {
             const response = await axios.post(
                 `${API}/oportunidades/${oportunidadId}/enriquecer-adjudicatario`,
                 {},
-                { withCredentials: true, timeout: 60000 }
+                { withCredentials: true, timeout: 90000 } // Aumentar timeout a 90s
             );
 
             if (response.data.success) {
@@ -476,7 +482,12 @@ export default function Oportunidades({ user }) {
                 toast.error("No se pudieron obtener datos adicionales");
             }
         } catch (error) {
-            toast.error(error.response?.data?.detail || "Error al buscar datos del adjudicatario");
+            const errorMsg = error.response?.data?.detail || "Error al buscar datos del adjudicatario";
+            if (errorMsg.includes("NIF")) {
+                toast.warning("No hay NIF disponible para buscar datos del adjudicatario", { duration: 5000 });
+            } else {
+                toast.error(errorMsg);
+            }
             console.error("Error enriching adjudicatario:", error);
         } finally {
             setEnrichingAdjudicatario(false);
@@ -1343,9 +1354,9 @@ export default function Oportunidades({ user }) {
                                     variant="outline"
                                     className="text-green-400 border-green-500/30 hover:bg-green-500/20 w-full"
                                     onClick={() => handleAnalyzePliego(resumenOperador.oportunidad_id)}
-                                    disabled={analyzingPliego || !resumenOperador.oportunidad_id}
+                                    disabled={analyzingPliego[resumenOperador.oportunidad_id] || !resumenOperador.oportunidad_id}
                                 >
-                                    {analyzingPliego ? (
+                                    {analyzingPliego[resumenOperador.oportunidad_id] ? (
                                         <>
                                             <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                                             Analizando...

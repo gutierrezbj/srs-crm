@@ -1980,9 +1980,12 @@ async def analizar_pliego_exhaustivo(
     Descarga el PDF/HTML, extrae texto, analiza con IA buscando IT oculto.
     Genera resumen orientado al operador comercial.
 
-    SIN RESTRICCIONES DE TIEMPO - La calidad es prioritaria.
-    Puede tardar 30-90 segundos dependiendo del tamaño del pliego.
+    Timeout máximo: 150 segundos.
     """
+    import asyncio
+    import logging
+    logger = logging.getLogger(__name__)
+
     try:
         from app.spotter.pliego_analyzer import analizar_pliego_completo
 
@@ -2013,13 +2016,25 @@ async def analizar_pliego_exhaustivo(
                 detail="No se encontró URL de pliego para esta oportunidad"
             )
 
-        # Ejecutar análisis exhaustivo (sin timeout restrictivo)
-        resultado = await analizar_pliego_completo(
-            oportunidad_id=oportunidad_id,
-            url_pliego=url_pliego,
-            objeto=oportunidad.get("objeto", ""),
-            importe=oportunidad.get("importe", 0)
-        )
+        logger.info(f"Iniciando análisis de pliego para {oportunidad_id}, URL: {url_pliego}")
+
+        # Ejecutar análisis con timeout global de 150 segundos
+        try:
+            resultado = await asyncio.wait_for(
+                analizar_pliego_completo(
+                    oportunidad_id=oportunidad_id,
+                    url_pliego=url_pliego,
+                    objeto=oportunidad.get("objeto", ""),
+                    importe=oportunidad.get("importe", 0)
+                ),
+                timeout=150.0  # 2.5 minutos máximo
+            )
+        except asyncio.TimeoutError:
+            logger.error(f"Timeout de 150s en análisis de pliego para {oportunidad_id}")
+            raise HTTPException(
+                status_code=504,
+                detail="El análisis tardó demasiado (>150s). Intente de nuevo más tarde."
+            )
 
         # Guardar resultado en BD
         await db.oportunidades_placsp.update_one(
@@ -2070,7 +2085,7 @@ async def obtener_resumen_operador(
     """
     oportunidad = await db.oportunidades_placsp.find_one(
         {"oportunidad_id": oportunidad_id},
-        {"analisis_pliego": 1, "objeto": 1, "adjudicatario": 1, "importe": 1}
+        {"analisis_pliego": 1, "objeto": 1, "adjudicatario": 1, "importe": 1, "nif": 1, "organo_contratacion": 1, "datos_adjudicatario": 1}
     )
 
     if not oportunidad:
@@ -2091,6 +2106,10 @@ async def obtener_resumen_operador(
         "empresa": oportunidad.get("adjudicatario", ""),
         "objeto": oportunidad.get("objeto", ""),
         "importe": oportunidad.get("importe", 0),
+        "nif": oportunidad.get("nif", ""),
+        "organo_contratacion": oportunidad.get("organo_contratacion", ""),
+        "adjudicatario": oportunidad.get("adjudicatario", ""),
+        "datos_adjudicatario": oportunidad.get("datos_adjudicatario"),
         "tiene_it": resumen.get("tiene_it", False),
         "nivel_oportunidad": resumen.get("nivel_oportunidad", ""),
         "dolor_principal": resumen.get("dolor_principal", ""),

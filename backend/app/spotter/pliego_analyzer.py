@@ -27,11 +27,26 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Detectar proveedores IA
+ANTHROPIC_AVAILABLE = False
+try:
+    import anthropic
+    ANTHROPIC_AVAILABLE = True
+except ImportError:
+    logger.warning("anthropic no disponible")
+
 OPENAI_AVAILABLE = False
 try:
     from openai import OpenAI
     OPENAI_AVAILABLE = True
 except ImportError:
+    pass
+
+GEMINI_AVAILABLE = False
+try:
+    import google.generativeai as genai
+    GEMINI_AVAILABLE = True
+except ImportError:
+    logger.warning("google-generativeai no disponible")
     pass
 
 
@@ -171,12 +186,28 @@ class PliegoAnalyzer:
     }
 
     def __init__(self):
+        self.anthropic_client = None
         self.openai_client = None
+        self.gemini_model = None
+
+        # Configurar Anthropic Claude (PRIORIDAD)
+        if ANTHROPIC_AVAILABLE and os.getenv("ANTHROPIC_API_KEY"):
+            self.anthropic_client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+            logger.info("PliegoAnalyzer: Anthropic Claude configurado (PRINCIPAL)")
+
+        # Configurar OpenAI como fallback
         if OPENAI_AVAILABLE and os.getenv("OPENAI_API_KEY"):
             self.openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-            logger.info("PliegoAnalyzer: OpenAI configurado")
-        else:
-            logger.warning("PliegoAnalyzer: OpenAI NO disponible - análisis limitado")
+            logger.info("PliegoAnalyzer: OpenAI configurado como fallback")
+
+        # Configurar Gemini como último fallback
+        if GEMINI_AVAILABLE and os.getenv("GOOGLE_API_KEY"):
+            genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+            self.gemini_model = genai.GenerativeModel("gemini-2.0-flash")
+            logger.info("PliegoAnalyzer: Gemini configurado como fallback")
+
+        if not self.anthropic_client and not self.openai_client and not self.gemini_model:
+            logger.warning("PliegoAnalyzer: Ningún proveedor IA disponible - solo análisis básico")
 
     async def descargar_documento(self, url: str) -> Tuple[Optional[bytes], str]:
         """Descarga documento de PLACSP o URL directa"""
@@ -373,34 +404,124 @@ IMPORTANTE:
 
 RESPONDE SOLO JSON, sin explicaciones adicionales."""
 
-    async def _analizar_con_openai(self, texto: str, objeto: str, importe: float) -> Optional[Dict]:
-        """Análisis exhaustivo con OpenAI GPT-4"""
-        if not self.openai_client:
+    async def _analizar_con_anthropic(self, texto: str, objeto: str, importe: float) -> Optional[Dict]:
+        """Análisis exhaustivo con Anthropic Claude (PRINCIPAL)"""
+        if not self.anthropic_client:
+            logger.warning("Anthropic client no disponible")
             return None
 
         try:
             prompt = self._generar_prompt_analisis(texto, objeto, importe)
+            logger.info("Enviando solicitud a Anthropic Claude...")
 
-            # Sin timeout estricto - dejar que complete
-            response = await asyncio.to_thread(
-                self.openai_client.chat.completions.create,
-                model="gpt-4o",  # Modelo más potente para análisis profundo
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=4000,
-                temperature=0.3,
+            # Timeout de 90 segundos para la llamada a Claude
+            response = await asyncio.wait_for(
+                asyncio.to_thread(
+                    self.anthropic_client.messages.create,
+                    model="claude-sonnet-4-20250514",
+                    max_tokens=4000,
+                    messages=[{"role": "user", "content": prompt}],
+                ),
+                timeout=90.0
             )
 
-            text = response.choices[0].message.content
+            text = response.content[0].text
+            logger.info(f"Respuesta recibida de Claude ({len(text)} caracteres)")
 
             # Extraer JSON
             json_match = re.search(r"\{[\s\S]*\}", text)
             if json_match:
                 return json.loads(json_match.group())
 
+            logger.warning("No se pudo extraer JSON de la respuesta de Claude")
             return None
 
+        except asyncio.TimeoutError:
+            logger.error("Timeout de 90s en análisis Claude")
+            return None
+        except Exception as e:
+            logger.error(f"Error en análisis Claude: {e}")
+            return None
+
+    async def _analizar_con_openai(self, texto: str, objeto: str, importe: float) -> Optional[Dict]:
+        """Análisis exhaustivo con OpenAI GPT-4"""
+        if not self.openai_client:
+            logger.warning("OpenAI client no disponible - saltando análisis IA")
+            return None
+
+        try:
+            prompt = self._generar_prompt_analisis(texto, objeto, importe)
+            logger.info("Enviando solicitud a OpenAI GPT-4o...")
+
+            # Timeout de 90 segundos para la llamada a OpenAI
+            response = await asyncio.wait_for(
+                asyncio.to_thread(
+                    self.openai_client.chat.completions.create,
+                    model="gpt-4o",  # Modelo más potente para análisis profundo
+                    messages=[{"role": "user", "content": prompt}],
+                    max_tokens=4000,
+                    temperature=0.3,
+                ),
+                timeout=90.0  # 90 segundos máximo
+            )
+
+            text = response.choices[0].message.content
+            logger.info(f"Respuesta recibida de OpenAI ({len(text)} caracteres)")
+
+            # Extraer JSON
+            json_match = re.search(r"\{[\s\S]*\}", text)
+            if json_match:
+                return json.loads(json_match.group())
+
+            logger.warning("No se pudo extraer JSON de la respuesta de OpenAI")
+            return None
+
+        except asyncio.TimeoutError:
+            logger.error("Timeout de 90s en análisis OpenAI - intentando Gemini")
+            return None
         except Exception as e:
             logger.error(f"Error en análisis OpenAI: {e}")
+            return None
+
+    async def _analizar_con_gemini(self, texto: str, objeto: str, importe: float) -> Optional[Dict]:
+        """Análisis con Gemini (fallback si OpenAI falla)"""
+        if not self.gemini_model:
+            logger.warning("Gemini no disponible")
+            return None
+
+        try:
+            prompt = self._generar_prompt_analisis(texto, objeto, importe)
+            logger.info("Enviando solicitud a Gemini...")
+
+            # Timeout de 90 segundos
+            response = await asyncio.wait_for(
+                asyncio.to_thread(
+                    self.gemini_model.generate_content,
+                    prompt,
+                    generation_config=genai.GenerationConfig(
+                        temperature=0.3,
+                        max_output_tokens=4000,
+                    )
+                ),
+                timeout=90.0
+            )
+
+            text = response.text
+            logger.info(f"Respuesta recibida de Gemini ({len(text)} caracteres)")
+
+            # Extraer JSON
+            json_match = re.search(r"\{[\s\S]*\}", text)
+            if json_match:
+                return json.loads(json_match.group())
+
+            logger.warning("No se pudo extraer JSON de la respuesta de Gemini")
+            return None
+
+        except asyncio.TimeoutError:
+            logger.error("Timeout de 90s en análisis Gemini")
+            return None
+        except Exception as e:
+            logger.error(f"Error en análisis Gemini: {e}")
             return None
 
     def _analisis_basico(self, texto: str, objeto: str, importe: float) -> Dict:
@@ -563,13 +684,34 @@ RESPONDE SOLO JSON, sin explicaciones adicionales."""
                 error="No se pudo extraer texto del documento"
             )
 
-        # 3. Analizar con IA
+        # 3. Analizar con IA (Claude primero, luego OpenAI, luego Gemini)
         logger.info("Analizando con IA (esto puede tardar 30-60 segundos)...")
-        resultado_ia = await self._analizar_con_openai(texto, objeto, importe)
-        proveedor = "openai" if resultado_ia else "basico"
+        resultado_ia = None
+        proveedor = "basico"
 
+        # Intentar Anthropic Claude primero (PRINCIPAL - más preciso)
+        if self.anthropic_client:
+            resultado_ia = await self._analizar_con_anthropic(texto, objeto, importe)
+            if resultado_ia:
+                proveedor = "anthropic"
+
+        # Fallback a OpenAI si Claude falla
+        if not resultado_ia and self.openai_client:
+            logger.info("Claude falló, intentando con OpenAI...")
+            resultado_ia = await self._analizar_con_openai(texto, objeto, importe)
+            if resultado_ia:
+                proveedor = "openai"
+
+        # Fallback a Gemini si OpenAI también falla
+        if not resultado_ia and self.gemini_model:
+            logger.info("OpenAI falló, intentando con Gemini...")
+            resultado_ia = await self._analizar_con_gemini(texto, objeto, importe)
+            if resultado_ia:
+                proveedor = "gemini"
+
+        # Último recurso: análisis básico
         if not resultado_ia:
-            logger.warning("Fallback a análisis básico")
+            logger.warning("Fallback a análisis básico (sin IA)")
             resultado_ia = self._analisis_basico(texto, objeto, importe)
 
         # 4. Detectar tecnologías y certificaciones (adicional)

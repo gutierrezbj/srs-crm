@@ -357,8 +357,15 @@ class AdjudicatarioEnricher:
         - Lugar de ejecución
         - Código CPV
         - Y más...
+
+        PLACSP usa WebSphere Portal y puede tener diferentes estructuras:
+        - Tablas tradicionales con <tr>/<td>
+        - Divs con clases viewValue, boxPlegado, campoFichaTecnica
+        - Estructura de formulario con labels y valores
         """
         try:
+            logger.info(f"Scraping PLACSP: {url_licitacion}")
+
             async with httpx.AsyncClient(timeout=self.timeout, verify=False) as client:
                 response = await client.get(
                     url_licitacion,
@@ -370,43 +377,57 @@ class AdjudicatarioEnricher:
                     logger.warning(f"PLACSP retornó {response.status_code}")
                     return None
 
+                logger.info(f"PLACSP respuesta OK, {len(response.text)} bytes")
                 soup = BeautifulSoup(response.text, 'html.parser')
                 datos = {}
 
-                # Mapeo de labels de PLACSP a campos
+                # Mapeo de labels de PLACSP a campos (normalizado sin tildes para comparación)
                 mapeo_campos = {
                     'adjudicatario': 'nombre_comercial',
                     'contratista': 'nombre_comercial',
-                    'órgano de contratación': 'organo_contratacion',
                     'organo de contratacion': 'organo_contratacion',
+                    'órgano de contratación': 'organo_contratacion',
                     'expediente': 'expediente',
                     'objeto del contrato': 'objeto',
-                    'estado de la licitación': 'estado',
+                    'objeto': 'objeto',
                     'estado de la licitacion': 'estado',
-                    'importe de adjudicación': 'importe_adjudicacion',
+                    'estado de la licitación': 'estado',
+                    'estado': 'estado',
                     'importe de adjudicacion': 'importe_adjudicacion',
+                    'importe de adjudicación': 'importe_adjudicacion',
+                    'importe adjudicacion': 'importe_adjudicacion',
                     'valor estimado del contrato': 'valor_estimado',
-                    'presupuesto base de licitación sin impuestos': 'presupuesto_base',
+                    'valor estimado': 'valor_estimado',
                     'presupuesto base de licitacion sin impuestos': 'presupuesto_base',
-                    'lugar de ejecución': 'lugar_ejecucion',
+                    'presupuesto base de licitación sin impuestos': 'presupuesto_base',
+                    'presupuesto base': 'presupuesto_base',
                     'lugar de ejecucion': 'lugar_ejecucion',
-                    'código cpv': 'cpv',
+                    'lugar de ejecución': 'lugar_ejecucion',
                     'codigo cpv': 'cpv',
+                    'código cpv': 'cpv',
+                    'cpv': 'cpv',
                     'tipo de contrato': 'tipo_contrato',
-                    'procedimiento de contratación': 'procedimiento',
                     'procedimiento de contratacion': 'procedimiento',
-                    'financiación ue': 'financiacion_ue',
+                    'procedimiento de contratación': 'procedimiento',
+                    'procedimiento': 'procedimiento',
                     'financiacion ue': 'financiacion_ue',
+                    'financiación ue': 'financiacion_ue',
                     'resultado': 'resultado',
                     'nº de licitadores presentados': 'num_licitadores',
                     'n° de licitadores presentados': 'num_licitadores',
+                    'numero de licitadores': 'num_licitadores',
+                    'licitadores presentados': 'num_licitadores',
                 }
 
-                # Buscar en todas las filas de tabla
+                def normalizar_label(texto: str) -> str:
+                    """Normaliza un label para comparación"""
+                    return texto.lower().strip().replace(':', '').strip()
+
+                # MÉTODO 1: Buscar en todas las filas de tabla (estructura tradicional)
                 for row in soup.find_all('tr'):
                     cells = row.find_all(['td', 'th'])
                     if len(cells) >= 2:
-                        label = cells[0].get_text(strip=True).lower()
+                        label = normalizar_label(cells[0].get_text(strip=True))
                         value = cells[1].get_text(strip=True)
 
                         if not value:
@@ -414,32 +435,96 @@ class AdjudicatarioEnricher:
 
                         # Buscar coincidencia en el mapeo
                         for key_label, campo in mapeo_campos.items():
-                            if key_label in label:
-                                datos[campo] = value
-                                break
-
-                # También buscar en divs con estructura label/valor
-                # PLACSP a veces usa divs en lugar de tablas
-                for div in soup.find_all('div', class_=re.compile(r'campo|field|row', re.I)):
-                    label_elem = div.find(class_=re.compile(r'label|titulo|etiqueta', re.I))
-                    value_elem = div.find(class_=re.compile(r'value|valor|dato', re.I))
-
-                    if label_elem and value_elem:
-                        label = label_elem.get_text(strip=True).lower()
-                        value = value_elem.get_text(strip=True)
-
-                        for key_label, campo in mapeo_campos.items():
-                            if key_label in label:
+                            if key_label in label or label in key_label:
                                 if campo not in datos:
                                     datos[campo] = value
+                                    logger.debug(f"Tabla: {campo} = {value[:50]}...")
                                 break
+
+                # MÉTODO 2: Buscar en divs con estructura label/valor (nueva estructura PLACSP)
+                # Clases comunes: viewValue, campoFichaTecnica, boxPlegado, fieldValue
+                for div in soup.find_all('div', class_=re.compile(r'campo|field|row|ficha|box', re.I)):
+                    label_elem = div.find(class_=re.compile(r'label|titulo|etiqueta|viewLabel', re.I))
+                    value_elem = div.find(class_=re.compile(r'value|valor|dato|viewValue', re.I))
+
+                    if label_elem and value_elem:
+                        label = normalizar_label(label_elem.get_text(strip=True))
+                        value = value_elem.get_text(strip=True)
+
+                        if not value:
+                            continue
+
+                        for key_label, campo in mapeo_campos.items():
+                            if key_label in label or label in key_label:
+                                if campo not in datos:
+                                    datos[campo] = value
+                                    logger.debug(f"Div: {campo} = {value[:50]}...")
+                                break
+
+                # MÉTODO 3: Buscar con selectores específicos de PLACSP
+                # PLACSP usa clases como: cabeceraFichaTecnica, contenidoFichaTecnica
+                for elem in soup.find_all(['span', 'div', 'p'], class_=re.compile(r'viewValue|fieldValue|valorCampo', re.I)):
+                    # Buscar el label anterior (hermano o padre)
+                    prev = elem.find_previous_sibling(class_=re.compile(r'viewLabel|fieldLabel|etiquetaCampo', re.I))
+                    if not prev:
+                        parent = elem.find_parent()
+                        if parent:
+                            prev = parent.find(class_=re.compile(r'viewLabel|fieldLabel|etiquetaCampo', re.I))
+
+                    if prev:
+                        label = normalizar_label(prev.get_text(strip=True))
+                        value = elem.get_text(strip=True)
+
+                        if not value:
+                            continue
+
+                        for key_label, campo in mapeo_campos.items():
+                            if key_label in label or label in key_label:
+                                if campo not in datos:
+                                    datos[campo] = value
+                                    logger.debug(f"ViewValue: {campo} = {value[:50]}...")
+                                break
+
+                # MÉTODO 4: Buscar patrones de texto directo (último recurso)
+                # Útil cuando no hay estructura clara
+                texto_pagina = soup.get_text()
+                if not datos.get('expediente'):
+                    exp_match = re.search(r'(?:Expediente|Nº Expediente)[:\s]*([A-Z0-9\-\/]+)', texto_pagina, re.I)
+                    if exp_match:
+                        datos['expediente'] = exp_match.group(1).strip()
+                        logger.debug(f"Regex: expediente = {datos['expediente']}")
+
+                if not datos.get('importe_adjudicacion'):
+                    # Buscar importes con formato europeo (123.456,78 €)
+                    imp_match = re.search(r'(?:Importe|Adjudicaci[oó]n)[:\s]*([\d.,]+)\s*(?:EUR|€)', texto_pagina, re.I)
+                    if imp_match:
+                        datos['importe_adjudicacion'] = f"{imp_match.group(1)} EUR"
+                        logger.debug(f"Regex: importe = {datos['importe_adjudicacion']}")
+
+                logger.info(f"PLACSP scraping básico: {len(datos)} campos encontrados - {list(datos.keys())}")
 
                 # Extraer enlaces a documentos (pliegos, adjudicación, etc.)
                 # Buscar en la sección "Anuncios y Documentos"
                 documentos = []
                 xml_adjudicacion = None
                 xml_formalizacion = None
+                html_adjudicacion = None
                 pdf_acta_resolucion = None
+
+                # Función auxiliar para identificar tipo de documento por URL/texto
+                def identificar_tipo_documento(href: str, texto: str) -> Optional[str]:
+                    href_lower = href.lower()
+                    texto_lower = texto.lower()
+                    if '.xml' in href_lower or 'xml' in texto_lower or '/xml/' in href_lower:
+                        return 'xml'
+                    elif '.pdf' in href_lower or 'pdf' in texto_lower:
+                        return 'pdf'
+                    elif '.html' in href_lower or 'html' in texto_lower or '/html/' in href_lower:
+                        return 'html'
+                    # PLACSP usa /poc? para enlaces a documentos
+                    elif '/poc?' in href_lower and ('adjudicacion' in texto_lower or 'formalizacion' in texto_lower):
+                        return 'html'  # Asumir HTML para enlaces de portal
+                    return None
 
                 # Buscar todas las filas de la tabla de documentos
                 for row in soup.find_all('tr'):
@@ -451,63 +536,89 @@ class AdjudicatarioEnricher:
                         link_text = link.get_text(strip=True).lower()
 
                         # Construir URL completa
-                        full_url = href if href.startswith('http') else f"https://contrataciondelestado.es{href}"
+                        if href.startswith('http'):
+                            full_url = href
+                        elif href.startswith('/'):
+                            full_url = f"https://contrataciondelestado.es{href}"
+                        else:
+                            continue  # Skip relative URLs sin /
 
                         # Identificar tipo de documento
-                        tipo = None
-                        if '.xml' in href.lower() or 'xml' in link_text:
-                            tipo = 'xml'
-                        elif '.pdf' in href.lower() or 'pdf' in link_text:
-                            tipo = 'pdf'
-                        elif '.html' in href.lower() or 'html' in link_text:
-                            tipo = 'html'
+                        tipo = identificar_tipo_documento(href, link_text)
 
                         # Determinar categoría del documento
+                        doc_info = None
                         if 'adjudicación' in row_text or 'adjudicacion' in row_text:
                             if tipo == 'xml' and not xml_adjudicacion:
                                 xml_adjudicacion = full_url
                                 datos['xml_adjudicacion_url'] = full_url
+                                logger.debug(f"XML adjudicación: {full_url[:80]}")
+                            elif tipo == 'html' and not html_adjudicacion:
+                                html_adjudicacion = full_url
+                                datos['html_adjudicacion_url'] = full_url
+                                logger.debug(f"HTML adjudicación: {full_url[:80]}")
                             doc_info = {'titulo': 'Adjudicación', 'url': full_url, 'tipo': tipo}
                         elif 'formalización' in row_text or 'formalizacion' in row_text:
                             if tipo == 'xml' and not xml_formalizacion:
                                 xml_formalizacion = full_url
                                 datos['xml_formalizacion_url'] = full_url
+                                logger.debug(f"XML formalización: {full_url[:80]}")
                             doc_info = {'titulo': 'Formalización', 'url': full_url, 'tipo': tipo}
-                        elif 'acta' in row_text and 'resolución' in row_text or 'resolucion' in row_text:
+                        elif ('acta' in row_text and ('resolución' in row_text or 'resolucion' in row_text)):
                             # PDF del Acta de Resolución - contiene lista de licitadores
                             if tipo == 'pdf' and not pdf_acta_resolucion:
                                 pdf_acta_resolucion = full_url
                                 datos['pdf_acta_resolucion_url'] = full_url
+                                logger.debug(f"PDF acta: {full_url[:80]}")
                             doc_info = {'titulo': 'Acta de Resolución', 'url': full_url, 'tipo': tipo}
                         elif 'pliego' in row_text:
                             doc_info = {'titulo': 'Pliego', 'url': full_url, 'tipo': tipo}
                         elif 'anuncio' in row_text:
                             doc_info = {'titulo': 'Anuncio', 'url': full_url, 'tipo': tipo}
-                        else:
-                            continue
 
-                        if tipo:  # Solo añadir si identificamos el tipo
+                        if doc_info and tipo:
                             documentos.append(doc_info)
 
-                # También buscar enlaces sueltos por si la estructura es diferente
+                # También buscar enlaces sueltos (PLACSP puede tener estructura diferente)
                 for link in soup.find_all('a', href=True):
                     href = link.get('href', '')
                     texto = link.get_text(strip=True).lower()
                     img = link.find('img')
                     alt_text = img.get('alt', '').lower() if img else ''
+                    title_attr = link.get('title', '').lower()
 
-                    # Los iconos de XML/PDF tienen alt text descriptivo
-                    if 'xml' in alt_text or 'xml' in texto:
-                        full_url = href if href.startswith('http') else f"https://contrataciondelestado.es{href}"
-                        parent_text = link.find_parent('tr')
-                        if parent_text:
-                            parent_text = parent_text.get_text(strip=True).lower()
-                            if ('adjudicación' in parent_text or 'adjudicacion' in parent_text) and not xml_adjudicacion:
+                    # Buscar contexto del enlace
+                    parent = link.find_parent(['tr', 'div', 'li'])
+                    parent_text = parent.get_text(strip=True).lower() if parent else ''
+
+                    # Construir URL completa
+                    if href.startswith('http'):
+                        full_url = href
+                    elif href.startswith('/'):
+                        full_url = f"https://contrataciondelestado.es{href}"
+                    else:
+                        continue
+
+                    # Detectar XML de adjudicación/formalización
+                    es_xml = 'xml' in alt_text or 'xml' in texto or '.xml' in href.lower() or 'xml' in title_attr
+                    es_html = 'html' in alt_text or '.html' in href.lower() or '/html/' in href.lower()
+
+                    if es_xml or es_html:
+                        tipo = 'xml' if es_xml else 'html'
+                        if ('adjudicación' in parent_text or 'adjudicacion' in parent_text):
+                            if tipo == 'xml' and not xml_adjudicacion:
                                 xml_adjudicacion = full_url
                                 datos['xml_adjudicacion_url'] = full_url
-                            elif ('formalización' in parent_text or 'formalizacion' in parent_text) and not xml_formalizacion:
+                                logger.debug(f"XML adj (suelto): {full_url[:80]}")
+                            elif tipo == 'html' and not html_adjudicacion:
+                                html_adjudicacion = full_url
+                                datos['html_adjudicacion_url'] = full_url
+                        elif ('formalización' in parent_text or 'formalizacion' in parent_text):
+                            if tipo == 'xml' and not xml_formalizacion:
                                 xml_formalizacion = full_url
                                 datos['xml_formalizacion_url'] = full_url
+
+                logger.info(f"Documentos encontrados: XML_adj={bool(xml_adjudicacion)}, HTML_adj={bool(html_adjudicacion)}, XML_form={bool(xml_formalizacion)}")
 
                 if documentos:
                     # Eliminar duplicados manteniendo orden
@@ -536,12 +647,12 @@ class AdjudicatarioEnricher:
                     if len(tel) >= 9:
                         datos['telefono_contacto'] = tel
 
-                # Buscar HTML de adjudicación (más fácil de parsear que XML)
-                html_adjudicacion = None
-                for doc in datos.get('documentos', []):
-                    if doc.get('titulo') == 'Adjudicación' and doc.get('tipo') == 'html':
-                        html_adjudicacion = doc.get('url')
-                        break
+                # Si no encontramos HTML de adjudicación antes, buscar en documentos
+                if not html_adjudicacion:
+                    for doc in datos.get('documentos', []):
+                        if doc.get('titulo') == 'Adjudicación' and doc.get('tipo') == 'html':
+                            html_adjudicacion = doc.get('url')
+                            break
 
                 # Parsear HTML de adjudicación (contiene todos los datos del adjudicatario)
                 if html_adjudicacion:
@@ -582,11 +693,18 @@ class AdjudicatarioEnricher:
                             datos['pdf_acta_resolucion_url'] = pdf_acta_resolucion
                             break
 
-                logger.info(f"PLACSP extrajo {len(datos)} campos en total")
+                # Resumen final
+                campos_clave = ['nombre_comercial', 'expediente', 'objeto', 'importe_adjudicacion', 'direccion', 'telefono', 'email']
+                campos_encontrados = [c for c in campos_clave if datos.get(c)]
+                logger.info(f"PLACSP extrajo {len(datos)} campos en total. Clave: {campos_encontrados}")
+
+                if not datos:
+                    logger.warning(f"PLACSP: No se pudo extraer ningún dato de {url_licitacion}")
+
                 return datos if datos else None
 
         except Exception as e:
-            logger.error(f"Error scraping PLACSP: {e}")
+            logger.error(f"Error scraping PLACSP: {e}", exc_info=True)
             return None
 
     async def _parse_xml_adjudicacion(self, xml_url: str) -> Optional[Dict[str, Any]]:
@@ -736,13 +854,21 @@ class AdjudicatarioEnricher:
         """
         Parsea el HTML de adjudicación de PLACSP.
 
-        El documento HTML tiene secciones claramente definidas:
-        - Entidad Adjudicadora (el cliente)
+        El documento HTML de PLACSP usa estructura con:
+        - <h5> para secciones/labels
+        - <strong> para valores principales
+        - Listas con guiones para datos adicionales
+        - Formato: "Label: Valor" en muchas líneas
+
+        Secciones típicas:
+        - Entidad Adjudicadora (el cliente - datos de contacto importantes)
         - Adjudicatario (el ganador)
         - Importes de Adjudicación
         - Información sobre las ofertas
         """
         try:
+            logger.info(f"Parseando HTML de adjudicación: {html_url[:80]}...")
+
             async with httpx.AsyncClient(timeout=self.timeout, verify=False) as client:
                 response = await client.get(
                     html_url,
@@ -754,111 +880,253 @@ class AdjudicatarioEnricher:
                     logger.warning(f"HTML adjudicación retornó {response.status_code}")
                     return None
 
+                logger.info(f"HTML descargado: {len(response.text)} bytes")
                 soup = BeautifulSoup(response.text, 'html.parser')
                 datos = {}
                 texto_completo = response.text.lower()
+                texto_raw = response.text
 
-                # Función auxiliar para extraer valor después de un label
-                def extraer_valor(label_text: str) -> Optional[str]:
-                    """Busca un label y extrae el valor que le sigue"""
-                    for elem in soup.find_all(string=re.compile(label_text, re.I)):
-                        parent = elem.find_parent()
-                        if parent:
-                            # Buscar el siguiente elemento con texto
-                            next_elem = parent.find_next_sibling()
-                            if next_elem:
-                                valor = next_elem.get_text(strip=True)
-                                if valor and valor != '-':
-                                    return valor
-                            # O buscar en el mismo elemento después del label
-                            full_text = parent.get_text(strip=True)
-                            if ':' in full_text:
-                                parts = full_text.split(':', 1)
-                                if len(parts) > 1 and parts[1].strip():
-                                    return parts[1].strip()
-                    return None
+                # === MÉTODO 1: Buscar <strong> después de <h5> (estructura típica PLACSP) ===
+                for h5 in soup.find_all('h5'):
+                    h5_text = h5.get_text(strip=True).lower()
 
-                # === DATOS DEL ADJUDICATARIO ===
+                    # Buscar el siguiente <strong> que contenga el valor
+                    next_strong = h5.find_next('strong')
+                    if next_strong:
+                        valor = next_strong.get_text(strip=True)
 
-                # Buscar sección "Adjudicatario"
-                for header in soup.find_all(['h2', 'h3', 'h4', 'strong', 'b']):
-                    header_text = header.get_text(strip=True).lower()
-                    if 'adjudicatario' in header_text and 'entidad' not in header_text:
-                        # Encontramos la sección del adjudicatario
-                        parent_section = header.find_parent(['div', 'section', 'td'])
-                        if parent_section:
-                            section_text = parent_section.get_text()
+                        # Adjudicatario
+                        if 'adjudicatario' in h5_text and 'entidad' not in h5_text:
+                            if valor and len(valor) > 3:
+                                datos['nombre_comercial'] = valor
+                                logger.debug(f"H5: nombre_comercial = {valor}")
 
-                            # Nombre de empresa (primera línea después de "Adjudicatario")
-                            lines = [l.strip() for l in section_text.split('\n') if l.strip()]
-                            for i, line in enumerate(lines):
-                                if 'adjudicatario' in line.lower() and i + 1 < len(lines):
-                                    nombre = lines[i + 1]
-                                    if nombre and len(nombre) > 3 and 'nif' not in nombre.lower():
-                                        datos['nombre_comercial'] = nombre
-                                    break
+                        # Órgano/Entidad adjudicadora
+                        elif 'entidad adjudicadora' in h5_text or 'órgano' in h5_text:
+                            if valor and len(valor) > 3:
+                                datos['organo_contratacion'] = valor
+                                logger.debug(f"H5: organo_contratacion = {valor}")
 
-                # NIF del adjudicatario
-                nif_match = re.search(r'NIF[:\s]*([A-Z]\d{8}|\d{8}[A-Z])', response.text, re.I)
-                if nif_match:
-                    datos['nif_verificado'] = nif_match.group(1).upper()
+                # === MÉTODO 2: Buscar patrones "Label: Valor" en el texto ===
+
+                # NIF del adjudicatario (buscar cerca de "Adjudicatario" o solo el patrón)
+                nif_patterns = [
+                    r'NIF[:\s]*([A-Z]\d{8}|\d{8}[A-Z])',
+                    r'CIF[:\s]*([A-Z]\d{8})',
+                    r'\b([A-Z]\d{8})\b',  # Patrón NIF español
+                ]
+                for pattern in nif_patterns:
+                    nif_match = re.search(pattern, texto_raw, re.I)
+                    if nif_match:
+                        datos['nif_verificado'] = nif_match.group(1).upper()
+                        logger.debug(f"NIF encontrado: {datos['nif_verificado']}")
+                        break
 
                 # Es PYME
                 if 'pyme' in texto_completo:
-                    pyme_match = re.search(r'pyme[:\s]*(sí|si|yes|true)', texto_completo, re.I)
-                    datos['es_pyme'] = bool(pyme_match)
+                    pyme_match = re.search(r'(?:es\s*)?pyme[:\s]*(sí|si|yes|true|no|false)?', texto_completo, re.I)
+                    if pyme_match:
+                        valor_pyme = pyme_match.group(1) if pyme_match.group(1) else ''
+                        datos['es_pyme'] = valor_pyme.lower() in ['sí', 'si', 'yes', 'true', '']
+                        logger.debug(f"Es PYME: {datos['es_pyme']}")
 
-                # Dirección Física del adjudicatario
-                direccion_match = re.search(
-                    r'Direcci[óo]n\s*F[íi]sica[:\s]*([^<\n]+)',
-                    response.text, re.I
+                # === DATOS DE CONTACTO DEL ADJUDICATARIO (teléfono y email) ===
+                # La estructura típica de PLACSP usa:
+                # - Sección "Adjudicatario" seguida de datos
+                # - "→" como bullet points
+                # - Labels como "Teléfono", "Correo Electrónico", "Dirección Física"
+
+                # MÉTODO PRINCIPAL: Buscar en la sección entre "Adjudicatario" y la siguiente sección
+                # (típicamente "Importes de Adjudicación" o "Entidad Adjudicadora")
+                adj_section_match = re.search(
+                    r'Adjudicatario.*?(?=Importes|Entidad\s*Adjudicadora|Motivación|Información|$)',
+                    texto_raw, re.I | re.DOTALL
                 )
-                if direccion_match:
-                    direccion_text = direccion_match.group(1).strip()
-                    # Puede tener múltiples líneas
-                    datos['direccion'] = direccion_text
 
-                # Buscar dirección con patrón de CP
-                cp_match = re.search(r'\((\d{5})\)\s*([A-ZÁÉÍÓÚÑa-záéíóúñ\s]+)', response.text)
-                if cp_match:
-                    datos['codigo_postal'] = cp_match.group(1)
-                    datos['localidad'] = cp_match.group(2).strip().split(' España')[0].strip()
+                if adj_section_match:
+                    adj_text = adj_section_match.group(0)
+                    logger.debug(f"Sección Adjudicatario encontrada: {len(adj_text)} chars")
 
-                # Teléfono del adjudicatario
-                tel_section = re.search(
-                    r'(?:Adjudicatario|Contacto).*?Tel[ée]fono[:\s]*(\+?\d[\d\s.-]{8,})',
-                    response.text, re.I | re.DOTALL
-                )
-                if tel_section:
-                    tel = re.sub(r'[^\d+]', '', tel_section.group(1))
-                    if len(tel) >= 9:
-                        datos['telefono'] = tel
+                    # Teléfono del adjudicatario (formato: +34 922276634 o 922276634)
+                    tel_patterns = [
+                        r'Tel[ée]fono[:\s→]*\+?34?\s*(\d{9}|\d{3}[\s.-]?\d{3}[\s.-]?\d{3})',
+                        r'Tel[:\s→]*\+?34?\s*(\d{9})',
+                        r'\+34\s*(\d{9})',
+                    ]
+                    for pattern in tel_patterns:
+                        tel_match = re.search(pattern, adj_text, re.I)
+                        if tel_match:
+                            tel = re.sub(r'[^\d]', '', tel_match.group(1))
+                            if len(tel) >= 9:
+                                datos['telefono'] = tel
+                                logger.info(f"✓ Teléfono adjudicatario: {tel}")
+                                break
 
-                # Email del adjudicatario
-                email_section = re.search(
-                    r'(?:Adjudicatario|Contacto).*?(?:Correo|Email|E-mail)[:\s]*([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})',
-                    response.text, re.I | re.DOTALL
-                )
-                if email_section:
-                    datos['email'] = email_section.group(1)
+                    # Email del adjudicatario (formato: Correo Electrónico domaser@domasercanaria.com)
+                    email_patterns = [
+                        r'Correo\s*Electr[óo]nico[:\s→]*([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})',
+                        r'(?:Email|E-mail)[:\s→]*([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})',
+                        r'→\s*([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})',
+                    ]
+                    for pattern in email_patterns:
+                        email_match = re.search(pattern, adj_text, re.I)
+                        if email_match:
+                            email = email_match.group(1)
+                            if not any(x in email.lower() for x in ['noreply', 'no-reply', 'example', 'contratacion']):
+                                datos['email'] = email
+                                logger.info(f"✓ Email adjudicatario: {email}")
+                                break
+
+                    # Dirección Física del adjudicatario
+                    # Formato típico: "Dirección Física → ACCESO AUTOPISTA, LA HIDALGA, Nº14, → (38550) ARAFO España"
+                    dir_patterns = [
+                        r'Direcci[óo]n\s*F[íi]sica[:\s→]*([^→\n]+(?:→[^→\n]+)*)',
+                        r'Direcci[óo]n[:\s→]*([A-Z][^→\n]{10,80})',
+                        r'→\s*((?:CALLE|AVENIDA|ACCESO|PLAZA|PASEO|C/)[^→\n]+)',
+                    ]
+                    for pattern in dir_patterns:
+                        dir_match = re.search(pattern, adj_text, re.I)
+                        if dir_match:
+                            direccion = dir_match.group(1).strip()
+                            # Limpiar múltiples → y espacios
+                            direccion = re.sub(r'→\s*', ', ', direccion)
+                            direccion = re.sub(r',\s*,', ',', direccion).strip(' ,')
+                            if len(direccion) > 10:
+                                datos['direccion'] = direccion
+                                logger.info(f"✓ Dirección adjudicatario: {direccion[:60]}...")
+                                break
+
+                    # Código postal y localidad (formato: (38550) ARAFO)
+                    cp_match = re.search(r'\((\d{5})\)\s*([A-ZÁÉÍÓÚÑa-záéíóúñ\s]+?)(?:\s*España)?(?:→|$|\n)', adj_text)
+                    if cp_match:
+                        datos['codigo_postal'] = cp_match.group(1)
+                        datos['localidad'] = cp_match.group(2).strip()
+                        logger.debug(f"CP: {datos['codigo_postal']}, Localidad: {datos['localidad']}")
+
+                # Si no encontramos con el método principal, intentar patrones globales
+                if not datos.get('telefono'):
+                    # Buscar cualquier teléfono en la primera mitad del documento (antes de Entidad Adjudicadora)
+                    primera_mitad = texto_raw[:len(texto_raw)//2]
+                    tel_match = re.search(r'Tel[ée]fono[:\s→]*\+?34?\s*(\d{9})', primera_mitad, re.I)
+                    if tel_match:
+                        datos['telefono'] = tel_match.group(1)
+                        logger.info(f"✓ Teléfono (global): {datos['telefono']}")
+
+                if not datos.get('email'):
+                    # Buscar primer email en la primera mitad
+                    primera_mitad = texto_raw[:len(texto_raw)//2]
+                    emails = re.findall(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', primera_mitad)
+                    for email in emails:
+                        if not any(x in email.lower() for x in ['noreply', 'no-reply', 'example', 'contratacion', 'hacienda']):
+                            datos['email'] = email
+                            logger.info(f"✓ Email (global): {email}")
+                            break
+
+                # === DATOS DEL ÓRGANO CONTRATANTE (EL CLIENTE - muy importante) ===
+
+                # Dirección del órgano (buscar después de "Dirección" cerca de "Entidad")
+                direccion_patterns = [
+                    r'Direcci[óo]n[:\s]*([^<\n]{10,100})',
+                    r'Domicilio[:\s]*([^<\n]{10,100})',
+                    r'(?:Avenida|Calle|Plaza|Paseo)\s+[^<\n,]{5,50},?\s*(?:N[úu]mero\s*)?\d+',
+                ]
+                for pattern in direccion_patterns:
+                    dir_match = re.search(pattern, texto_raw, re.I)
+                    if dir_match:
+                        direccion = dir_match.group(1) if dir_match.lastindex else dir_match.group(0)
+                        direccion = direccion.strip()
+                        if len(direccion) > 10:
+                            datos['organo_direccion'] = direccion
+                            logger.debug(f"Dirección órgano: {direccion[:50]}...")
+                            break
+
+                # Código postal y localidad
+                cp_patterns = [
+                    r'(\d{5})[,\s]+([A-ZÁÉÍÓÚÑa-záéíóúñ\s]{3,30})',
+                    r'\((\d{5})\)[,\s]*([A-ZÁÉÍÓÚÑa-záéíóúñ\s]{3,30})',
+                ]
+                for pattern in cp_patterns:
+                    cp_match = re.search(pattern, texto_raw)
+                    if cp_match:
+                        datos['organo_cp'] = cp_match.group(1)
+                        localidad = cp_match.group(2).strip()
+                        # Limpiar "España" si aparece
+                        localidad = re.sub(r'\s*España.*$', '', localidad, flags=re.I).strip()
+                        if localidad:
+                            datos['organo_localidad'] = localidad
+                        logger.debug(f"CP: {datos.get('organo_cp')}, Localidad: {datos.get('organo_localidad')}")
+                        break
+
+                # Teléfono del órgano (IMPORTANTE para contacto)
+                tel_patterns = [
+                    r'Tel[ée]fono[:\s]*(\d{9})',
+                    r'Tel[ée]fono[:\s]*(\d{3}[\s.-]?\d{3}[\s.-]?\d{3})',
+                    r'Tel[:\s]*(\d{9})',
+                ]
+                for pattern in tel_patterns:
+                    tel_match = re.search(pattern, texto_raw, re.I)
+                    if tel_match:
+                        tel = re.sub(r'[^\d]', '', tel_match.group(1))
+                        if len(tel) >= 9:
+                            datos['organo_telefono'] = tel
+                            logger.debug(f"Teléfono órgano: {tel}")
+                            break
+
+                # Email del órgano (IMPORTANTE para contacto)
+                email_pattern = r'(?:Correo|Email|E-mail)[:\s]*([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})'
+                email_match = re.search(email_pattern, texto_raw, re.I)
+                if email_match:
+                    email = email_match.group(1)
+                    # Filtrar emails genéricos
+                    if not any(x in email.lower() for x in ['noreply', 'no-reply', 'example']):
+                        datos['organo_email'] = email
+                        logger.debug(f"Email órgano: {email}")
+
+                # También buscar emails sueltos si no encontramos con patrón
+                if not datos.get('organo_email'):
+                    all_emails = re.findall(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', texto_raw)
+                    for email in all_emails:
+                        if not any(x in email.lower() for x in ['noreply', 'no-reply', 'example', 'cookie']):
+                            datos['organo_email'] = email
+                            logger.debug(f"Email encontrado: {email}")
+                            break
+
+                # Web del órgano
+                web_match = re.search(r'(?:Web|P[áa]gina)[:\s]*(https?://[^\s<>"]+|www\.[^\s<>"]+)', texto_raw, re.I)
+                if web_match:
+                    web = web_match.group(1)
+                    if not web.startswith('http'):
+                        web = 'http://' + web
+                    datos['organo_web'] = web
+                    logger.debug(f"Web órgano: {web}")
 
                 # === DATOS DEL CONTRATO ===
 
-                # Importe sin impuestos
-                importe_match = re.search(
-                    r'Importe\s*(?:total\s*)?(?:ofertado\s*)?\(?sin\s*impuestos\)?[:\s]*([\d.,]+)\s*EUR',
-                    response.text, re.I
-                )
-                if importe_match:
-                    datos['importe_adjudicacion'] = f"{importe_match.group(1)} EUR"
+                # Importe sin impuestos (ofertado)
+                importe_patterns = [
+                    r'(?:Importe|Valor).*?sin\s*impuestos[:\s]*([\d.,]+)\s*EUR',
+                    r'sin\s*impuestos[:\s]*([\d.,]+)\s*EUR',
+                    r'([\d.,]+)\s*EUR\s*\(?sin\s*impuestos',
+                ]
+                for pattern in importe_patterns:
+                    importe_match = re.search(pattern, texto_raw, re.I)
+                    if importe_match:
+                        datos['importe_adjudicacion'] = f"{importe_match.group(1)} EUR"
+                        logger.debug(f"Importe sin IVA: {datos['importe_adjudicacion']}")
+                        break
 
                 # Importe con impuestos
-                importe_iva_match = re.search(
-                    r'Importe\s*(?:total\s*)?(?:ofertado\s*)?\(?con\s*impuestos\)?[:\s]*([\d.,]+)\s*EUR',
-                    response.text, re.I
-                )
-                if importe_iva_match:
-                    datos['importe_con_iva'] = f"{importe_iva_match.group(1)} EUR"
+                importe_iva_patterns = [
+                    r'(?:Importe|Valor).*?con\s*impuestos[:\s]*([\d.,]+)\s*EUR',
+                    r'con\s*impuestos[:\s]*([\d.,]+)\s*EUR',
+                    r'([\d.,]+)\s*EUR\s*\(?con\s*impuestos',
+                ]
+                for pattern in importe_iva_patterns:
+                    importe_match = re.search(pattern, texto_raw, re.I)
+                    if importe_match:
+                        datos['importe_con_iva'] = f"{importe_match.group(1)} EUR"
+                        logger.debug(f"Importe con IVA: {datos['importe_con_iva']}")
+                        break
 
                 # Plazo de ejecución
                 plazo_match = re.search(r'Plazo\s*de\s*Ejecuci[óo]n[:\s]*(\d+)\s*(D[íi]as?|Meses?|A[ñn]os?)', response.text, re.I)
@@ -892,50 +1160,92 @@ class AdjudicatarioEnricher:
                                         datos['organo_contratacion'] = nombre_org
                                     break
 
-                # Teléfono del órgano
-                org_tel_match = re.search(
-                    r'Entidad\s*Adjudicadora.*?Tel[ée]fono[:\s]*(\d[\d\s]{6,})',
-                    response.text, re.I | re.DOTALL
-                )
-                if org_tel_match:
-                    tel = re.sub(r'[^\d]', '', org_tel_match.group(1))
-                    if len(tel) >= 9:
-                        datos['organo_telefono'] = tel
-
-                # Email del órgano
-                org_email_match = re.search(
-                    r'Entidad\s*Adjudicadora.*?(?:Correo|Email)[:\s]*([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})',
-                    response.text, re.I | re.DOTALL
-                )
-                if org_email_match:
-                    datos['organo_email'] = org_email_match.group(1)
-
                 # === INFORMACIÓN ADICIONAL ===
 
+                # Plazo de ejecución
+                plazo_patterns = [
+                    r'Plazo\s*(?:de\s*)?[Ee]jecuci[óo]n[:\s]*(\d+)\s*(d[íi]as?|meses?|a[ñn]os?)',
+                    r'(\d+)\s*(d[íi]as?|meses?)\s*(?:de\s*)?plazo',
+                ]
+                for pattern in plazo_patterns:
+                    plazo_match = re.search(pattern, texto_raw, re.I)
+                    if plazo_match:
+                        datos['duracion_contrato'] = f"{plazo_match.group(1)} {plazo_match.group(2)}"
+                        logger.debug(f"Plazo: {datos['duracion_contrato']}")
+                        break
+
+                # Fecha de acuerdo/adjudicación
+                fecha_patterns = [
+                    r'(?:Fecha|Acuerdo).*?adjudicaci[óo]n[:\s]*(\d{1,2}/\d{1,2}/\d{4})',
+                    r'(\d{1,2}/\d{1,2}/\d{4}).*?(?:acuerdo|adjudicaci[óo]n)',
+                    r'Fecha[:\s]*(\d{1,2}/\d{1,2}/\d{4})',
+                ]
+                for pattern in fecha_patterns:
+                    fecha_match = re.search(pattern, texto_raw, re.I)
+                    if fecha_match:
+                        datos['fecha_adjudicacion'] = fecha_match.group(1)
+                        logger.debug(f"Fecha adjudicación: {datos['fecha_adjudicacion']}")
+                        break
+
+                # Número de ofertas
+                ofertas_patterns = [
+                    r'(?:N[úu]mero|Ofertas)\s*(?:de\s*)?(?:ofertas|licitadores)[:\s]*(\d+)',
+                    r'(\d+)\s*ofertas?\s*recibidas?',
+                    r'recibidas?[:\s]*(\d+)',
+                ]
+                for pattern in ofertas_patterns:
+                    ofertas_match = re.search(pattern, texto_raw, re.I)
+                    if ofertas_match:
+                        try:
+                            datos['numero_ofertas'] = int(ofertas_match.group(1))
+                            logger.debug(f"Número ofertas: {datos['numero_ofertas']}")
+                        except:
+                            pass
+                        break
+
                 # CPV
-                cpv_match = re.search(r'(\d{8})\s*-\s*[A-Za-záéíóúñ\s]+(?:eléctrica|solar|instalación)', response.text)
+                cpv_match = re.search(r'(?:CPV|C[óo]digo)[:\s]*(\d{8})', texto_raw, re.I)
                 if cpv_match:
-                    if 'cpv' not in datos:
-                        datos['cpv'] = cpv_match.group(1)
+                    datos['cpv'] = cpv_match.group(1)
+                    logger.debug(f"CPV: {datos['cpv']}")
 
                 # Lugar de ejecución
-                lugar_match = re.search(r'Subentidad\s*Nacional[:\s]*([A-Za-záéíóúñ\s]+)', response.text, re.I)
-                if lugar_match:
-                    datos['lugar_ejecucion'] = lugar_match.group(1).strip()
+                lugar_patterns = [
+                    r'(?:Lugar|Subentidad)\s*(?:de\s*)?(?:ejecuci[óo]n|Nacional)[:\s]*([A-ZÁÉÍÓÚÑa-záéíóúñ\s,]{5,50})',
+                    r'ES\d{3}\s*-\s*([A-ZÁÉÍÓÚÑa-záéíóúñ\s]{3,30})',  # Código NUTS
+                ]
+                for pattern in lugar_patterns:
+                    lugar_match = re.search(pattern, texto_raw, re.I)
+                    if lugar_match:
+                        datos['lugar_ejecucion'] = lugar_match.group(1).strip()
+                        logger.debug(f"Lugar ejecución: {datos['lugar_ejecucion']}")
+                        break
 
                 # Financiación UE
-                if 'fondos de la ue' in texto_completo or 'financiación con fondos' in texto_completo:
-                    datos['financiacion_ue'] = 'Sí - Fondos UE'
-                    # Buscar programa específico
-                    programa_match = re.search(r'Plan\s*de\s*Recuperaci[óo]n[^.]*', response.text, re.I)
-                    if programa_match:
-                        datos['programa_financiacion'] = programa_match.group(0).strip()
+                if 'fondos de la ue' in texto_completo or 'financiación con fondos' in texto_completo or 'financiacion' in texto_completo:
+                    ue_patterns = [
+                        r'(Plan\s*de\s*Recuperaci[óo]n[^.]{0,50})',
+                        r'(Fondos?\s*(?:de\s*la\s*)?UE[^.]{0,30})',
+                        r'(PRTR[^.]{0,30})',
+                        r'(NextGeneration[^.]{0,30})',
+                    ]
+                    for pattern in ue_patterns:
+                        ue_match = re.search(pattern, texto_raw, re.I)
+                        if ue_match:
+                            datos['financiacion_ue'] = 'Sí - Fondos UE'
+                            datos['programa_financiacion'] = ue_match.group(1).strip()
+                            logger.debug(f"Financiación UE: {datos['programa_financiacion']}")
+                            break
+                    if 'financiacion_ue' not in datos:
+                        datos['financiacion_ue'] = 'Sí - Fondos UE'
 
-                logger.info(f"HTML adjudicación parseado: {list(datos.keys())}")
+                # Resumen final
+                campos_encontrados = [k for k in datos.keys()]
+                logger.info(f"HTML adjudicación parseado: {len(datos)} campos - {campos_encontrados}")
                 return datos if datos else None
 
         except Exception as e:
-            logger.error(f"Error parseando HTML de adjudicación: {e}")
+            logger.error(f"Error parseando HTML de adjudicación: {e}", exc_info=True)
             return None
 
     async def _extract_competidores_from_pdf(self, pdf_url: str, nif_ganador: str) -> Optional[List[Dict[str, Any]]]:
