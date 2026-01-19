@@ -423,70 +423,128 @@ class AdjudicatarioEnricher:
                     """Normaliza un label para comparación"""
                     return texto.lower().strip().replace(':', '').strip()
 
-                # MÉTODO 1: Buscar en todas las filas de tabla (estructura tradicional)
-                for row in soup.find_all('tr'):
-                    cells = row.find_all(['td', 'th'])
-                    if len(cells) >= 2:
-                        label = normalizar_label(cells[0].get_text(strip=True))
-                        value = cells[1].get_text(strip=True)
+                # =====================================================================
+                # MÉTODO PRINCIPAL: Estructura actual de PLACSP (2024-2025)
+                # PLACSP usa clases: atributoLicitacion, capaAtributos, ancho22VerticalTop
+                # Estructura típica: <div class="atributoLicitacion"><span>Label:</span> Valor</div>
+                # También puede ser: filas con <td class="ancho22VerticalTop">Label</td><td>Valor</td>
+                # =====================================================================
+                logger.debug("Probando MÉTODO PRINCIPAL: estructura atributoLicitacion...")
 
+                # 1A. Buscar divs con clase atributoLicitacion o capaAtributos
+                for elem in soup.find_all(['div', 'td', 'span'], class_=re.compile(r'atributo|capaAtributos|ancho\d+', re.I)):
+                    texto_elem = elem.get_text(strip=True)
+
+                    # Buscar patrón "Label: Valor" o "Label Valor"
+                    for key_label, campo in mapeo_campos.items():
+                        if key_label in texto_elem.lower():
+                            # Extraer el valor después del label
+                            # Patrón 1: "Label: Valor"
+                            match = re.search(rf'{re.escape(key_label)}[:\s]+(.+?)(?:\n|$)', texto_elem, re.I)
+                            if match:
+                                value = match.group(1).strip()
+                                if value and campo not in datos:
+                                    datos[campo] = value
+                                    logger.debug(f"AtributoLicitacion: {campo} = {value[:50]}...")
+                                    break
+
+                # 1B. Buscar estructura específica con hermanos
+                # <td class="...">Label</td><td>Valor</td>
+                for td in soup.find_all('td', class_=re.compile(r'ancho\d+|atributo', re.I)):
+                    label_text = normalizar_label(td.get_text(strip=True))
+                    next_td = td.find_next_sibling('td')
+                    if next_td:
+                        value = next_td.get_text(strip=True)
                         if not value:
                             continue
-
-                        # Buscar coincidencia en el mapeo
                         for key_label, campo in mapeo_campos.items():
-                            if key_label in label or label in key_label:
+                            if key_label in label_text or label_text in key_label:
                                 if campo not in datos:
                                     datos[campo] = value
-                                    logger.debug(f"Tabla: {campo} = {value[:50]}...")
+                                    logger.debug(f"TD hermano: {campo} = {value[:50]}...")
                                 break
 
-                # MÉTODO 2: Buscar en divs con estructura label/valor (nueva estructura PLACSP)
-                # Clases comunes: viewValue, campoFichaTecnica, boxPlegado, fieldValue
-                for div in soup.find_all('div', class_=re.compile(r'campo|field|row|ficha|box', re.I)):
-                    label_elem = div.find(class_=re.compile(r'label|titulo|etiqueta|viewLabel', re.I))
-                    value_elem = div.find(class_=re.compile(r'value|valor|dato|viewValue', re.I))
+                logger.info(f"Después de MÉTODO PRINCIPAL: {len(datos)} campos - {list(datos.keys())}")
 
-                    if label_elem and value_elem:
-                        label = normalizar_label(label_elem.get_text(strip=True))
-                        value = value_elem.get_text(strip=True)
+                # =====================================================================
+                # MÉTODO 2: Buscar en filas de tabla (estructura tradicional)
+                # Solo si el método principal no encontró suficientes datos
+                # =====================================================================
+                if len(datos) < 3:
+                    logger.debug("Probando MÉTODO 2: filas de tabla tradicional...")
+                    for row in soup.find_all('tr'):
+                        cells = row.find_all(['td', 'th'])
+                        if len(cells) >= 2:
+                            label = normalizar_label(cells[0].get_text(strip=True))
+                            value = cells[1].get_text(strip=True)
 
-                        if not value:
-                            continue
+                            if not value:
+                                continue
 
-                        for key_label, campo in mapeo_campos.items():
-                            if key_label in label or label in key_label:
-                                if campo not in datos:
-                                    datos[campo] = value
-                                    logger.debug(f"Div: {campo} = {value[:50]}...")
-                                break
+                            # Buscar coincidencia en el mapeo
+                            for key_label, campo in mapeo_campos.items():
+                                if key_label in label or label in key_label:
+                                    if campo not in datos:
+                                        datos[campo] = value
+                                        logger.debug(f"Tabla TR: {campo} = {value[:50]}...")
+                                    break
 
-                # MÉTODO 3: Buscar con selectores específicos de PLACSP
-                # PLACSP usa clases como: cabeceraFichaTecnica, contenidoFichaTecnica
-                for elem in soup.find_all(['span', 'div', 'p'], class_=re.compile(r'viewValue|fieldValue|valorCampo', re.I)):
-                    # Buscar el label anterior (hermano o padre)
-                    prev = elem.find_previous_sibling(class_=re.compile(r'viewLabel|fieldLabel|etiquetaCampo', re.I))
-                    if not prev:
-                        parent = elem.find_parent()
-                        if parent:
-                            prev = parent.find(class_=re.compile(r'viewLabel|fieldLabel|etiquetaCampo', re.I))
+                # =====================================================================
+                # MÉTODO 3: Buscar en divs con estructura label/valor genérica
+                # Solo si todavía faltan datos críticos
+                # =====================================================================
+                campos_criticos = ['nombre_comercial', 'expediente', 'importe_adjudicacion']
+                faltan_criticos = [c for c in campos_criticos if c not in datos]
 
-                    if prev:
-                        label = normalizar_label(prev.get_text(strip=True))
-                        value = elem.get_text(strip=True)
+                if faltan_criticos:
+                    logger.debug(f"Probando MÉTODO 3: divs genéricos. Faltan: {faltan_criticos}")
+                    for div in soup.find_all('div', class_=re.compile(r'campo|field|row|ficha|box', re.I)):
+                        label_elem = div.find(class_=re.compile(r'label|titulo|etiqueta|viewLabel', re.I))
+                        value_elem = div.find(class_=re.compile(r'value|valor|dato|viewValue', re.I))
 
-                        if not value:
-                            continue
+                        if label_elem and value_elem:
+                            label = normalizar_label(label_elem.get_text(strip=True))
+                            value = value_elem.get_text(strip=True)
 
-                        for key_label, campo in mapeo_campos.items():
-                            if key_label in label or label in key_label:
-                                if campo not in datos:
-                                    datos[campo] = value
-                                    logger.debug(f"ViewValue: {campo} = {value[:50]}...")
-                                break
+                            if not value:
+                                continue
 
-                # MÉTODO 4: Buscar patrones de texto directo (último recurso)
-                # Útil cuando no hay estructura clara
+                            for key_label, campo in mapeo_campos.items():
+                                if key_label in label or label in key_label:
+                                    if campo not in datos:
+                                        datos[campo] = value
+                                        logger.debug(f"Div genérico: {campo} = {value[:50]}...")
+                                    break
+
+                # =====================================================================
+                # MÉTODO 4: viewValue/viewLabel (WebSphere Portal legacy)
+                # =====================================================================
+                if faltan_criticos:
+                    logger.debug("Probando MÉTODO 4: viewValue/viewLabel...")
+                    for elem in soup.find_all(['span', 'div', 'p'], class_=re.compile(r'viewValue|fieldValue|valorCampo', re.I)):
+                        prev = elem.find_previous_sibling(class_=re.compile(r'viewLabel|fieldLabel|etiquetaCampo', re.I))
+                        if not prev:
+                            parent = elem.find_parent()
+                            if parent:
+                                prev = parent.find(class_=re.compile(r'viewLabel|fieldLabel|etiquetaCampo', re.I))
+
+                        if prev:
+                            label = normalizar_label(prev.get_text(strip=True))
+                            value = elem.get_text(strip=True)
+
+                            if not value:
+                                continue
+
+                            for key_label, campo in mapeo_campos.items():
+                                if key_label in label or label in key_label:
+                                    if campo not in datos:
+                                        datos[campo] = value
+                                        logger.debug(f"ViewValue: {campo} = {value[:50]}...")
+                                    break
+
+                # =====================================================================
+                # MÉTODO 5: Regex sobre texto plano (último recurso)
+                # =====================================================================
                 texto_pagina = soup.get_text()
                 if not datos.get('expediente'):
                     exp_match = re.search(r'(?:Expediente|Nº Expediente)[:\s]*([A-Z0-9\-\/]+)', texto_pagina, re.I)
@@ -496,7 +554,7 @@ class AdjudicatarioEnricher:
 
                 if not datos.get('importe_adjudicacion'):
                     # Buscar importes con formato europeo (123.456,78 €)
-                    imp_match = re.search(r'(?:Importe|Adjudicaci[oó]n)[:\s]*([\d.,]+)\s*(?:EUR|€)', texto_pagina, re.I)
+                    imp_match = re.search(r'(?:Importe|Adjudicaci[oó]n)[:\s]*([\d.,]+)\s*(?:EUR|€|Euros)', texto_pagina, re.I)
                     if imp_match:
                         datos['importe_adjudicacion'] = f"{imp_match.group(1)} EUR"
                         logger.debug(f"Regex: importe = {datos['importe_adjudicacion']}")
