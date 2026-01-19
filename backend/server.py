@@ -1611,8 +1611,12 @@ async def migrar_ref_codes(current_user: UserResponse = Depends(get_current_user
 
 @api_router.get("/oportunidades/tipos-srs")
 async def get_tipos_srs():
-    """Get available SRS types for filtering"""
-    return TIPOS_SRS
+    """Get available SRS types for filtering - from actual data in DB"""
+    # Obtener tipos únicos de la base de datos
+    tipos_en_db = await db.oportunidades_placsp.distinct("tipo_srs")
+    # Filtrar valores vacíos y ordenar
+    tipos_validos = sorted([t for t in tipos_en_db if t and t.strip()])
+    return tipos_validos if tipos_validos else TIPOS_SRS
 
 @api_router.get("/oportunidades", response_model=List[OportunidadPLACSP])
 async def get_oportunidades(
