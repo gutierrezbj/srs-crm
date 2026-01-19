@@ -62,13 +62,71 @@ class ITComponente:
 
 
 @dataclass
+class ImpactoNegocio:
+    """Impacto cuantificable del dolor en el negocio"""
+    descripcion: str  # Descripción del impacto
+    cuantificacion: str  # Estimación numérica del impacto
+    area_afectada: str  # Área de negocio afectada
+
+
+@dataclass
+class UrgenciaTemporal:
+    """Urgencia temporal del dolor"""
+    nivel: str  # critico, alto, medio, bajo
+    fecha_limite: Optional[str]  # Fecha límite si existe
+    dias_restantes: Optional[int]  # Días hasta la fecha límite
+    consecuencias_retraso: str  # Qué pasa si no se resuelve a tiempo
+
+
+@dataclass
+class SolucionSRS:
+    """Mapeo de la solución SRS para este dolor"""
+    servicio_principal: str  # Servicio principal del catálogo SRS
+    servicios_complementarios: List[str]  # Servicios adicionales relacionados
+    tiempo_implementacion: str  # Tiempo estimado de implementación
+    equipo_necesario: str  # Recursos humanos necesarios
+
+
+@dataclass
+class ArgumentoVenta:
+    """Argumentos de venta para este dolor"""
+    gancho: str  # Frase inicial para captar atención
+    diferenciador: str  # Qué nos diferencia de la competencia
+    prueba_social: str  # Caso de éxito similar
+
+
+@dataclass
+class ObjecionPrevisible:
+    """Objeción previsible y respuesta preparada"""
+    objecion: str  # La objeción esperada
+    respuesta: str  # Respuesta preparada
+
+
+@dataclass
 class DolorDetectado:
-    """Dolor/necesidad específica del cliente"""
-    categoria: str  # operativo, tecnico, cumplimiento, recursos, economico
-    descripcion: str
-    impacto: str  # como afecta al cliente
-    extracto_pliego: str
-    argumento_venta: str  # Como SRS puede resolver esto
+    """Dolor/necesidad específica del cliente - Estructura enriquecida"""
+    # Clasificación
+    categoria: str  # temporal, tecnico, cumplimiento, recursos, economico, operativo, estrategico
+    subcategoria: str  # Subcategoría específica
+    severidad: str  # critico, alto, medio, bajo
+
+    # Descripción
+    descripcion: str  # Descripción del dolor
+    extracto_pliego: str  # Fragmento literal del pliego
+
+    # Impacto
+    impacto_negocio: ImpactoNegocio
+    urgencia_temporal: UrgenciaTemporal
+
+    # Solución
+    solucion_srs: SolucionSRS
+
+    # Venta
+    argumento_venta: ArgumentoVenta
+    objeciones_previsibles: List[ObjecionPrevisible]
+
+    # Confianza
+    confianza_deteccion: int  # 0-100
 
 
 @dataclass
@@ -407,11 +465,40 @@ ANALIZA EL PLIEGO buscando ESPECÍFICAMENTE servicios del catálogo SRS y respon
 
   "dolores": [
     {{
-      "categoria": "operativo|tecnico|cumplimiento|recursos|economico",
-      "descripcion": "Descripción del dolor",
-      "impacto": "Cómo afecta al cliente",
-      "extracto_pliego": "Fragmento literal del pliego que evidencia esto",
-      "argumento_venta": "Cómo SRS puede resolver esto"
+      "categoria": "temporal|tecnico|cumplimiento|recursos|economico|operativo|estrategico",
+      "subcategoria": "Subcategoría específica (ej: plazos_ajustados, obsolescencia_tecnologica, normativa_ens)",
+      "severidad": "critico|alto|medio|bajo",
+      "descripcion": "Descripción clara del dolor detectado",
+      "extracto_pliego": "Fragmento LITERAL del pliego que evidencia este dolor",
+      "impacto_negocio": {{
+        "descripcion": "Cómo afecta al negocio del cliente",
+        "cuantificacion": "Estimación numérica del impacto (ej: '500K€/año en multas potenciales')",
+        "area_afectada": "Área de negocio afectada (ej: 'operaciones', 'finanzas', 'reputación')"
+      }},
+      "urgencia_temporal": {{
+        "nivel": "critico|alto|medio|bajo",
+        "fecha_limite": "YYYY-MM-DD si existe deadline específico, null si no",
+        "dias_restantes": "Número de días hasta el deadline, null si no aplica",
+        "consecuencias_retraso": "Qué ocurre si no se resuelve a tiempo"
+      }},
+      "solucion_srs": {{
+        "servicio_principal": "Nombre EXACTO del servicio del catálogo SRS",
+        "servicios_complementarios": ["Otros servicios SRS relacionados"],
+        "tiempo_implementacion": "Estimación de tiempo (ej: '2-4 semanas')",
+        "equipo_necesario": "Recursos humanos (ej: '2 técnicos N2 + 1 PM')"
+      }},
+      "argumento_venta": {{
+        "gancho": "Frase impactante para captar atención",
+        "diferenciador": "Qué nos diferencia de la competencia en este dolor",
+        "prueba_social": "Caso de éxito similar (ej: 'Implementamos esto en Ayuntamiento X en 3 semanas')"
+      }},
+      "objeciones_previsibles": [
+        {{
+          "objecion": "Objeción esperada del cliente",
+          "respuesta": "Respuesta preparada"
+        }}
+      ],
+      "confianza_deteccion": 0-100
     }}
   ],
 
@@ -830,15 +917,71 @@ RESPONDE SOLO JSON, sin explicaciones adicionales."""
         tiempo_total = (datetime.now() - inicio).total_seconds()
         logger.info(f"Análisis completado en {tiempo_total:.1f} segundos")
 
-        # Construir dolores
+        # Construir dolores con estructura enriquecida
         dolores = []
         for d in resultado_ia.get("dolores", []):
+            # Construir impacto_negocio
+            impacto_data = d.get("impacto_negocio", {})
+            impacto_negocio = ImpactoNegocio(
+                descripcion=impacto_data.get("descripcion", d.get("impacto", "")),
+                cuantificacion=impacto_data.get("cuantificacion", "No cuantificado"),
+                area_afectada=impacto_data.get("area_afectada", "general")
+            )
+
+            # Construir urgencia_temporal
+            urgencia_data = d.get("urgencia_temporal", {})
+            urgencia_temporal = UrgenciaTemporal(
+                nivel=urgencia_data.get("nivel", "medio"),
+                fecha_limite=urgencia_data.get("fecha_limite"),
+                dias_restantes=urgencia_data.get("dias_restantes"),
+                consecuencias_retraso=urgencia_data.get("consecuencias_retraso", "")
+            )
+
+            # Construir solucion_srs
+            solucion_data = d.get("solucion_srs", {})
+            solucion_srs = SolucionSRS(
+                servicio_principal=solucion_data.get("servicio_principal", "Soporte técnico"),
+                servicios_complementarios=solucion_data.get("servicios_complementarios", []),
+                tiempo_implementacion=solucion_data.get("tiempo_implementacion", "A determinar"),
+                equipo_necesario=solucion_data.get("equipo_necesario", "A determinar")
+            )
+
+            # Construir argumento_venta
+            argumento_data = d.get("argumento_venta", {})
+            if isinstance(argumento_data, str):
+                # Compatibilidad con formato antiguo
+                argumento_venta = ArgumentoVenta(
+                    gancho=argumento_data,
+                    diferenciador="",
+                    prueba_social=""
+                )
+            else:
+                argumento_venta = ArgumentoVenta(
+                    gancho=argumento_data.get("gancho", ""),
+                    diferenciador=argumento_data.get("diferenciador", ""),
+                    prueba_social=argumento_data.get("prueba_social", "")
+                )
+
+            # Construir objeciones_previsibles
+            objeciones = []
+            for obj in d.get("objeciones_previsibles", []):
+                objeciones.append(ObjecionPrevisible(
+                    objecion=obj.get("objecion", ""),
+                    respuesta=obj.get("respuesta", "")
+                ))
+
             dolores.append(DolorDetectado(
                 categoria=d.get("categoria", "tecnico"),
+                subcategoria=d.get("subcategoria", "general"),
+                severidad=d.get("severidad", "medio"),
                 descripcion=d.get("descripcion", ""),
-                impacto=d.get("impacto", ""),
                 extracto_pliego=d.get("extracto_pliego", ""),
-                argumento_venta=d.get("argumento_venta", "")
+                impacto_negocio=impacto_negocio,
+                urgencia_temporal=urgencia_temporal,
+                solucion_srs=solucion_srs,
+                argumento_venta=argumento_venta,
+                objeciones_previsibles=objeciones,
+                confianza_deteccion=d.get("confianza_deteccion", 50)
             ))
 
         # Construir componentes IT
@@ -918,6 +1061,214 @@ async def analizar_pliego_completo(
         importe=importe
     )
     return resultado.to_dict()
+
+
+async def generar_analisis_comercial_v2(
+    oportunidad_id: str,
+    url_pliego: str,
+    objeto: str = "",
+    importe: float = 0,
+    adjudicatario_nombre: str = "",
+    adjudicatario_cif: str = "",
+    organo_contratante: str = "",
+    fecha_adjudicacion: str = "",
+    expediente: str = "",
+) -> Dict:
+    """
+    Genera un análisis comercial COMPLETO orientado a la acción usando SpotterSRS v2.
+
+    Esta versión usa:
+    - prompt_spotter_v2.py: Prompt optimizado con estructura JSON completa
+    - modelos_analisis.py: Dataclasses alineados con la estructura del prompt
+
+    Incluye: adjudicatario, dolores, servicios SRS, comunicación lista para usar, etc.
+    """
+    from app.spotter.prompts import get_prompt_con_catalogo, PROMPT_VERSION
+    from app.spotter.modelos_analisis import (
+        construir_desde_json,
+        construir_metadata_trazabilidad
+    )
+
+    analyzer = get_pliego_analyzer()
+    inicio = datetime.now()
+
+    logger.info(f"Generando análisis comercial v2 para: {oportunidad_id}")
+    logger.info(f"Usando prompt versión: {PROMPT_VERSION}")
+
+    # 1. Descargar y extraer texto del pliego
+    url_final = url_pliego
+    if 'detalle_licitacion' in url_pliego or 'deeplink' in url_pliego:
+        url_pliego_tecnico = await analyzer.extraer_url_pliego_tecnico(url_pliego)
+        if url_pliego_tecnico:
+            url_final = url_pliego_tecnico
+
+    contenido, tipo_doc = await analyzer.descargar_documento(url_final)
+
+    if not contenido:
+        return {
+            "error": "No se pudo descargar el documento",
+            "oportunidad": {"id_expediente": oportunidad_id}
+        }
+
+    paginas = 1  # Por defecto
+    if tipo_doc == "pdf":
+        texto, paginas = analyzer.extraer_texto_pdf(contenido)
+    else:
+        texto = analyzer.extraer_texto_html(contenido)
+
+    if not texto or len(texto) < 100:
+        return {
+            "error": "No se pudo extraer texto del documento",
+            "oportunidad": {"id_expediente": oportunidad_id}
+        }
+
+    # Truncar texto si es muy largo (máx ~60K tokens)
+    texto_truncado = texto[:80000] if len(texto) > 80000 else texto
+
+    # 2. Generar prompt v2 con catálogo de servicios inyectado dinámicamente
+    prompt = get_prompt_con_catalogo(texto_truncado)
+
+    # 3. Llamar a IA (misma lógica que pliego_analyzer)
+    resultado_ia = None
+    proveedor = "basico"
+
+    # Intentar Gemini primero
+    if analyzer.gemini_model:
+        try:
+            response = await asyncio.wait_for(
+                asyncio.to_thread(
+                    analyzer.gemini_model.generate_content,
+                    prompt,
+                    generation_config=genai.GenerationConfig(
+                        temperature=0.3,
+                        max_output_tokens=8000,  # Más tokens para respuesta completa
+                    )
+                ),
+                timeout=120.0  # 2 minutos para análisis completo
+            )
+            text = response.text
+            json_match = re.search(r"\{[\s\S]*\}", text)
+            if json_match:
+                resultado_ia = json.loads(json_match.group())
+                proveedor = "gemini"
+        except Exception as e:
+            logger.error(f"Error en Gemini: {e}")
+
+    # Fallback a OpenAI
+    if not resultado_ia and analyzer.openai_client:
+        try:
+            response = await asyncio.wait_for(
+                asyncio.to_thread(
+                    analyzer.openai_client.chat.completions.create,
+                    model="gpt-4o",
+                    messages=[{"role": "user", "content": prompt}],
+                    max_tokens=8000,
+                    temperature=0.3,
+                ),
+                timeout=120.0
+            )
+            text = response.choices[0].message.content
+            json_match = re.search(r"\{[\s\S]*\}", text)
+            if json_match:
+                resultado_ia = json.loads(json_match.group())
+                proveedor = "openai"
+        except Exception as e:
+            logger.error(f"Error en OpenAI: {e}")
+
+    # Fallback a Anthropic
+    if not resultado_ia and analyzer.anthropic_client:
+        try:
+            response = await asyncio.wait_for(
+                asyncio.to_thread(
+                    analyzer.anthropic_client.messages.create,
+                    model="claude-sonnet-4-20250514",
+                    max_tokens=8000,
+                    messages=[{"role": "user", "content": prompt}],
+                ),
+                timeout=120.0
+            )
+            text = response.content[0].text
+            json_match = re.search(r"\{[\s\S]*\}", text)
+            if json_match:
+                resultado_ia = json.loads(json_match.group())
+                proveedor = "anthropic"
+        except Exception as e:
+            logger.error(f"Error en Anthropic: {e}")
+
+    if not resultado_ia:
+        return {
+            "error": "No se pudo generar análisis con IA",
+            "oportunidad": {"id_expediente": oportunidad_id}
+        }
+
+    fin = datetime.now()
+    tiempo_total = (fin - inicio).total_seconds()
+    tiempo_ms = int(tiempo_total * 1000)
+    logger.info(f"Análisis comercial v2 completado en {tiempo_total:.1f}s con {proveedor}")
+
+    # 4. Construir objeto de análisis comercial desde JSON
+    analisis = construir_desde_json(resultado_ia)
+
+    # 5. Construir metadata de trazabilidad
+    modelo_usado = {
+        "gemini": "gemini-2.0-flash",
+        "openai": "gpt-4o",
+        "anthropic": "claude-sonnet-4-20250514"
+    }.get(proveedor, "desconocido")
+
+    documentos_info = [{
+        "tipo": "pliego_tecnico" if "tecnico" in url_final.lower() else "pliego",
+        "url_origen": url_final,
+        "paginas_totales": paginas if tipo_doc == "pdf" else 1,
+        "palabras_totales": len(texto.split()) if texto else 0
+    }]
+
+    metadata = construir_metadata_trazabilidad(
+        oportunidad_id=oportunidad_id,
+        timestamp_inicio=inicio,
+        timestamp_fin=fin,
+        proveedor_ia=proveedor,
+        modelo_ia=modelo_usado,
+        tokens_entrada=int(len(prompt.split()) * 1.3),
+        tokens_salida=len(str(resultado_ia)) // 4,
+        tiempo_ms=tiempo_ms,
+        url_pliego=url_final,
+        expediente=expediente or oportunidad_id,
+        documentos=documentos_info
+    )
+
+    # Añadir metadata al análisis
+    analisis.metadata = metadata
+
+    return analisis.to_dict()
+
+
+# Mantener función legacy para compatibilidad
+async def generar_analisis_comercial(
+    oportunidad_id: str,
+    url_pliego: str,
+    objeto: str = "",
+    importe: float = 0,
+    adjudicatario_nombre: str = "",
+    adjudicatario_cif: str = "",
+    organo_contratante: str = "",
+    fecha_adjudicacion: str = "",
+) -> Dict:
+    """
+    LEGACY: Usa generar_analisis_comercial_v2 en su lugar.
+    Mantiene compatibilidad con código existente redirigiendo a v2.
+    """
+    return await generar_analisis_comercial_v2(
+        oportunidad_id=oportunidad_id,
+        url_pliego=url_pliego,
+        objeto=objeto,
+        importe=importe,
+        adjudicatario_nombre=adjudicatario_nombre,
+        adjudicatario_cif=adjudicatario_cif,
+        organo_contratante=organo_contratante,
+        fecha_adjudicacion=fecha_adjudicacion,
+        expediente=oportunidad_id
+    )
 
 
 if __name__ == "__main__":
