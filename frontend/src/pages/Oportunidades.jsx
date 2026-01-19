@@ -356,9 +356,14 @@ export default function Oportunidades({ user }) {
                 });
                 setResumenOperadorOpen(true);
 
+                // Desactivar spinner ANTES de refrescar para evitar race condition
+                setAnalyzingPliego(prev => ({ ...prev, [oportunidadId]: false }));
+
+                // Refrescar lista en background (sin bloquear)
                 fetchOportunidades();
             } else {
                 toast.error("Error en análisis de pliego");
+                setAnalyzingPliego(prev => ({ ...prev, [oportunidadId]: false }));
             }
         } catch (error) {
             if (error.code === 'ECONNABORTED') {
@@ -367,7 +372,6 @@ export default function Oportunidades({ user }) {
                 toast.error(error.response?.data?.detail || "Error al analizar pliego");
             }
             console.error("Error analyzing pliego:", error);
-        } finally {
             setAnalyzingPliego(prev => ({ ...prev, [oportunidadId]: false }));
         }
     };
