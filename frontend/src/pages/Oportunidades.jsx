@@ -1217,6 +1217,38 @@ export default function Oportunidades({ user }) {
                                         <p className="text-slate-400 text-xs mb-1">NIF</p>
                                         <p className="text-white font-medium">{resumenOperador.nif || "-"}</p>
                                     </div>
+                                    {/* Botones de acción rápida cuando hay datos de contacto */}
+                                    {(resumenOperador.datos_adjudicatario?.email || resumenOperador.email_contacto ||
+                                      resumenOperador.datos_adjudicatario?.telefono || resumenOperador.telefono_contacto) && (
+                                        <div className="flex gap-2 py-2">
+                                            {(resumenOperador.datos_adjudicatario?.telefono || resumenOperador.telefono_contacto) && (
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    className="flex-1 text-cyan-400 border-cyan-500/30 hover:bg-cyan-500/20"
+                                                    asChild
+                                                >
+                                                    <a href={`tel:${resumenOperador.datos_adjudicatario?.telefono || resumenOperador.telefono_contacto}`}>
+                                                        <Phone className="w-4 h-4 mr-2" />
+                                                        Llamar
+                                                    </a>
+                                                </Button>
+                                            )}
+                                            {(resumenOperador.datos_adjudicatario?.email || resumenOperador.email_contacto) && (
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    className="flex-1 text-purple-400 border-purple-500/30 hover:bg-purple-500/20"
+                                                    asChild
+                                                >
+                                                    <a href={`mailto:${resumenOperador.datos_adjudicatario?.email || resumenOperador.email_contacto}`}>
+                                                        <Mail className="w-4 h-4 mr-2" />
+                                                        Email
+                                                    </a>
+                                                </Button>
+                                            )}
+                                        </div>
+                                    )}
                                     {(resumenOperador.datos_adjudicatario?.email || resumenOperador.email_contacto) && (
                                         <div>
                                             <p className="text-slate-400 text-xs mb-1">Email</p>
@@ -1240,6 +1272,13 @@ export default function Oportunidades({ user }) {
                                                 {resumenOperador.datos_adjudicatario?.telefono || resumenOperador.telefono_contacto}
                                             </a>
                                         </div>
+                                    )}
+                                    {/* Mensaje cuando no hay datos de contacto */}
+                                    {!resumenOperador.datos_adjudicatario?.email && !resumenOperador.email_contacto &&
+                                     !resumenOperador.datos_adjudicatario?.telefono && !resumenOperador.telefono_contacto && (
+                                        <p className="text-slate-500 text-xs italic py-2">
+                                            Haz clic en "Buscar datos" para obtener contacto
+                                        </p>
                                     )}
                                     {resumenOperador.datos_adjudicatario?.web && (
                                         <div>
@@ -1308,6 +1347,37 @@ export default function Oportunidades({ user }) {
                                                 {resumenOperador.datos_adjudicatario?.organo_contratacion || resumenOperador.organo_contratacion}
                                             </p>
                                         </div>
+                                        {/* Botones de acción rápida para órgano contratante */}
+                                        {(resumenOperador.datos_adjudicatario?.organo_email || resumenOperador.datos_adjudicatario?.organo_telefono) && (
+                                            <div className="flex gap-2 py-2">
+                                                {resumenOperador.datos_adjudicatario?.organo_telefono && (
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        className="flex-1 text-cyan-400 border-cyan-500/30 hover:bg-cyan-500/20"
+                                                        asChild
+                                                    >
+                                                        <a href={`tel:${resumenOperador.datos_adjudicatario.organo_telefono}`}>
+                                                            <Phone className="w-4 h-4 mr-2" />
+                                                            Llamar
+                                                        </a>
+                                                    </Button>
+                                                )}
+                                                {resumenOperador.datos_adjudicatario?.organo_email && (
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        className="flex-1 text-purple-400 border-purple-500/30 hover:bg-purple-500/20"
+                                                        asChild
+                                                    >
+                                                        <a href={`mailto:${resumenOperador.datos_adjudicatario.organo_email}`}>
+                                                            <Mail className="w-4 h-4 mr-2" />
+                                                            Email
+                                                        </a>
+                                                    </Button>
+                                                )}
+                                            </div>
+                                        )}
                                         {resumenOperador.datos_adjudicatario?.organo_email && (
                                             <div>
                                                 <p className="text-slate-400 text-xs mb-1">Email</p>
