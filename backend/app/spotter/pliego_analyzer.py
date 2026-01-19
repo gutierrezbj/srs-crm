@@ -236,6 +236,75 @@ class PliegoAnalyzer:
             logger.error(f"Error descargando {url}: {e}")
             return None, "error"
 
+    async def extraer_url_pliego_tecnico(self, url_licitacion: str) -> Optional[str]:
+        """
+        Extrae la URL del pliego técnico desde la página de detalle de PLACSP.
+        Busca en la sección de documentos el enlace al pliego de prescripciones técnicas.
+        """
+        try:
+            async with httpx.AsyncClient(
+                timeout=60.0,
+                follow_redirects=True,
+                headers={"User-Agent": self.USER_AGENT}
+            ) as client:
+                response = await client.get(url_licitacion)
+                response.raise_for_status()
+
+                soup = BeautifulSoup(response.content, "html.parser")
+
+                # Buscar enlaces a documentos
+                # Patrones comunes: "Pliego Prescripciones Técnicas", "PPT", "Pliego Técnico"
+                patrones_pliego_tecnico = [
+                    "pliego prescripciones técnicas",
+                    "pliego de prescripciones técnicas",
+                    "prescripciones técnicas",
+                    "pliego técnico",
+                    "ppt",
+                    "condiciones técnicas",
+                    "especificaciones técnicas",
+                ]
+
+                # Buscar en todos los enlaces
+                for link in soup.find_all('a', href=True):
+                    texto_link = link.get_text(strip=True).lower()
+                    href = link.get('href', '')
+
+                    # Verificar si el texto del enlace contiene palabras clave del pliego técnico
+                    for patron in patrones_pliego_tecnico:
+                        if patron in texto_link:
+                            # Construir URL completa si es relativa
+                            if href.startswith('/'):
+                                href = f"https://contrataciondelestado.es{href}"
+                            elif not href.startswith('http'):
+                                continue
+
+                            # Preferir PDFs sobre HTML
+                            if '.pdf' in href.lower() or 'GetDocumentsById' in href:
+                                logger.info(f"Encontrado pliego técnico: {href}")
+                                return href
+
+                # Segunda pasada: buscar por estructura de tabla de documentos
+                for row in soup.find_all('tr'):
+                    cells = row.find_all(['td', 'th'])
+                    row_text = ' '.join([c.get_text(strip=True).lower() for c in cells])
+
+                    if any(p in row_text for p in patrones_pliego_tecnico):
+                        # Buscar enlace PDF en esta fila
+                        for link in row.find_all('a', href=True):
+                            href = link.get('href', '')
+                            if '.pdf' in href.lower() or 'GetDocumentsById' in href:
+                                if href.startswith('/'):
+                                    href = f"https://contrataciondelestado.es{href}"
+                                logger.info(f"Encontrado pliego técnico en tabla: {href}")
+                                return href
+
+                logger.warning(f"No se encontró pliego técnico en {url_licitacion}")
+                return None
+
+        except Exception as e:
+            logger.error(f"Error extrayendo URL pliego técnico: {e}")
+            return None
+
     def extraer_texto_pdf(self, pdf_bytes: bytes) -> Tuple[str, int]:
         """Extrae texto de PDF usando pdfplumber"""
         texto_completo = []
@@ -599,11 +668,23 @@ RESPONDE SOLO JSON, sin explicaciones adicionales."""
         inicio = datetime.now()
 
         logger.info(f"Iniciando análisis exhaustivo de pliego: {oportunidad_id}")
-        logger.info(f"URL: {url_pliego}")
+        logger.info(f"URL inicial: {url_pliego}")
+
+        # 0. Si la URL es la página de detalle de PLACSP (no un PDF directo),
+        #    intentar extraer la URL del pliego técnico real
+        url_final = url_pliego
+        if 'detalle_licitacion' in url_pliego or 'deeplink' in url_pliego:
+            logger.info("URL es página de detalle PLACSP, buscando pliego técnico...")
+            url_pliego_tecnico = await self.extraer_url_pliego_tecnico(url_pliego)
+            if url_pliego_tecnico:
+                logger.info(f"Pliego técnico encontrado: {url_pliego_tecnico}")
+                url_final = url_pliego_tecnico
+            else:
+                logger.warning("No se encontró pliego técnico, usando página de detalle")
 
         # 1. Descargar documento
-        logger.info("Descargando documento...")
-        contenido, tipo_doc = await self.descargar_documento(url_pliego)
+        logger.info(f"Descargando documento desde: {url_final}")
+        contenido, tipo_doc = await self.descargar_documento(url_final)
 
         if not contenido:
             return AnalisisPliego(
@@ -631,7 +712,7 @@ RESPONDE SOLO JSON, sin explicaciones adicionales."""
                     palabras_analizadas=0,
                     confianza_analisis="baja"
                 ),
-                url_pliego=url_pliego,
+                url_pliego=url_final,
                 tipo_documento="error",
                 fecha_analisis=datetime.now().isoformat(),
                 proveedor_ia="ninguno",
@@ -676,7 +757,7 @@ RESPONDE SOLO JSON, sin explicaciones adicionales."""
                     palabras_analizadas=0,
                     confianza_analisis="baja"
                 ),
-                url_pliego=url_pliego,
+                url_pliego=url_final,
                 tipo_documento=tipo_doc,
                 fecha_analisis=datetime.now().isoformat(),
                 proveedor_ia="ninguno",
@@ -782,7 +863,7 @@ RESPONDE SOLO JSON, sin explicaciones adicionales."""
             email_contacto=resultado_ia.get("email_contacto"),
             telefono_contacto=resultado_ia.get("telefono_contacto"),
             resumen_it=resultado_ia.get("resumen_it"),
-            url_pliego=url_pliego,
+            url_pliego=url_final,
             tipo_documento=tipo_doc,
             fecha_analisis=datetime.now().isoformat(),
             proveedor_ia=proveedor,
