@@ -190,23 +190,23 @@ class PliegoAnalyzer:
         self.openai_client = None
         self.gemini_model = None
 
-        # Configurar Anthropic Claude (PRIORIDAD)
-        if ANTHROPIC_AVAILABLE and os.getenv("ANTHROPIC_API_KEY"):
-            self.anthropic_client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
-            logger.info("PliegoAnalyzer: Anthropic Claude configurado (PRINCIPAL)")
-
-        # Configurar OpenAI como fallback
-        if OPENAI_AVAILABLE and os.getenv("OPENAI_API_KEY"):
-            self.openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-            logger.info("PliegoAnalyzer: OpenAI configurado como fallback")
-
-        # Configurar Gemini como último fallback
+        # Configurar Gemini (PRIORIDAD - gemini-2.0-flash)
         if GEMINI_AVAILABLE and os.getenv("GOOGLE_API_KEY"):
             genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
             self.gemini_model = genai.GenerativeModel("gemini-2.0-flash")
-            logger.info("PliegoAnalyzer: Gemini configurado como fallback")
+            logger.info("PliegoAnalyzer: Gemini 2.0 Flash configurado (PRINCIPAL)")
 
-        if not self.anthropic_client and not self.openai_client and not self.gemini_model:
+        # Configurar OpenAI como primer fallback
+        if OPENAI_AVAILABLE and os.getenv("OPENAI_API_KEY"):
+            self.openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+            logger.info("PliegoAnalyzer: OpenAI configurado como fallback #1")
+
+        # Configurar Anthropic Claude como último fallback (deshabilitado por defecto)
+        if ANTHROPIC_AVAILABLE and os.getenv("ANTHROPIC_API_KEY"):
+            self.anthropic_client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+            logger.info("PliegoAnalyzer: Anthropic Claude configurado como fallback #2 (último)")
+
+        if not self.gemini_model and not self.openai_client and not self.anthropic_client:
             logger.warning("PliegoAnalyzer: Ningún proveedor IA disponible - solo análisis básico")
 
     async def descargar_documento(self, url: str) -> Tuple[Optional[bytes], str]:
@@ -405,7 +405,7 @@ IMPORTANTE:
 RESPONDE SOLO JSON, sin explicaciones adicionales."""
 
     async def _analizar_con_anthropic(self, texto: str, objeto: str, importe: float) -> Optional[Dict]:
-        """Análisis exhaustivo con Anthropic Claude (PRINCIPAL)"""
+        """Análisis con Anthropic Claude (fallback #2 - último recurso)"""
         if not self.anthropic_client:
             logger.warning("Anthropic client no disponible")
             return None
@@ -444,7 +444,7 @@ RESPONDE SOLO JSON, sin explicaciones adicionales."""
             return None
 
     async def _analizar_con_openai(self, texto: str, objeto: str, importe: float) -> Optional[Dict]:
-        """Análisis exhaustivo con OpenAI GPT-4"""
+        """Análisis con OpenAI GPT-4o (fallback #1)"""
         if not self.openai_client:
             logger.warning("OpenAI client no disponible - saltando análisis IA")
             return None
@@ -484,7 +484,7 @@ RESPONDE SOLO JSON, sin explicaciones adicionales."""
             return None
 
     async def _analizar_con_gemini(self, texto: str, objeto: str, importe: float) -> Optional[Dict]:
-        """Análisis con Gemini (fallback si OpenAI falla)"""
+        """Análisis con Gemini 2.0 Flash (PRINCIPAL - rápido y económico)"""
         if not self.gemini_model:
             logger.warning("Gemini no disponible")
             return None
@@ -684,30 +684,30 @@ RESPONDE SOLO JSON, sin explicaciones adicionales."""
                 error="No se pudo extraer texto del documento"
             )
 
-        # 3. Analizar con IA (Claude primero, luego OpenAI, luego Gemini)
+        # 3. Analizar con IA (Gemini primero, luego OpenAI, luego Anthropic)
         logger.info("Analizando con IA (esto puede tardar 30-60 segundos)...")
         resultado_ia = None
         proveedor = "basico"
 
-        # Intentar Anthropic Claude primero (PRINCIPAL - más preciso)
-        if self.anthropic_client:
-            resultado_ia = await self._analizar_con_anthropic(texto, objeto, importe)
+        # Intentar Gemini primero (PRINCIPAL - rápido y económico)
+        if self.gemini_model:
+            resultado_ia = await self._analizar_con_gemini(texto, objeto, importe)
             if resultado_ia:
-                proveedor = "anthropic"
+                proveedor = "gemini"
 
-        # Fallback a OpenAI si Claude falla
+        # Fallback a OpenAI si Gemini falla
         if not resultado_ia and self.openai_client:
-            logger.info("Claude falló, intentando con OpenAI...")
+            logger.info("Gemini falló, intentando con OpenAI...")
             resultado_ia = await self._analizar_con_openai(texto, objeto, importe)
             if resultado_ia:
                 proveedor = "openai"
 
-        # Fallback a Gemini si OpenAI también falla
-        if not resultado_ia and self.gemini_model:
-            logger.info("OpenAI falló, intentando con Gemini...")
-            resultado_ia = await self._analizar_con_gemini(texto, objeto, importe)
+        # Fallback a Anthropic Claude si OpenAI también falla
+        if not resultado_ia and self.anthropic_client:
+            logger.info("OpenAI falló, intentando con Anthropic Claude...")
+            resultado_ia = await self._analizar_con_anthropic(texto, objeto, importe)
             if resultado_ia:
-                proveedor = "gemini"
+                proveedor = "anthropic"
 
         # Último recurso: análisis básico
         if not resultado_ia:
