@@ -298,6 +298,11 @@ class PliegoAnalyzer:
         """
         Extrae la URL del pliego técnico desde la página de detalle de PLACSP.
         Busca en la sección de documentos el enlace al pliego de prescripciones técnicas.
+
+        Prioridad:
+        1. Pliego de Prescripciones Técnicas (PPT)
+        2. Pliego Técnico
+        3. Cualquier documento técnico con GetDocumentsById
         """
         try:
             async with httpx.AsyncClient(
@@ -309,52 +314,82 @@ class PliegoAnalyzer:
                 response.raise_for_status()
 
                 soup = BeautifulSoup(response.content, "html.parser")
+                html_text = response.text.lower()
 
-                # Buscar enlaces a documentos
-                # Patrones comunes: "Pliego Prescripciones Técnicas", "PPT", "Pliego Técnico"
+                # Patrones por orden de prioridad (más específico primero)
                 patrones_pliego_tecnico = [
                     "pliego prescripciones técnicas",
                     "pliego de prescripciones técnicas",
                     "prescripciones técnicas",
+                    "prescripciones tecnicas",  # sin tilde
                     "pliego técnico",
+                    "pliego tecnico",  # sin tilde
                     "ppt",
                     "condiciones técnicas",
                     "especificaciones técnicas",
+                    "anexo técnico",
+                    "anexo tecnico",
                 ]
+
+                encontrados = []  # Lista de (prioridad, url)
 
                 # Buscar en todos los enlaces
                 for link in soup.find_all('a', href=True):
                     texto_link = link.get_text(strip=True).lower()
                     href = link.get('href', '')
 
-                    # Verificar si el texto del enlace contiene palabras clave del pliego técnico
-                    for patron in patrones_pliego_tecnico:
-                        if patron in texto_link:
-                            # Construir URL completa si es relativa
-                            if href.startswith('/'):
-                                href = f"https://contrataciondelestado.es{href}"
-                            elif not href.startswith('http'):
-                                continue
+                    # Solo considerar enlaces a documentos
+                    if not ('GetDocumentsById' in href or '.pdf' in href.lower()):
+                        continue
 
-                            # Preferir PDFs sobre HTML
-                            if '.pdf' in href.lower() or 'GetDocumentsById' in href:
-                                logger.info(f"Encontrado pliego técnico: {href}")
-                                return href
+                    # Construir URL completa si es relativa
+                    if href.startswith('/'):
+                        href = f"https://contrataciondelestado.es{href}"
+                    elif not href.startswith('http'):
+                        continue
+
+                    # Verificar prioridad por patrón
+                    for idx, patron in enumerate(patrones_pliego_tecnico):
+                        if patron in texto_link:
+                            encontrados.append((idx, href, texto_link))
+                            logger.info(f"Candidato pliego técnico (prioridad {idx}): {texto_link[:50]}... -> {href[:80]}...")
+                            break
 
                 # Segunda pasada: buscar por estructura de tabla de documentos
                 for row in soup.find_all('tr'):
                     cells = row.find_all(['td', 'th'])
                     row_text = ' '.join([c.get_text(strip=True).lower() for c in cells])
 
-                    if any(p in row_text for p in patrones_pliego_tecnico):
-                        # Buscar enlace PDF en esta fila
-                        for link in row.find_all('a', href=True):
-                            href = link.get('href', '')
-                            if '.pdf' in href.lower() or 'GetDocumentsById' in href:
-                                if href.startswith('/'):
-                                    href = f"https://contrataciondelestado.es{href}"
-                                logger.info(f"Encontrado pliego técnico en tabla: {href}")
-                                return href
+                    for idx, patron in enumerate(patrones_pliego_tecnico):
+                        if patron in row_text:
+                            # Buscar enlace en esta fila
+                            for link in row.find_all('a', href=True):
+                                href = link.get('href', '')
+                                if 'GetDocumentsById' in href or '.pdf' in href.lower():
+                                    if href.startswith('/'):
+                                        href = f"https://contrataciondelestado.es{href}"
+                                    encontrados.append((idx, href, row_text[:50]))
+                                    logger.info(f"Candidato en tabla (prioridad {idx}): {row_text[:50]}...")
+                            break
+
+                # Seleccionar el de mayor prioridad (menor índice)
+                if encontrados:
+                    encontrados.sort(key=lambda x: x[0])
+                    mejor = encontrados[0]
+                    logger.info(f"Seleccionado pliego técnico: {mejor[2][:50]}... -> {mejor[1][:80]}...")
+                    return mejor[1]
+
+                # Fallback: buscar cualquier GetDocumentsById que parezca un documento principal
+                for link in soup.find_all('a', href=True):
+                    href = link.get('href', '')
+                    if 'GetDocumentsById' in href:
+                        texto = link.get_text(strip=True).lower()
+                        # Evitar documentos claramente administrativos
+                        if not any(x in texto for x in ['administrativ', 'carátula', 'anuncio', 'resolución']):
+                            if href.startswith('/'):
+                                href = f"https://contrataciondelestado.es{href}"
+                            logger.info(f"Fallback - documento encontrado: {texto[:50]}... -> {href[:80]}...")
+                            return href
 
                 logger.warning(f"No se encontró pliego técnico en {url_licitacion}")
                 return None
