@@ -955,6 +955,7 @@ class AdjudicatarioEnricher:
                     logger.warning(f"Página de pliegos retornó {response.status_code}")
                     return None
 
+                logger.info(f"Página de pliegos descargada: {len(response.text)} bytes")
                 soup = BeautifulSoup(response.text, 'html.parser')
                 resultado = {}
 
@@ -975,39 +976,16 @@ class AdjudicatarioEnricher:
                     'pcap',
                 ]
 
-                # Buscar todos los enlaces en la página
+                # MÉTODO 1: Buscar TODOS los enlaces que contengan las keywords en su texto
+                # Esto es más directo que buscar por tipo de archivo
+                logger.info("Buscando enlaces con keywords de PPT/PCAP...")
+
                 for link in soup.find_all('a', href=True):
                     href = link.get('href', '')
                     link_text = link.get_text(strip=True).lower()
 
-                    # Buscar también en el contexto (fila padre)
-                    parent = link.find_parent('tr') or link.find_parent('div') or link.find_parent('li')
-                    parent_text = parent.get_text(strip=True).lower() if parent else ''
-
-                    # Texto combinado para búsqueda
-                    texto_busqueda = f"{link_text} {parent_text}"
-
-                    # Verificar si es un PDF
-                    es_pdf = '.pdf' in href.lower()
-
-                    # También verificar si el icono o atributos indican PDF
-                    img = link.find('img')
-                    if img:
-                        img_alt = (img.get('alt', '') + ' ' + img.get('title', '')).lower()
-                        if 'pdf' in img_alt:
-                            es_pdf = True
-
-                    # Para GetDocumentByIdServlet, verificar tipo por contexto
-                    if 'GetDocumentByIdServlet' in href:
-                        # Si el contexto menciona PDF o no hay indicación clara de HTML
-                        if 'pdf' in texto_busqueda or 'descargar' in texto_busqueda:
-                            es_pdf = True
-                        # También puede ser PDF si tiene el icono correspondiente
-                        title_attr = link.get('title', '').lower()
-                        if 'pdf' in title_attr:
-                            es_pdf = True
-
-                    if not es_pdf:
+                    # Solo procesar enlaces a documentos (GetDocumentByIdServlet o .pdf)
+                    if 'GetDocumentByIdServlet' not in href and '.pdf' not in href.lower():
                         continue
 
                     # Construir URL completa
@@ -1018,46 +996,118 @@ class AdjudicatarioEnricher:
                     else:
                         continue
 
-                    # Clasificar como PPT o PCAP
+                    # Buscar también en el contexto (fila padre, div, li, span)
+                    parent = link.find_parent('tr') or link.find_parent('div') or link.find_parent('li') or link.find_parent('span')
+                    parent_text = parent.get_text(strip=True).lower() if parent else ''
+
+                    # Texto combinado para búsqueda (incluir title y alt del enlace)
+                    title_attr = link.get('title', '').lower()
+                    texto_busqueda = f"{link_text} {parent_text} {title_attr}"
+
+                    logger.debug(f"Analizando enlace: texto='{link_text[:50]}', parent='{parent_text[:50]}'")
+
+                    # Clasificar como PPT o PCAP basándose en el texto
                     if any(kw in texto_busqueda for kw in keywords_ppt):
                         if 'url_pliego_tecnico' not in resultado:
                             resultado['url_pliego_tecnico'] = full_url
-                            logger.info(f"✓ Encontrado PPT en página de pliegos: {full_url[:80]}")
+                            logger.info(f"✓ Encontrado PPT (método 1): {link_text[:50]} -> {full_url[:80]}")
                     elif any(kw in texto_busqueda for kw in keywords_pcap):
                         if 'url_pliego_administrativo' not in resultado:
                             resultado['url_pliego_administrativo'] = full_url
-                            logger.info(f"✓ Encontrado PCAP en página de pliegos: {full_url[:80]}")
-                    elif 'pliego' in texto_busqueda:
-                        # Si es un pliego genérico, asignar al primer slot vacío
-                        # Priorizar PPT ya que es más útil para análisis
-                        if 'url_pliego_tecnico' not in resultado:
-                            resultado['url_pliego_tecnico'] = full_url
-                            logger.info(f"✓ Encontrado pliego genérico (asumido PPT): {full_url[:80]}")
-                        elif 'url_pliego_administrativo' not in resultado:
-                            resultado['url_pliego_administrativo'] = full_url
+                            logger.info(f"✓ Encontrado PCAP (método 1): {link_text[:50]} -> {full_url[:80]}")
 
-                # Si no encontramos nada con el método anterior, buscar cualquier PDF
-                if not resultado:
-                    logger.debug("Buscando cualquier PDF en la página de pliegos...")
-                    pdfs_encontrados = []
+                # MÉTODO 2: Si no encontramos con método 1, buscar por iconos de PDF
+                if not resultado.get('url_pliego_tecnico'):
+                    logger.info("Método 1 no encontró PPT, buscando por iconos...")
+
                     for link in soup.find_all('a', href=True):
                         href = link.get('href', '')
-                        if '.pdf' in href.lower() or ('GetDocumentByIdServlet' in href and 'pdf' in link.get_text().lower()):
+
+                        # Solo procesar enlaces a documentos
+                        if 'GetDocumentByIdServlet' not in href and '.pdf' not in href.lower():
+                            continue
+
+                        # Verificar si tiene icono de PDF
+                        img = link.find('img')
+                        es_pdf_por_icono = False
+                        if img:
+                            img_src = img.get('src', '').lower()
+                            img_alt = (img.get('alt', '') + ' ' + img.get('title', '')).lower()
+                            if 'pdf' in img_src or 'pdf' in img_alt:
+                                es_pdf_por_icono = True
+
+                        if not es_pdf_por_icono and '.pdf' not in href.lower():
+                            continue
+
+                        # Construir URL completa
+                        if href.startswith('http'):
+                            full_url = href
+                        elif href.startswith('/'):
+                            full_url = f"https://contrataciondelestado.es{href}"
+                        else:
+                            continue
+
+                        link_text = link.get_text(strip=True).lower()
+                        parent = link.find_parent('tr') or link.find_parent('div')
+                        parent_text = parent.get_text(strip=True).lower() if parent else ''
+                        texto_busqueda = f"{link_text} {parent_text}"
+
+                        # Clasificar
+                        if any(kw in texto_busqueda for kw in keywords_ppt):
+                            if 'url_pliego_tecnico' not in resultado:
+                                resultado['url_pliego_tecnico'] = full_url
+                                logger.info(f"✓ Encontrado PPT (método 2 icono): {full_url[:80]}")
+                        elif any(kw in texto_busqueda for kw in keywords_pcap):
+                            if 'url_pliego_administrativo' not in resultado:
+                                resultado['url_pliego_administrativo'] = full_url
+                                logger.info(f"✓ Encontrado PCAP (método 2 icono): {full_url[:80]}")
+                        elif 'pliego' in texto_busqueda:
+                            if 'url_pliego_tecnico' not in resultado:
+                                resultado['url_pliego_tecnico'] = full_url
+                                logger.info(f"✓ Encontrado pliego genérico (método 2): {full_url[:80]}")
+
+                # MÉTODO 3: Fallback - buscar cualquier PDF con "pliego" en el contexto
+                if not resultado.get('url_pliego_tecnico'):
+                    logger.info("Métodos 1-2 no encontraron PPT, buscando cualquier PDF con 'pliego'...")
+                    pdfs_encontrados = []
+
+                    for link in soup.find_all('a', href=True):
+                        href = link.get('href', '')
+                        link_text = link.get_text(strip=True).lower()
+
+                        # Cualquier enlace a documento
+                        if 'GetDocumentByIdServlet' in href or '.pdf' in href.lower():
                             if href.startswith('http'):
                                 full_url = href
                             elif href.startswith('/'):
                                 full_url = f"https://contrataciondelestado.es{href}"
                             else:
                                 continue
-                            pdfs_encontrados.append(full_url)
 
-                    # Asignar los primeros PDFs encontrados
-                    if len(pdfs_encontrados) >= 1:
-                        resultado['url_pliego_tecnico'] = pdfs_encontrados[0]
-                        logger.info(f"✓ Primer PDF encontrado (asumido PPT): {pdfs_encontrados[0][:80]}")
-                    if len(pdfs_encontrados) >= 2:
-                        resultado['url_pliego_administrativo'] = pdfs_encontrados[1]
-                        logger.info(f"✓ Segundo PDF encontrado (asumido PCAP): {pdfs_encontrados[1][:80]}")
+                            if 'pliego' in link_text or 'técnic' in link_text or 'administrativ' in link_text:
+                                pdfs_encontrados.append({
+                                    'url': full_url,
+                                    'texto': link_text,
+                                    'es_tecnico': 'técnic' in link_text or 'tecnic' in link_text or 'prescripcion' in link_text,
+                                    'es_admin': 'administrativ' in link_text or 'cláusula' in link_text or 'clausula' in link_text
+                                })
+                                logger.info(f"PDF con pliego encontrado: {link_text[:50]} -> {full_url[:60]}")
+
+                    # Asignar los PDFs encontrados
+                    for pdf in pdfs_encontrados:
+                        if pdf['es_tecnico'] and 'url_pliego_tecnico' not in resultado:
+                            resultado['url_pliego_tecnico'] = pdf['url']
+                            logger.info(f"✓ PPT asignado (método 3): {pdf['url'][:80]}")
+                        elif pdf['es_admin'] and 'url_pliego_administrativo' not in resultado:
+                            resultado['url_pliego_administrativo'] = pdf['url']
+                            logger.info(f"✓ PCAP asignado (método 3): {pdf['url'][:80]}")
+
+                    # Si aún no hay PPT pero hay PDFs, asignar el primero
+                    if not resultado.get('url_pliego_tecnico') and pdfs_encontrados:
+                        resultado['url_pliego_tecnico'] = pdfs_encontrados[0]['url']
+                        logger.info(f"✓ PPT asignado (fallback): {pdfs_encontrados[0]['url'][:80]}")
+
+                logger.info(f"Resultado extracción pliegos: PPT={bool(resultado.get('url_pliego_tecnico'))}, PCAP={bool(resultado.get('url_pliego_administrativo'))}")
 
                 return resultado if resultado else None
 
