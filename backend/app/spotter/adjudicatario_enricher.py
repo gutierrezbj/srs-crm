@@ -107,6 +107,10 @@ class DatosAdjudicatario:
     # Lista de {nif, nombre, puntuacion}
     empresas_competidoras: Optional[List[Dict[str, Any]]] = None
 
+    # URLs de pliegos (importantes para análisis)
+    url_pliego_tecnico: Optional[str] = None  # Pliego de Prescripciones Técnicas (PPT)
+    url_pliego_administrativo: Optional[str] = None  # Pliego de Cláusulas Administrativas (PCAP)
+
     # Metadata
     fuente: str = "manual"  # placsp, placsp_xml, placsp_html, infocif, einforma, manual
     fecha_enriquecimiento: Optional[str] = None
@@ -568,6 +572,8 @@ class AdjudicatarioEnricher:
                 xml_formalizacion = None
                 html_adjudicacion = None
                 pdf_acta_resolucion = None
+                url_pliego_tecnico = None
+                url_pliego_administrativo = None
 
                 # Función auxiliar para identificar tipo de documento
                 # PLACSP usa GetDocumentByIdServlet con parámetros cifrados
@@ -673,7 +679,22 @@ class AdjudicatarioEnricher:
                                 logger.info(f"✓ PDF acta resolución: {full_url[:80]}")
                             doc_info = {'titulo': 'Acta de Resolución', 'url': full_url, 'tipo': tipo}
                         elif es_pliego:
-                            doc_info = {'titulo': 'Pliego', 'url': full_url, 'tipo': tipo}
+                            # Detectar tipo específico de pliego
+                            es_pliego_tecnico = any(x in row_text for x in ['prescripciones técnicas', 'prescripciones tecnicas', 'ppt', 'técnico', 'tecnico'])
+                            es_pliego_admin = any(x in row_text for x in ['cláusulas administrativas', 'clausulas administrativas', 'pcap', 'administrativo'])
+
+                            if es_pliego_tecnico and not url_pliego_tecnico:
+                                url_pliego_tecnico = full_url
+                                datos['url_pliego_tecnico'] = full_url
+                                logger.info(f"✓ Pliego Técnico (PPT): {full_url[:80]}")
+                                doc_info = {'titulo': 'Pliego Técnico (PPT)', 'url': full_url, 'tipo': tipo}
+                            elif es_pliego_admin and not url_pliego_administrativo:
+                                url_pliego_administrativo = full_url
+                                datos['url_pliego_administrativo'] = full_url
+                                logger.info(f"✓ Pliego Administrativo (PCAP): {full_url[:80]}")
+                                doc_info = {'titulo': 'Pliego Administrativo (PCAP)', 'url': full_url, 'tipo': tipo}
+                            else:
+                                doc_info = {'titulo': 'Pliego', 'url': full_url, 'tipo': tipo}
                         elif es_anuncio:
                             doc_info = {'titulo': 'Anuncio', 'url': full_url, 'tipo': tipo}
 
@@ -726,7 +747,7 @@ class AdjudicatarioEnricher:
                                 xml_formalizacion = full_url
                                 datos['xml_formalizacion_url'] = full_url
 
-                logger.info(f"Documentos encontrados: XML_adj={bool(xml_adjudicacion)}, HTML_adj={bool(html_adjudicacion)}, XML_form={bool(xml_formalizacion)}, PDF_acta={bool(pdf_acta_resolucion)}")
+                logger.info(f"Documentos encontrados: XML_adj={bool(xml_adjudicacion)}, HTML_adj={bool(html_adjudicacion)}, XML_form={bool(xml_formalizacion)}, PDF_acta={bool(pdf_acta_resolucion)}, PPT={bool(url_pliego_tecnico)}, PCAP={bool(url_pliego_administrativo)}")
 
                 if documentos:
                     # Eliminar duplicados manteniendo orden
