@@ -511,29 +511,65 @@ class AdjudicatarioEnricher:
                 html_adjudicacion = None
                 pdf_acta_resolucion = None
 
-                # Función auxiliar para identificar tipo de documento por URL/texto
-                def identificar_tipo_documento(href: str, texto: str) -> Optional[str]:
+                # Función auxiliar para identificar tipo de documento
+                # PLACSP usa GetDocumentByIdServlet con parámetros cifrados
+                # El tipo se detecta por: icono img alt/title, texto del enlace, o extensión en URL
+                def identificar_tipo_documento(link_elem, href: str, texto: str) -> Optional[str]:
                     href_lower = href.lower()
                     texto_lower = texto.lower()
-                    if '.xml' in href_lower or 'xml' in texto_lower or '/xml/' in href_lower:
+
+                    # Buscar icono dentro del enlace
+                    img = link_elem.find('img') if link_elem else None
+                    alt_text = (img.get('alt', '') + ' ' + img.get('title', '')).lower() if img else ''
+
+                    # También buscar atributo title del enlace
+                    title_attr = link_elem.get('title', '').lower() if link_elem else ''
+
+                    # Combinar todas las fuentes de información
+                    all_text = f"{texto_lower} {alt_text} {title_attr}"
+
+                    # Detectar por extensión explícita en URL
+                    if '.xml' in href_lower:
                         return 'xml'
-                    elif '.pdf' in href_lower or 'pdf' in texto_lower:
+                    elif '.pdf' in href_lower:
                         return 'pdf'
-                    elif '.html' in href_lower or 'html' in texto_lower or '/html/' in href_lower:
+                    elif '.html' in href_lower or '.htm' in href_lower:
                         return 'html'
-                    # PLACSP usa /poc? para enlaces a documentos
-                    elif '/poc?' in href_lower and ('adjudicacion' in texto_lower or 'formalizacion' in texto_lower):
-                        return 'html'  # Asumir HTML para enlaces de portal
+
+                    # Detectar por texto/alt/title (PLACSP usa iconos con alt="XML", "HTML", "PDF")
+                    if 'xml' in all_text:
+                        return 'xml'
+                    elif 'pdf' in all_text:
+                        return 'pdf'
+                    elif 'html' in all_text or 'htm' in all_text:
+                        return 'html'
+
+                    # Para GetDocumentByIdServlet sin tipo claro, inferir por contexto
+                    if 'GetDocumentByIdServlet' in href or 'FileSystem/servlet' in href:
+                        # Si no hay indicación clara, asumir HTML (más común para adjudicaciones)
+                        return 'html'
+
                     return None
 
-                # Buscar todas las filas de la tabla de documentos
+                # MÉTODO PRINCIPAL: Buscar en filas de tabla (sección Anuncios y Documentos)
+                logger.debug("Buscando documentos en tablas...")
                 for row in soup.find_all('tr'):
                     row_text = row.get_text(strip=True).lower()
 
-                    # Buscar enlaces en esta fila
+                    # Solo procesar filas que contengan tipos de documentos relevantes
+                    es_adjudicacion = 'adjudicación' in row_text or 'adjudicacion' in row_text
+                    es_formalizacion = 'formalización' in row_text or 'formalizacion' in row_text
+                    es_acta = 'acta' in row_text and ('resolución' in row_text or 'resolucion' in row_text)
+                    es_pliego = 'pliego' in row_text
+                    es_anuncio = 'anuncio' in row_text
+
+                    if not any([es_adjudicacion, es_formalizacion, es_acta, es_pliego, es_anuncio]):
+                        continue
+
+                    # Buscar TODOS los enlaces en esta fila
                     for link in row.find_all('a', href=True):
                         href = link.get('href', '')
-                        link_text = link.get_text(strip=True).lower()
+                        link_text = link.get_text(strip=True)
 
                         # Construir URL completa
                         if href.startswith('http'):
@@ -541,84 +577,98 @@ class AdjudicatarioEnricher:
                         elif href.startswith('/'):
                             full_url = f"https://contrataciondelestado.es{href}"
                         else:
-                            continue  # Skip relative URLs sin /
+                            continue
 
                         # Identificar tipo de documento
-                        tipo = identificar_tipo_documento(href, link_text)
+                        tipo = identificar_tipo_documento(link, href, link_text)
 
-                        # Determinar categoría del documento
+                        if not tipo:
+                            continue
+
+                        logger.debug(f"Enlace encontrado: tipo={tipo}, fila={row_text[:50]}...")
+
+                        # Clasificar según tipo de documento
                         doc_info = None
-                        if 'adjudicación' in row_text or 'adjudicacion' in row_text:
+                        if es_adjudicacion:
                             if tipo == 'xml' and not xml_adjudicacion:
                                 xml_adjudicacion = full_url
                                 datos['xml_adjudicacion_url'] = full_url
-                                logger.debug(f"XML adjudicación: {full_url[:80]}")
+                                logger.info(f"✓ XML adjudicación: {full_url[:80]}")
                             elif tipo == 'html' and not html_adjudicacion:
                                 html_adjudicacion = full_url
                                 datos['html_adjudicacion_url'] = full_url
-                                logger.debug(f"HTML adjudicación: {full_url[:80]}")
-                            doc_info = {'titulo': 'Adjudicación', 'url': full_url, 'tipo': tipo}
-                        elif 'formalización' in row_text or 'formalizacion' in row_text:
+                                logger.info(f"✓ HTML adjudicación: {full_url[:80]}")
+                            elif tipo == 'pdf':
+                                doc_info = {'titulo': 'Adjudicación PDF', 'url': full_url, 'tipo': tipo}
+                            else:
+                                doc_info = {'titulo': 'Adjudicación', 'url': full_url, 'tipo': tipo}
+                        elif es_formalizacion:
                             if tipo == 'xml' and not xml_formalizacion:
                                 xml_formalizacion = full_url
                                 datos['xml_formalizacion_url'] = full_url
-                                logger.debug(f"XML formalización: {full_url[:80]}")
+                                logger.info(f"✓ XML formalización: {full_url[:80]}")
                             doc_info = {'titulo': 'Formalización', 'url': full_url, 'tipo': tipo}
-                        elif ('acta' in row_text and ('resolución' in row_text or 'resolucion' in row_text)):
-                            # PDF del Acta de Resolución - contiene lista de licitadores
+                        elif es_acta:
                             if tipo == 'pdf' and not pdf_acta_resolucion:
                                 pdf_acta_resolucion = full_url
                                 datos['pdf_acta_resolucion_url'] = full_url
-                                logger.debug(f"PDF acta: {full_url[:80]}")
+                                logger.info(f"✓ PDF acta resolución: {full_url[:80]}")
                             doc_info = {'titulo': 'Acta de Resolución', 'url': full_url, 'tipo': tipo}
-                        elif 'pliego' in row_text:
+                        elif es_pliego:
                             doc_info = {'titulo': 'Pliego', 'url': full_url, 'tipo': tipo}
-                        elif 'anuncio' in row_text:
+                        elif es_anuncio:
                             doc_info = {'titulo': 'Anuncio', 'url': full_url, 'tipo': tipo}
 
-                        if doc_info and tipo:
+                        if doc_info:
                             documentos.append(doc_info)
 
-                # También buscar enlaces sueltos (PLACSP puede tener estructura diferente)
-                for link in soup.find_all('a', href=True):
-                    href = link.get('href', '')
-                    texto = link.get_text(strip=True).lower()
-                    img = link.find('img')
-                    alt_text = img.get('alt', '').lower() if img else ''
-                    title_attr = link.get('title', '').lower()
+                # MÉTODO SECUNDARIO: Buscar enlaces con iconos específicos en toda la página
+                if not xml_adjudicacion and not html_adjudicacion:
+                    logger.debug("Buscando documentos por iconos...")
+                    for link in soup.find_all('a', href=True):
+                        href = link.get('href', '')
 
-                    # Buscar contexto del enlace
-                    parent = link.find_parent(['tr', 'div', 'li'])
-                    parent_text = parent.get_text(strip=True).lower() if parent else ''
+                        # Solo procesar enlaces a documentos
+                        if 'GetDocumentByIdServlet' not in href and 'FileSystem' not in href:
+                            continue
 
-                    # Construir URL completa
-                    if href.startswith('http'):
-                        full_url = href
-                    elif href.startswith('/'):
-                        full_url = f"https://contrataciondelestado.es{href}"
-                    else:
-                        continue
+                        # Buscar contexto (fila padre)
+                        parent = link.find_parent('tr')
+                        if not parent:
+                            continue
 
-                    # Detectar XML de adjudicación/formalización
-                    es_xml = 'xml' in alt_text or 'xml' in texto or '.xml' in href.lower() or 'xml' in title_attr
-                    es_html = 'html' in alt_text or '.html' in href.lower() or '/html/' in href.lower()
+                        parent_text = parent.get_text(strip=True).lower()
 
-                    if es_xml or es_html:
-                        tipo = 'xml' if es_xml else 'html'
+                        # Construir URL completa
+                        if href.startswith('http'):
+                            full_url = href
+                        elif href.startswith('/'):
+                            full_url = f"https://contrataciondelestado.es{href}"
+                        else:
+                            continue
+
+                        # Identificar tipo
+                        tipo = identificar_tipo_documento(link, href, link.get_text(strip=True))
+
+                        if not tipo:
+                            continue
+
+                        # Clasificar
                         if ('adjudicación' in parent_text or 'adjudicacion' in parent_text):
                             if tipo == 'xml' and not xml_adjudicacion:
                                 xml_adjudicacion = full_url
                                 datos['xml_adjudicacion_url'] = full_url
-                                logger.debug(f"XML adj (suelto): {full_url[:80]}")
+                                logger.info(f"✓ XML adj (método 2): {full_url[:80]}")
                             elif tipo == 'html' and not html_adjudicacion:
                                 html_adjudicacion = full_url
                                 datos['html_adjudicacion_url'] = full_url
+                                logger.info(f"✓ HTML adj (método 2): {full_url[:80]}")
                         elif ('formalización' in parent_text or 'formalizacion' in parent_text):
                             if tipo == 'xml' and not xml_formalizacion:
                                 xml_formalizacion = full_url
                                 datos['xml_formalizacion_url'] = full_url
 
-                logger.info(f"Documentos encontrados: XML_adj={bool(xml_adjudicacion)}, HTML_adj={bool(html_adjudicacion)}, XML_form={bool(xml_formalizacion)}")
+                logger.info(f"Documentos encontrados: XML_adj={bool(xml_adjudicacion)}, HTML_adj={bool(html_adjudicacion)}, XML_form={bool(xml_formalizacion)}, PDF_acta={bool(pdf_acta_resolucion)}")
 
                 if documentos:
                     # Eliminar duplicados manteniendo orden
