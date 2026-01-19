@@ -2056,12 +2056,18 @@ async def analizar_pliego_exhaustivo(
         # Buscar URL del pliego
         url_pliego = None
         pliegos = oportunidad.get("pliegos", {})
+        datos_adj = oportunidad.get("datos_adjudicatario", {})
 
         # Priorizar pliego técnico, luego administrativo
+        # Buscar en pliegos y también en datos_adjudicatario (donde lo guarda el enricher)
         if pliegos.get("url_pliego_tecnico"):
             url_pliego = pliegos["url_pliego_tecnico"]
+        elif datos_adj.get("url_pliego_tecnico"):
+            url_pliego = datos_adj["url_pliego_tecnico"]
         elif pliegos.get("url_pliego_administrativo"):
             url_pliego = pliegos["url_pliego_administrativo"]
+        elif datos_adj.get("url_pliego_administrativo"):
+            url_pliego = datos_adj["url_pliego_administrativo"]
         elif oportunidad.get("url_licitacion"):
             # Fallback a URL de la licitación
             url_pliego = oportunidad["url_licitacion"]
@@ -2218,11 +2224,17 @@ async def generar_analisis_comercial_endpoint(
         # Buscar URL del pliego
         url_pliego = None
         pliegos = oportunidad.get("pliegos", {})
+        datos_adj = oportunidad.get("datos_adjudicatario", {})
 
+        # Priorizar pliego técnico, buscar en pliegos y datos_adjudicatario
         if pliegos.get("url_pliego_tecnico"):
             url_pliego = pliegos["url_pliego_tecnico"]
+        elif datos_adj.get("url_pliego_tecnico"):
+            url_pliego = datos_adj["url_pliego_tecnico"]
         elif pliegos.get("url_pliego_admin"):
             url_pliego = pliegos["url_pliego_admin"]
+        elif datos_adj.get("url_pliego_administrativo"):
+            url_pliego = datos_adj["url_pliego_administrativo"]
         elif oportunidad.get("url_licitacion"):
             url_pliego = oportunidad["url_licitacion"]
 
