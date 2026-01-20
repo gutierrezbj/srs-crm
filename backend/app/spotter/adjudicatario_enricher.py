@@ -718,29 +718,38 @@ class AdjudicatarioEnricher:
                             es_pliego_tecnico = any(x in row_text for x in ['prescripciones técnicas', 'prescripciones tecnicas', 'ppt', 'técnico', 'tecnico'])
                             es_pliego_admin = any(x in row_text for x in ['cláusulas administrativas', 'clausulas administrativas', 'pcap', 'administrativo'])
 
-                            if es_pliego_tecnico and not url_pliego_tecnico:
+                            # IMPORTANTE: Solo aceptar como PPT/PCAP si es un PDF directo
+                            # Los enlaces HTML pueden ser páginas intermedias "Documento de Pliegos"
+                            # que contienen los enlaces reales a los PDFs
+                            es_pdf_directo = tipo == 'pdf'
+
+                            if es_pliego_tecnico and not url_pliego_tecnico and es_pdf_directo:
                                 url_pliego_tecnico = full_url
                                 datos['url_pliego_tecnico'] = full_url
                                 logger.info(f"✓ Pliego Técnico (PPT): {full_url[:80]}")
                                 doc_info = {'titulo': 'Pliego Técnico (PPT)', 'url': full_url, 'tipo': tipo}
-                            elif es_pliego_admin and not url_pliego_administrativo:
+                            elif es_pliego_admin and not url_pliego_administrativo and es_pdf_directo:
                                 url_pliego_administrativo = full_url
                                 datos['url_pliego_administrativo'] = full_url
                                 logger.info(f"✓ Pliego Administrativo (PCAP): {full_url[:80]}")
                                 doc_info = {'titulo': 'Pliego Administrativo (PCAP)', 'url': full_url, 'tipo': tipo}
-                            elif not url_pliego_tecnico and tipo == 'pdf':
+                            elif not url_pliego_tecnico and es_pdf_directo:
                                 # Si es un pliego PDF genérico sin identificar, asumimos que es PPT
                                 # (más relevante para análisis que el PCAP)
                                 url_pliego_tecnico = full_url
                                 datos['url_pliego_tecnico'] = full_url
                                 logger.info(f"✓ Pliego Técnico (PPT) inferido: {full_url[:80]}")
                                 doc_info = {'titulo': 'Pliego Técnico (PPT)', 'url': full_url, 'tipo': tipo}
-                            elif not url_pliego_administrativo and tipo == 'pdf':
+                            elif not url_pliego_administrativo and es_pdf_directo:
                                 # Si ya tenemos PPT pero no PCAP
                                 url_pliego_administrativo = full_url
                                 datos['url_pliego_administrativo'] = full_url
                                 logger.info(f"✓ Pliego Administrativo (PCAP) inferido: {full_url[:80]}")
                                 doc_info = {'titulo': 'Pliego Administrativo (PCAP)', 'url': full_url, 'tipo': tipo}
+                            elif not es_pdf_directo:
+                                # Enlace HTML a página de pliegos - marcar para navegar después
+                                logger.info(f"Encontrado enlace HTML a página de pliegos (no PDF): {full_url[:80]}")
+                                doc_info = {'titulo': 'Página de Pliegos', 'url': full_url, 'tipo': tipo}
                             else:
                                 doc_info = {'titulo': 'Pliego', 'url': full_url, 'tipo': tipo}
                         elif es_anuncio:
