@@ -1747,6 +1747,29 @@ class AdjudicatarioEnricher:
                     if 'financiacion_ue' not in datos:
                         datos['financiacion_ue'] = 'Sí - Fondos UE'
 
+                # === BUSCAR ENLACE AL PDF DEL ACTA DE RESOLUCIÓN ===
+                # El Acta de Resolución contiene la lista de empresas competidoras
+                # Estructura típica: <h3>Acta de Resolución</h3><ul><li><a href="...">Documento de Acta de Resolución</a></li></ul>
+                for link in soup.find_all('a', href=True):
+                    link_text = link.get_text(strip=True).lower()
+                    href = link.get('href', '')
+
+                    # Buscar enlaces que contengan "acta" y "resolución"
+                    if ('acta' in link_text and 'resoluci' in link_text) or 'documento de acta' in link_text:
+                        if 'GetDocumentByIdServlet' in href or '.pdf' in href.lower():
+                            # Construir URL completa
+                            if href.startswith('http'):
+                                pdf_acta_url = href
+                            else:
+                                pdf_acta_url = f"https://contrataciondelestado.es{href}"
+
+                            # Decodificar entidades HTML en la URL
+                            pdf_acta_url = pdf_acta_url.replace('&amp;', '&')
+
+                            datos['pdf_acta_resolucion_url'] = pdf_acta_url
+                            logger.info(f"✓ PDF Acta de Resolución encontrado en HTML adjudicación: {pdf_acta_url[:80]}...")
+                            break
+
                 # Resumen final
                 campos_encontrados = [k for k in datos.keys()]
                 logger.info(f"HTML adjudicación parseado: {len(datos)} campos - {campos_encontrados}")
@@ -1850,9 +1873,9 @@ class AdjudicatarioEnricher:
                             if not competidores:
                                 text = page.extract_text()
                                 if text:
-                                    # Buscar patrones de NIF seguidos de nombre
-                                    # Patrón: NIF en una línea, seguido de nombre
                                     lines = text.split('\n')
+
+                                    # MÉTODO A: Buscar patrones de NIF seguidos de nombre
                                     for i, line in enumerate(lines):
                                         nif_match = re.search(r'\b([A-Z]\d{8}|\d{8}[A-Z])\b', line, re.I)
                                         if nif_match:
@@ -1882,6 +1905,36 @@ class AdjudicatarioEnricher:
                                                     'nombre': nombre,
                                                     'puntuacion': puntuacion
                                                 })
+
+                                    # MÉTODO B: Buscar patrón "Nombre Empresa S.L./S.A." + importe en euros
+                                    # Formato típico: "EMPRESA EJEMPLO, S.L.    123.456,78 euros"
+                                    if not competidores:
+                                        # Buscar sección de ofertas (después de "OFERTAS:" o similar)
+                                        full_text = text
+                                        ofertas_start = re.search(r'OFERTAS?:', full_text, re.I)
+                                        if ofertas_start:
+                                            ofertas_text = full_text[ofertas_start.end():]
+                                            # Buscar hasta la siguiente sección
+                                            next_section = re.search(r'\n[A-Z]{2,}.*?:', ofertas_text)
+                                            if next_section:
+                                                ofertas_text = ofertas_text[:next_section.start()]
+
+                                            # Patrón: Nombre (con S.L., S.A., S.L.U., etc.) + importe + euros
+                                            empresa_pattern = r'([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ\s,.\-&]+(?:S\.?L\.?U?\.?|S\.?A\.?U?\.?|SOCIEDAD|COOPERATIVA))\s+([\d.,]+)\s*euros?'
+                                            for match in re.finditer(empresa_pattern, ofertas_text, re.I):
+                                                nombre = match.group(1).strip().rstrip(',').strip()
+                                                importe = match.group(2).replace('.', '').replace(',', '.')
+
+                                                # Evitar duplicados y excluir al ganador (comparar por nombre normalizado)
+                                                nombre_norm = nombre.upper().replace(' ', '').replace(',', '').replace('.', '')
+                                                if not any(c.get('nombre', '').upper().replace(' ', '').replace(',', '').replace('.', '') == nombre_norm for c in competidores):
+                                                    competidores.append({
+                                                        'nif': None,  # No disponible en este formato
+                                                        'nombre': nombre,
+                                                        'importe_oferta': importe,
+                                                        'puntuacion': None
+                                                    })
+                                                    logger.info(f"Competidor (formato euros): {nombre} - {importe}€")
 
                 finally:
                     # Limpiar archivo temporal

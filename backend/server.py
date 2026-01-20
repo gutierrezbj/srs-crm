@@ -2512,18 +2512,30 @@ async def analisis_rapido_endpoint(
             nif_adjudicatario=nif
         )
 
-        # Extraer competidores si hay HTML de adjudicación
+        # Extraer competidores - el PDF del Acta de Resolución está DENTRO del HTML de adjudicación
         empresas_competidoras = None
-        if datos_placsp.get("html_adjudicacion_url"):
-            empresas_competidoras = await enricher._extract_competidores_from_html(
-                datos_placsp["html_adjudicacion_url"],
+        pdf_acta_url = datos_placsp.get("pdf_acta_resolucion_url")
+
+        # Si hay HTML de adjudicación, parsearlo para buscar el enlace al PDF del Acta
+        if datos_placsp.get("html_adjudicacion_url") and not pdf_acta_url:
+            logger.info("Parseando HTML de adjudicación para buscar PDF del Acta de Resolución...")
+            datos_html = await enricher._parse_html_adjudicacion(datos_placsp["html_adjudicacion_url"])
+            if datos_html and datos_html.get("pdf_acta_resolucion_url"):
+                pdf_acta_url = datos_html["pdf_acta_resolucion_url"]
+                logger.info(f"PDF Acta encontrado en HTML: {pdf_acta_url[:80]}...")
+
+        # Extraer competidores del PDF del Acta de Resolución (fuente principal)
+        if pdf_acta_url:
+            logger.info(f"Extrayendo competidores del PDF del Acta: {pdf_acta_url[:80]}...")
+            empresas_competidoras = await enricher._extract_competidores_from_pdf(
+                pdf_acta_url,
                 nif
             )
 
-        # Si no hay competidores del HTML, intentar con PDF
-        if not empresas_competidoras and datos_placsp.get("pdf_acta_resolucion_url"):
-            empresas_competidoras = await enricher._extract_competidores_from_pdf(
-                datos_placsp["pdf_acta_resolucion_url"],
+        # Fallback: intentar extraer del HTML de adjudicación directamente
+        if not empresas_competidoras and datos_placsp.get("html_adjudicacion_url"):
+            empresas_competidoras = await enricher._extract_competidores_from_html(
+                datos_placsp["html_adjudicacion_url"],
                 nif
             )
 
