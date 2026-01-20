@@ -807,47 +807,68 @@ class AdjudicatarioEnricher:
                 logger.info(f"Documentos encontrados: XML_adj={bool(xml_adjudicacion)}, HTML_adj={bool(html_adjudicacion)}, XML_form={bool(xml_formalizacion)}, PDF_acta={bool(pdf_acta_resolucion)}, PPT={bool(url_pliego_tecnico)}, PCAP={bool(url_pliego_administrativo)}")
 
                 # =====================================================================
-                # Si no encontramos PPT/PCAP directamente, buscar enlace a "Documento de Pliegos"
-                # y navegar a esa página para extraer los PDFs reales
+                # SIEMPRE buscar enlace a "Documento de Pliegos" y navegar a esa página
+                # para extraer los PDFs REALES (Pliego Prescripciones Técnicas, etc.)
+                # Los PDFs encontrados directamente pueden ser documentos intermedios incorrectos.
                 # =====================================================================
-                if not url_pliego_tecnico:
-                    logger.info("No se encontró PPT directamente, buscando enlace a página de pliegos...")
+                logger.info("Buscando enlace a página de 'Documento de Pliegos' para extraer PDFs reales...")
 
-                    # Buscar enlace a la página "Documento de Pliegos"
-                    url_pagina_pliegos = None
-                    for row in soup.find_all('tr'):
-                        row_text = row.get_text(strip=True).lower()
-                        if 'pliego' in row_text and ('documento' in row_text or 'anuncio' not in row_text):
-                            for link in row.find_all('a', href=True):
-                                href = link.get('href', '')
-                                # Los enlaces a páginas de pliegos suelen ser HTML, no PDF
-                                if 'GetDocumentByIdServlet' in href or 'viewDocument' in href.lower() or 'detalle' in href.lower():
-                                    tipo = identificar_tipo_documento(link, href, link.get_text(strip=True))
-                                    # Si es HTML o no tiene tipo claro, podría ser la página de pliegos
-                                    if tipo in ['html', None]:
-                                        if href.startswith('http'):
-                                            url_pagina_pliegos = href
-                                        elif href.startswith('/'):
-                                            url_pagina_pliegos = f"https://contrataciondelestado.es{href}"
-                                        logger.info(f"Encontrado enlace a página de pliegos: {url_pagina_pliegos[:80]}...")
-                                        break
-                        if url_pagina_pliegos:
-                            break
+                # Buscar enlace a la página "Documento de Pliegos"
+                url_pagina_pliegos = None
+                for row in soup.find_all('tr'):
+                    row_text = row.get_text(strip=True).lower()
+                    # Buscar filas que contengan "pliego" pero NO sean anuncios
+                    if 'pliego' in row_text and 'anuncio' not in row_text:
+                        for link in row.find_all('a', href=True):
+                            href = link.get('href', '')
+                            link_text = link.get_text(strip=True).lower()
 
-                    # Si encontramos la página de pliegos, navegar y extraer PDFs reales
+                            # Buscar específicamente enlaces HTML (páginas intermedias)
+                            # La página "Documento de Pliegos" es HTML, no PDF
+                            if 'GetDocumentByIdServlet' in href or 'viewDocument' in href.lower() or 'detalle' in href.lower():
+                                tipo = identificar_tipo_documento(link, href, link.get_text(strip=True))
+                                # Solo seguir enlaces HTML o sin tipo claro (NO PDFs directos)
+                                if tipo in ['html', None]:
+                                    if href.startswith('http'):
+                                        url_pagina_pliegos = href
+                                    elif href.startswith('/'):
+                                        url_pagina_pliegos = f"https://contrataciondelestado.es{href}"
+                                    logger.info(f"Encontrado enlace a página de pliegos (HTML): {url_pagina_pliegos[:80]}...")
+                                    break
                     if url_pagina_pliegos:
-                        pliegos_urls = await self._extraer_pliegos_de_pagina(url_pagina_pliegos)
-                        if pliegos_urls:
-                            if pliegos_urls.get('url_pliego_tecnico') and not url_pliego_tecnico:
-                                url_pliego_tecnico = pliegos_urls['url_pliego_tecnico']
-                                datos['url_pliego_tecnico'] = url_pliego_tecnico
+                        break
+
+                # Si encontramos la página de pliegos, SIEMPRE navegar y extraer PDFs reales
+                # Estos PDFs tienen prioridad sobre cualquier PDF encontrado antes
+                if url_pagina_pliegos:
+                    logger.info(f"Navegando a página de pliegos para extraer PPT/PCAP reales...")
+                    pliegos_urls = await self._extraer_pliegos_de_pagina(url_pagina_pliegos)
+                    if pliegos_urls:
+                        # IMPORTANTE: Sobrescribir el PPT/PCAP si encontramos uno mejor
+                        # El PPT de la página de pliegos es el REAL (ej: "Pliego Prescripciones Técnicas")
+                        if pliegos_urls.get('url_pliego_tecnico'):
+                            ppt_anterior = url_pliego_tecnico
+                            url_pliego_tecnico = pliegos_urls['url_pliego_tecnico']
+                            datos['url_pliego_tecnico'] = url_pliego_tecnico
+                            if ppt_anterior:
+                                logger.info(f"✓ PPT REEMPLAZADO por el de página de pliegos: {url_pliego_tecnico[:80]}")
+                            else:
                                 logger.info(f"✓ PPT extraído de página de pliegos: {url_pliego_tecnico[:80]}")
-                                documentos.append({'titulo': 'Pliego Técnico (PPT)', 'url': url_pliego_tecnico, 'tipo': 'pdf'})
-                            if pliegos_urls.get('url_pliego_administrativo') and not url_pliego_administrativo:
-                                url_pliego_administrativo = pliegos_urls['url_pliego_administrativo']
-                                datos['url_pliego_administrativo'] = url_pliego_administrativo
+                            # Actualizar/añadir a documentos
+                            documentos = [d for d in documentos if d.get('titulo') != 'Pliego Técnico (PPT)']
+                            documentos.append({'titulo': 'Pliego Técnico (PPT)', 'url': url_pliego_tecnico, 'tipo': 'pdf'})
+                        if pliegos_urls.get('url_pliego_administrativo'):
+                            pcap_anterior = url_pliego_administrativo
+                            url_pliego_administrativo = pliegos_urls['url_pliego_administrativo']
+                            datos['url_pliego_administrativo'] = url_pliego_administrativo
+                            if pcap_anterior:
+                                logger.info(f"✓ PCAP REEMPLAZADO por el de página de pliegos: {url_pliego_administrativo[:80]}")
+                            else:
                                 logger.info(f"✓ PCAP extraído de página de pliegos: {url_pliego_administrativo[:80]}")
-                                documentos.append({'titulo': 'Pliego Administrativo (PCAP)', 'url': url_pliego_administrativo, 'tipo': 'pdf'})
+                            documentos = [d for d in documentos if d.get('titulo') != 'Pliego Administrativo (PCAP)']
+                            documentos.append({'titulo': 'Pliego Administrativo (PCAP)', 'url': url_pliego_administrativo, 'tipo': 'pdf'})
+                else:
+                    logger.info("No se encontró enlace a página de pliegos HTML")
 
                 if documentos:
                     # Eliminar duplicados manteniendo orden
