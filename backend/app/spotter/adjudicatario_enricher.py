@@ -996,7 +996,10 @@ class AdjudicatarioEnricher:
 
                 logger.info(f"Encontrados {len(all_doc_links)} enlaces a documentos en página de pliegos:")
                 for i, doc in enumerate(all_doc_links):
-                    logger.info(f"  [{i+1}] '{doc['texto']}' -> {doc['href']}...")
+                    texto_lower = doc['texto'].lower()
+                    tiene_prescripciones = 'prescripciones' in texto_lower
+                    tiene_administrativas = 'administrativas' in texto_lower
+                    logger.info(f"  [{i+1}] '{doc['texto']}' (prescripciones={tiene_prescripciones}, admin={tiene_administrativas}) -> {doc['href']}...")
 
                 for link in soup.find_all('a', href=True):
                     href = link.get('href', '')
