@@ -984,8 +984,18 @@ class AdjudicatarioEnricher:
                     href = link.get('href', '')
                     link_text = link.get_text(strip=True).lower()
 
-                    # Solo procesar enlaces a documentos (GetDocumentByIdServlet o .pdf)
-                    if 'GetDocumentByIdServlet' not in href and '.pdf' not in href.lower():
+                    # Solo procesar enlaces a documentos de PLACSP
+                    # PLACSP usa varios formatos:
+                    # - GetDocumentsById (el más común para pliegos - docAccCmpnt)
+                    # - GetDocumentByIdServlet (otro formato)
+                    # - .pdf directo
+                    es_enlace_documento = (
+                        'GetDocumentsById' in href or
+                        'docAccCmpnt' in href or
+                        'GetDocumentByIdServlet' in href or
+                        '.pdf' in href.lower()
+                    )
+                    if not es_enlace_documento:
                         continue
 
                     # Construir URL completa
@@ -1023,8 +1033,14 @@ class AdjudicatarioEnricher:
                     for link in soup.find_all('a', href=True):
                         href = link.get('href', '')
 
-                        # Solo procesar enlaces a documentos
-                        if 'GetDocumentByIdServlet' not in href and '.pdf' not in href.lower():
+                        # Solo procesar enlaces a documentos de PLACSP
+                        es_enlace_documento = (
+                            'GetDocumentsById' in href or
+                            'docAccCmpnt' in href or
+                            'GetDocumentByIdServlet' in href or
+                            '.pdf' in href.lower()
+                        )
+                        if not es_enlace_documento:
                             continue
 
                         # Verificar si tiene icono de PDF
@@ -1075,8 +1091,14 @@ class AdjudicatarioEnricher:
                         href = link.get('href', '')
                         link_text = link.get_text(strip=True).lower()
 
-                        # Cualquier enlace a documento
-                        if 'GetDocumentByIdServlet' in href or '.pdf' in href.lower():
+                        # Cualquier enlace a documento de PLACSP
+                        es_enlace_documento = (
+                            'GetDocumentsById' in href or
+                            'docAccCmpnt' in href or
+                            'GetDocumentByIdServlet' in href or
+                            '.pdf' in href.lower()
+                        )
+                        if es_enlace_documento:
                             if href.startswith('http'):
                                 full_url = href
                             elif href.startswith('/'):
