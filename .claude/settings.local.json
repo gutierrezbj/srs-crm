@@ -29,7 +29,9 @@
       "Bash(pip3 install:*)",
       "Bash(chmod:*)",
       "Bash(Técnicas\"\\) REEMPLAZA cualquier PPT encontrado anteriormente, ya que\nel PDF directo de la página de pliegos es el documento real.\n\nEsto soluciona el problema de capturar documentos intermedios incorrectos\nen lugar del verdadero Pliego de Prescripciones Técnicas.\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
-      "Bash(echo \"Por favor, ejecuta en el servidor:\n\njournalctl -u srs-backend -n 100 --no-pager\n\nY luego intenta analizar un pliego para ver qué aparece en los logs.\")"
+      "Bash(echo \"Por favor, ejecuta en el servidor:\n\njournalctl -u srs-backend -n 100 --no-pager\n\nY luego intenta analizar un pliego para ver qué aparece en los logs.\")",
+      "Bash(./deploy.sh:*)",
+      "Bash(echo:*)"
     ]
   }
 }

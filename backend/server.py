@@ -2159,6 +2159,7 @@ async def analizar_pliego_exhaustivo(
         }
 
     except ImportError as e:
+        logger.error(f"Error importando módulo pliego_analyzer: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail=f"Error importando módulo pliego_analyzer: {str(e)}"
@@ -2166,6 +2167,9 @@ async def analizar_pliego_exhaustivo(
     except HTTPException:
         raise
     except Exception as e:
+        import traceback
+        error_traceback = traceback.format_exc()
+        logger.error(f"Error en análisis de pliego para {oportunidad_id}: {e}\n{error_traceback}")
         raise HTTPException(
             status_code=500,
             detail=f"Error en análisis de pliego: {str(e)}"
