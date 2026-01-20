@@ -411,18 +411,35 @@ class PliegoAnalyzer:
             logger.error(f"Error extrayendo URL pliego técnico: {e}")
             return None
 
-    def extraer_texto_pdf(self, pdf_bytes: bytes) -> Tuple[str, int]:
-        """Extrae texto de PDF usando pdfplumber"""
+    def extraer_texto_pdf(self, pdf_bytes: bytes, max_paginas: int = 150) -> Tuple[str, int]:
+        """
+        Extrae texto de PDF usando pdfplumber.
+        Limita a max_paginas para evitar timeouts en PDFs muy grandes.
+        Las primeras páginas suelen contener la info más relevante.
+        """
         texto_completo = []
         paginas = 0
+        paginas_procesadas = 0
 
         try:
             with pdfplumber.open(BytesIO(pdf_bytes)) as pdf:
                 paginas = len(pdf.pages)
-                for page in pdf.pages:
+                # Limitar páginas a procesar
+                paginas_a_procesar = min(paginas, max_paginas)
+
+                if paginas > max_paginas:
+                    logger.warning(f"PDF muy grande ({paginas} págs), limitando a {max_paginas} páginas")
+
+                for i, page in enumerate(pdf.pages[:paginas_a_procesar]):
                     texto = page.extract_text()
                     if texto:
                         texto_completo.append(texto)
+                    paginas_procesadas += 1
+
+                    # Log progreso cada 50 páginas
+                    if paginas_procesadas % 50 == 0:
+                        logger.info(f"Extracción PDF: {paginas_procesadas}/{paginas_a_procesar} páginas...")
+
         except Exception as e:
             logger.error(f"Error extrayendo texto PDF: {e}")
 
@@ -832,26 +849,29 @@ RESPONDE SOLO JSON, sin explicaciones adicionales."""
         Descarga, extrae texto, analiza con IA.
         SIN restricciones de tiempo.
         """
+        import time as _time
+        _start = _time.time()
         inicio = datetime.now()
 
-        logger.info(f"Iniciando análisis exhaustivo de pliego: {oportunidad_id}")
-        logger.info(f"URL inicial: {url_pliego}")
+        logger.info(f"[PLIEGO] Iniciando análisis exhaustivo: {oportunidad_id}")
+        logger.info(f"[PLIEGO] URL inicial: {url_pliego[:80]}...")
 
         # 0. Si la URL es la página de detalle de PLACSP (no un PDF directo),
         #    intentar extraer la URL del pliego técnico real
         url_final = url_pliego
         if 'detalle_licitacion' in url_pliego or 'deeplink' in url_pliego:
-            logger.info("URL es página de detalle PLACSP, buscando pliego técnico...")
+            logger.info(f"[PLIEGO] [{_time.time()-_start:.1f}s] URL es página PLACSP, buscando pliego técnico...")
             url_pliego_tecnico = await self.extraer_url_pliego_tecnico(url_pliego)
             if url_pliego_tecnico:
-                logger.info(f"Pliego técnico encontrado: {url_pliego_tecnico}")
+                logger.info(f"[PLIEGO] [{_time.time()-_start:.1f}s] Pliego técnico encontrado: {url_pliego_tecnico[:60]}...")
                 url_final = url_pliego_tecnico
             else:
-                logger.warning("No se encontró pliego técnico, usando página de detalle")
+                logger.warning(f"[PLIEGO] [{_time.time()-_start:.1f}s] No se encontró pliego técnico")
 
         # 1. Descargar documento
-        logger.info(f"Descargando documento desde: {url_final}")
+        logger.info(f"[PLIEGO] [{_time.time()-_start:.1f}s] Descargando documento...")
         contenido, tipo_doc = await self.descargar_documento(url_final)
+        logger.info(f"[PLIEGO] [{_time.time()-_start:.1f}s] Descarga completada: {tipo_doc}, {len(contenido) if contenido else 0} bytes")
 
         if not contenido:
             return AnalisisPliego(
@@ -888,7 +908,7 @@ RESPONDE SOLO JSON, sin explicaciones adicionales."""
             )
 
         # 2. Extraer texto
-        logger.info(f"Extrayendo texto de {tipo_doc}...")
+        logger.info(f"[PLIEGO] [{_time.time()-_start:.1f}s] Extrayendo texto de {tipo_doc}...")
         if tipo_doc == "pdf":
             texto, paginas = self.extraer_texto_pdf(contenido)
         else:
@@ -896,7 +916,7 @@ RESPONDE SOLO JSON, sin explicaciones adicionales."""
             paginas = 1
 
         palabras = len(texto.split())
-        logger.info(f"Extraídas {palabras} palabras de {paginas} páginas")
+        logger.info(f"[PLIEGO] [{_time.time()-_start:.1f}s] Extraídas {palabras} palabras de {paginas} páginas")
 
         if not texto or len(texto) < 100:
             return AnalisisPliego(
@@ -933,33 +953,37 @@ RESPONDE SOLO JSON, sin explicaciones adicionales."""
             )
 
         # 3. Analizar con IA (Gemini primero, luego OpenAI, luego Anthropic)
-        logger.info("Analizando con IA (esto puede tardar 30-60 segundos)...")
+        logger.info(f"[PLIEGO] [{_time.time()-_start:.1f}s] Iniciando análisis IA...")
         resultado_ia = None
         proveedor = "basico"
 
         # Intentar Gemini primero (PRINCIPAL - rápido y económico)
         if self.gemini_model:
+            logger.info(f"[PLIEGO] [{_time.time()-_start:.1f}s] Probando Gemini...")
             resultado_ia = await self._analizar_con_gemini(texto, objeto, importe)
             if resultado_ia:
                 proveedor = "gemini"
+                logger.info(f"[PLIEGO] [{_time.time()-_start:.1f}s] Gemini OK")
 
         # Fallback a OpenAI si Gemini falla
         if not resultado_ia and self.openai_client:
-            logger.info("Gemini falló, intentando con OpenAI...")
+            logger.info(f"[PLIEGO] [{_time.time()-_start:.1f}s] Gemini falló, probando OpenAI...")
             resultado_ia = await self._analizar_con_openai(texto, objeto, importe)
             if resultado_ia:
                 proveedor = "openai"
+                logger.info(f"[PLIEGO] [{_time.time()-_start:.1f}s] OpenAI OK")
 
         # Fallback a Anthropic Claude si OpenAI también falla
         if not resultado_ia and self.anthropic_client:
-            logger.info("OpenAI falló, intentando con Anthropic Claude...")
+            logger.info(f"[PLIEGO] [{_time.time()-_start:.1f}s] OpenAI falló, probando Anthropic...")
             resultado_ia = await self._analizar_con_anthropic(texto, objeto, importe)
             if resultado_ia:
                 proveedor = "anthropic"
+                logger.info(f"[PLIEGO] [{_time.time()-_start:.1f}s] Anthropic OK")
 
         # Último recurso: análisis básico
         if not resultado_ia:
-            logger.warning("Fallback a análisis básico (sin IA)")
+            logger.warning(f"[PLIEGO] [{_time.time()-_start:.1f}s] Fallback a análisis básico")
             resultado_ia = self._analisis_basico(texto, objeto, importe)
 
         # 4. Detectar tecnologías y certificaciones (adicional)

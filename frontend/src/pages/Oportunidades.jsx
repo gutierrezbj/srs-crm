@@ -144,6 +144,7 @@ export default function Oportunidades({ user }) {
     const [loadingResumen, setLoadingResumen] = useState(false);
     const [enrichingAdjudicatario, setEnrichingAdjudicatario] = useState(false);
     const [analyzingPliego, setAnalyzingPliego] = useState({});
+    const [analyzingRapido, setAnalyzingRapido] = useState({});
     const [analisisPliego, setAnalisisPliego] = useState(null);
     const [searchQuery, setSearchQuery] = useState("");
 
@@ -334,7 +335,7 @@ export default function Oportunidades({ user }) {
             const response = await axios.post(
                 `${API}/oportunidades/${oportunidadId}/analizar-pliego`,
                 {},
-                { withCredentials: true, timeout: 180000 } // 3 min timeout para análisis largos
+                { withCredentials: true, timeout: 330000 } // 5.5 min timeout para PDFs grandes
             );
             console.log("[DEBUG] API response:", response.status);
 
@@ -393,6 +394,66 @@ export default function Oportunidades({ user }) {
             }
             console.error("Error analyzing pliego:", error);
             setAnalyzingPliego(prev => ({ ...prev, [oportunidadId]: false }));
+        }
+    };
+
+    // Análisis rápido Level 1 (~5 segundos) - solo extracción sin IA
+    const handleAnalisisRapido = async (oportunidadId) => {
+        if (!oportunidadId) {
+            toast.error("Error: ID de oportunidad no válido");
+            return;
+        }
+
+        setAnalyzingRapido(prev => ({ ...prev, [oportunidadId]: true }));
+        toast.info("Análisis rápido en progreso...", { duration: 3000 });
+
+        const oportunidad = oportunidades.find(o => o.oportunidad_id === oportunidadId);
+
+        try {
+            const response = await axios.post(
+                `${API}/oportunidades/${oportunidadId}/analisis-rapido`,
+                {},
+                { withCredentials: true, timeout: 30000 }
+            );
+
+            if (response.data) {
+                const { tiene_componente_it, num_competidores, empresas_competidoras } = response.data;
+
+                // Mostrar resultado
+                toast.success(
+                    `Análisis rápido completado. IT: ${tiene_componente_it ? "Sí" : "No"}, Competidores: ${num_competidores}`,
+                    { duration: 4000 }
+                );
+
+                // Si hay competidores, mostrar resumen con ellos
+                if (empresas_competidoras && empresas_competidoras.length > 0) {
+                    setResumenOperador({
+                        oportunidad_id: oportunidadId,
+                        ref_code: oportunidad?.ref_code,
+                        organismo: oportunidad?.adjudicatario || oportunidad?.organo_contratacion || "Organismo",
+                        objeto: oportunidad?.objeto || "",
+                        importe: oportunidad?.importe,
+                        adjudicatario: oportunidad?.adjudicatario,
+                        nif: oportunidad?.nif,
+                        organo_contratacion: oportunidad?.organo_contratacion,
+                        tiene_it: tiene_componente_it,
+                        nivel_analisis: "rapido",
+                        empresas_competidoras: empresas_competidoras,
+                        datos_adjudicatario: response.data.datos_adjudicatario,
+                        datos_organo: response.data.datos_organo,
+                        url_pliego_tecnico: response.data.url_pliego_tecnico,
+                    });
+                    setResumenOperadorOpen(true);
+                }
+
+                // Refrescar lista en background
+                fetchOportunidades();
+            }
+        } catch (error) {
+            toast.error(error.response?.data?.detail || "Error en análisis rápido");
+            console.error("Error en análisis rápido:", error);
+        } finally {
+            setAnalyzingRapido(prev => ({ ...prev, [oportunidadId]: false }));
         }
     };
 
@@ -1040,7 +1101,33 @@ export default function Oportunidades({ user }) {
                                         </TableCell>
                                         <TableCell className="text-right">
                                             <div className="flex items-center justify-end gap-2">
-                                                {/* Botón Analizar Pliego */}
+                                                {/* Botón Análisis Rápido (Level 1) */}
+                                                <TooltipProvider>
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                onClick={() => handleAnalisisRapido(oportunidad.oportunidad_id)}
+                                                                disabled={analyzingRapido[oportunidad.oportunidad_id]}
+                                                                className={`${oportunidad.empresas_competidoras?.length > 0 ? 'text-amber-400 border-amber-500/30' : 'text-slate-400 border-slate-500/30'} hover:bg-amber-500/10`}
+                                                            >
+                                                                {analyzingRapido[oportunidad.oportunidad_id] ? (
+                                                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                                                ) : (
+                                                                    <Search className="w-4 h-4" />
+                                                                )}
+                                                            </Button>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>
+                                                            {oportunidad.empresas_competidoras?.length > 0
+                                                                ? `Análisis rápido (${oportunidad.empresas_competidoras.length} competidores)`
+                                                                : "Análisis rápido (~5s) - Extrae competidores"}
+                                                        </TooltipContent>
+                                                    </Tooltip>
+                                                </TooltipProvider>
+
+                                                {/* Botón Analizar Pliego (Level 2) */}
                                                 <TooltipProvider>
                                                     <Tooltip>
                                                         <TooltipTrigger asChild>
@@ -1061,7 +1148,7 @@ export default function Oportunidades({ user }) {
                                                         <TooltipContent>
                                                             {oportunidad.analisis_pliego
                                                                 ? "Re-analizar pliego (ya analizado)"
-                                                                : "Analizar pliego completo con IA"}
+                                                                : "Analizar pliego completo con IA (~30-60s)"}
                                                         </TooltipContent>
                                                     </Tooltip>
                                                 </TooltipProvider>

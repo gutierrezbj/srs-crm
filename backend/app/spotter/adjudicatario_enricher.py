@@ -180,8 +180,20 @@ class AdjudicatarioEnricher:
                 datos = self._merge_datos(datos, datos_einforma, "einforma")
                 logger.info(f"Datos obtenidos de Einforma para {nif}")
 
-        # 4. Extraer empresas competidoras del PDF del Acta de Resolución
-        if datos.pdf_acta_resolucion_url:
+        # 4. Extraer empresas competidoras (licitadores perdedores)
+        # Primero intentar desde HTML de adjudicación (más rápido)
+        if datos.html_adjudicacion_url and not datos.empresas_competidoras:
+            logger.info(f"Extrayendo competidores del HTML: {datos.html_adjudicacion_url}")
+            competidores = await self._extract_competidores_from_html(
+                datos.html_adjudicacion_url,
+                nif
+            )
+            if competidores:
+                datos.empresas_competidoras = competidores
+                logger.info(f"Se encontraron {len(competidores)} empresas competidoras (HTML)")
+
+        # Si no encontramos en HTML, intentar con PDF del Acta de Resolución
+        if datos.pdf_acta_resolucion_url and not datos.empresas_competidoras:
             logger.info(f"Extrayendo competidores del PDF: {datos.pdf_acta_resolucion_url}")
             competidores = await self._extract_competidores_from_pdf(
                 datos.pdf_acta_resolucion_url,
@@ -189,7 +201,7 @@ class AdjudicatarioEnricher:
             )
             if competidores:
                 datos.empresas_competidoras = competidores
-                logger.info(f"Se encontraron {len(competidores)} empresas competidoras")
+                logger.info(f"Se encontraron {len(competidores)} empresas competidoras (PDF)")
 
         # Calcular confianza
         datos.confianza = self._calcular_confianza(datos)
@@ -1891,6 +1903,204 @@ class AdjudicatarioEnricher:
 
         except Exception as e:
             logger.error(f"Error extrayendo competidores del PDF: {e}")
+            return None
+
+    async def _extract_competidores_from_html(self, html_url: str, nif_ganador: str) -> Optional[List[Dict[str, Any]]]:
+        """
+        Extrae la lista de empresas competidoras del HTML de adjudicación de PLACSP.
+
+        El HTML de adjudicación contiene información sobre las ofertas presentadas:
+        - Sección "Información sobre las ofertas" o "Ofertas recibidas"
+        - Tabla con licitadores, NIFs y puntuaciones
+        - Formato variable según el tipo de procedimiento
+
+        Returns:
+            Lista de competidores (excluyendo al ganador) con formato:
+            [{nif: str, nombre: str, puntuacion: str, posicion: int}, ...]
+        """
+        try:
+            logger.info(f"Extrayendo competidores del HTML: {html_url[:80]}...")
+
+            async with httpx.AsyncClient(timeout=self.timeout, verify=False) as client:
+                response = await client.get(
+                    html_url,
+                    headers={"User-Agent": self.USER_AGENT},
+                    follow_redirects=True
+                )
+
+                if response.status_code != 200:
+                    logger.warning(f"HTML adjudicación retornó {response.status_code}")
+                    return None
+
+                soup = BeautifulSoup(response.text, 'html.parser')
+                texto_raw = response.text
+                competidores = []
+                nif_ganador_upper = nif_ganador.upper() if nif_ganador else ""
+
+                # =====================================================================
+                # MÉTODO 1: Buscar tabla de ofertas/licitadores
+                # PLACSP tiene tablas con estructura: NIF | Nombre | Puntuación | etc.
+                # =====================================================================
+                for table in soup.find_all('table'):
+                    table_text = table.get_text().lower()
+
+                    # Solo procesar tablas que parezcan contener ofertas
+                    if not any(x in table_text for x in ['oferta', 'licitador', 'puntuación', 'puntuacion', 'cif', 'nif']):
+                        continue
+
+                    rows = table.find_all('tr')
+                    for row in rows:
+                        cells = row.find_all(['td', 'th'])
+                        if len(cells) < 2:
+                            continue
+
+                        nif_found = None
+                        nombre_found = None
+                        puntuacion_found = None
+
+                        for cell in cells:
+                            cell_text = cell.get_text(strip=True)
+                            if not cell_text:
+                                continue
+
+                            # Detectar NIF/CIF (letra + 8 dígitos o 8 dígitos + letra)
+                            nif_match = re.search(r'\b([A-Z]\d{8}|\d{8}[A-Z])\b', cell_text, re.I)
+                            if nif_match and not nif_found:
+                                nif_found = nif_match.group(1).upper()
+                                continue
+
+                            # Detectar puntuación (número con decimales, típicamente entre 0-100)
+                            punt_match = re.search(r'^(\d{1,3}[,.]?\d*)\s*(?:puntos?)?$', cell_text, re.I)
+                            if punt_match and not puntuacion_found:
+                                puntuacion_found = punt_match.group(1).replace(',', '.')
+                                continue
+
+                            # Lo que queda y tiene más de 5 caracteres es probablemente el nombre
+                            if len(cell_text) > 5 and not nombre_found:
+                                # Verificar que no sea header o NIF
+                                if cell_text.upper() not in ['CIF', 'NIF', 'NOMBRE', 'PUNTUACIÓN', 'PUNTUACION', 'EMPRESA', 'LICITADOR', 'OFERTANTE']:
+                                    if not re.match(r'^[A-Z]\d{8}$', cell_text, re.I):
+                                        nombre_found = cell_text
+
+                        # Si encontramos NIF y nombre, añadir (excluyendo al ganador)
+                        if nif_found and nombre_found:
+                            if nif_found != nif_ganador_upper:
+                                competidor = {
+                                    'nif': nif_found,
+                                    'nombre': nombre_found,
+                                    'puntuacion': puntuacion_found
+                                }
+                                # Evitar duplicados
+                                if not any(c['nif'] == nif_found for c in competidores):
+                                    competidores.append(competidor)
+                                    logger.info(f"Competidor (tabla): {nombre_found} ({nif_found})")
+
+                # =====================================================================
+                # MÉTODO 2: Buscar patrones de NIF + nombre en texto estructurado
+                # PLACSP usa formato: "→ NIF: B12345678 → Nombre: Empresa S.L."
+                # =====================================================================
+                if not competidores:
+                    # Buscar sección de ofertas
+                    ofertas_section = re.search(
+                        r'(?:Ofertas|Licitadores|Información sobre las ofertas).*?(?=Motivación|Recurso|$)',
+                        texto_raw, re.I | re.DOTALL
+                    )
+
+                    section_text = ofertas_section.group(0) if ofertas_section else texto_raw
+
+                    # Patrón 1: "NIF: X12345678" seguido de nombre
+                    nif_pattern = r'(?:NIF|CIF)[:\s]*([A-Z]\d{8}|\d{8}[A-Z])'
+                    for match in re.finditer(nif_pattern, section_text, re.I):
+                        nif = match.group(1).upper()
+                        if nif == nif_ganador_upper:
+                            continue
+
+                        # Buscar nombre cerca del NIF (antes o después)
+                        context_start = max(0, match.start() - 200)
+                        context_end = min(len(section_text), match.end() + 200)
+                        context = section_text[context_start:context_end]
+
+                        # Buscar nombre de empresa (patrón: S.L., S.A., etc.)
+                        nombre_match = re.search(
+                            r'([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ\s,.-]{5,60}(?:S\.?L\.?U?\.?|S\.?A\.?U?\.?|SOCIEDAD|EMPRESA|GRUPO|CONSULTORIA|CONSULTING|TECNOLOG[IÍ]AS?|SISTEMAS?|SOLUCIONES|SERVICIOS|INGENIERÍA?|INFORMATICA))',
+                            context, re.I
+                        )
+
+                        if nombre_match:
+                            nombre = nombre_match.group(1).strip()
+
+                            # Buscar puntuación cerca
+                            punt_match = re.search(r'(\d{1,3}[,.]?\d*)\s*(?:puntos?)?', context, re.I)
+                            puntuacion = punt_match.group(1).replace(',', '.') if punt_match else None
+
+                            if not any(c['nif'] == nif for c in competidores):
+                                competidores.append({
+                                    'nif': nif,
+                                    'nombre': nombre,
+                                    'puntuacion': puntuacion
+                                })
+                                logger.info(f"Competidor (texto): {nombre} ({nif})")
+
+                # =====================================================================
+                # MÉTODO 3: Buscar lista estructurada con bullets/líneas
+                # =====================================================================
+                if not competidores:
+                    # Buscar líneas con NIFs
+                    lines = texto_raw.split('\n')
+                    for i, line in enumerate(lines):
+                        nif_match = re.search(r'\b([A-Z]\d{8}|\d{8}[A-Z])\b', line, re.I)
+                        if nif_match:
+                            nif = nif_match.group(1).upper()
+                            if nif == nif_ganador_upper:
+                                continue
+
+                            # Buscar nombre en la misma línea o línea cercana
+                            nombre = None
+                            puntuacion = None
+
+                            # Texto después del NIF
+                            after_nif = line[nif_match.end():].strip()
+                            if after_nif and len(after_nif) > 5:
+                                # Quitar puntuación si está al final
+                                nombre_clean = re.sub(r'\s+\d+[,.]?\d*\s*(?:puntos?)?\s*$', '', after_nif, flags=re.I).strip()
+                                if nombre_clean:
+                                    nombre = nombre_clean
+
+                            # Si no encontramos nombre, buscar antes del NIF
+                            if not nombre:
+                                before_nif = line[:nif_match.start()].strip()
+                                if before_nif and len(before_nif) > 5:
+                                    nombre = before_nif
+
+                            # Buscar puntuación
+                            punt_match = re.search(r'(\d{1,3}[,.]?\d*)\s*(?:puntos?)?', line, re.I)
+                            if punt_match:
+                                puntuacion = punt_match.group(1).replace(',', '.')
+
+                            if nombre and not any(c['nif'] == nif for c in competidores):
+                                competidores.append({
+                                    'nif': nif,
+                                    'nombre': nombre,
+                                    'puntuacion': puntuacion
+                                })
+                                logger.info(f"Competidor (línea): {nombre} ({nif})")
+
+                # Ordenar por puntuación (mayor primero) y añadir posición
+                if competidores:
+                    competidores.sort(
+                        key=lambda x: float(x['puntuacion']) if x.get('puntuacion') else 0,
+                        reverse=True
+                    )
+                    # Añadir posición (el ganador sería 1, así que empezamos en 2)
+                    for i, comp in enumerate(competidores):
+                        comp['posicion'] = i + 2
+
+                    logger.info(f"Total competidores extraídos del HTML: {len(competidores)}")
+
+                return competidores if competidores else None
+
+        except Exception as e:
+            logger.error(f"Error extrayendo competidores del HTML: {e}", exc_info=True)
             return None
 
     def _merge_datos(
