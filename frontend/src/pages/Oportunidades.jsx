@@ -314,18 +314,29 @@ export default function Oportunidades({ user }) {
     };
 
     const handleAnalyzePliego = async (oportunidadId) => {
+        console.log("[DEBUG] handleAnalyzePliego called with:", oportunidadId);
+
+        if (!oportunidadId) {
+            console.error("[ERROR] oportunidadId is undefined/null");
+            toast.error("Error: ID de oportunidad no válido");
+            return;
+        }
+
         setAnalyzingPliego(prev => ({ ...prev, [oportunidadId]: true }));
         toast.info("Analizando pliego... Esto puede tardar 30-60 segundos", { duration: 5000 });
 
         // Buscar la oportunidad para obtener datos del organismo
         const oportunidad = oportunidades.find(o => o.oportunidad_id === oportunidadId);
+        console.log("[DEBUG] Found oportunidad:", oportunidad ? "yes" : "no");
 
         try {
+            console.log("[DEBUG] Calling API:", `${API}/oportunidades/${oportunidadId}/analizar-pliego`);
             const response = await axios.post(
                 `${API}/oportunidades/${oportunidadId}/analizar-pliego`,
                 {},
                 { withCredentials: true, timeout: 180000 } // 3 min timeout para análisis largos
             );
+            console.log("[DEBUG] API response:", response.status);
 
             if (response.data.success) {
                 const analisis = response.data.analisis;
@@ -370,6 +381,11 @@ export default function Oportunidades({ user }) {
                 setAnalyzingPliego(prev => ({ ...prev, [oportunidadId]: false }));
             }
         } catch (error) {
+            console.error("[DEBUG] Error full:", error);
+            console.error("[DEBUG] Error response:", error.response);
+            console.error("[DEBUG] Error code:", error.code);
+            console.error("[DEBUG] Error message:", error.message);
+
             if (error.code === 'ECONNABORTED') {
                 toast.error("Timeout: El análisis tardó demasiado. Inténtalo de nuevo.");
             } else {
