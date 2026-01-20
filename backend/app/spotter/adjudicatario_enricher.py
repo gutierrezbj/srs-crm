@@ -980,9 +980,28 @@ class AdjudicatarioEnricher:
                 # Esto es más directo que buscar por tipo de archivo
                 logger.info("Buscando enlaces con keywords de PPT/PCAP...")
 
+                # Primero, listar TODOS los enlaces de documentos encontrados para debug
+                all_doc_links = []
                 for link in soup.find_all('a', href=True):
                     href = link.get('href', '')
-                    link_text = link.get_text(strip=True).lower()
+                    link_text = link.get_text(strip=True)
+                    es_enlace_documento = (
+                        'GetDocumentsById' in href or
+                        'docAccCmpnt' in href or
+                        'GetDocumentByIdServlet' in href or
+                        '.pdf' in href.lower()
+                    )
+                    if es_enlace_documento:
+                        all_doc_links.append({'texto': link_text, 'href': href[:100]})
+
+                logger.info(f"Encontrados {len(all_doc_links)} enlaces a documentos en página de pliegos:")
+                for i, doc in enumerate(all_doc_links):
+                    logger.info(f"  [{i+1}] '{doc['texto']}' -> {doc['href']}...")
+
+                for link in soup.find_all('a', href=True):
+                    href = link.get('href', '')
+                    link_text_original = link.get_text(strip=True)
+                    link_text = link_text_original.lower()
 
                     # Solo procesar enlaces a documentos de PLACSP
                     # PLACSP usa varios formatos:
@@ -1014,17 +1033,22 @@ class AdjudicatarioEnricher:
                     title_attr = link.get('title', '').lower()
                     texto_busqueda = f"{link_text} {parent_text} {title_attr}"
 
-                    logger.debug(f"Analizando enlace: texto='{link_text[:50]}', parent='{parent_text[:50]}'")
+                    logger.info(f"Analizando enlace doc: texto='{link_text_original}', texto_busqueda contiene 'prescripciones'={('prescripciones' in texto_busqueda)}")
 
                     # Clasificar como PPT o PCAP basándose en el texto
-                    if any(kw in texto_busqueda for kw in keywords_ppt):
+                    # IMPORTANTE: Primero verificar PPT (prescripciones técnicas)
+                    # El texto debe contener ESPECÍFICAMENTE "prescripciones" para ser PPT
+                    es_ppt = 'prescripciones' in texto_busqueda or 'ppt' in texto_busqueda.split()
+                    es_pcap = any(kw in texto_busqueda for kw in keywords_pcap)
+
+                    if es_ppt and not es_pcap:  # PPT pero NO PCAP
                         if 'url_pliego_tecnico' not in resultado:
                             resultado['url_pliego_tecnico'] = full_url
-                            logger.info(f"✓ Encontrado PPT (método 1): {link_text[:50]} -> {full_url[:80]}")
-                    elif any(kw in texto_busqueda for kw in keywords_pcap):
+                            logger.info(f"✓ Encontrado PPT (método 1): '{link_text_original}' -> {full_url[:80]}")
+                    elif es_pcap and not es_ppt:  # PCAP pero NO PPT
                         if 'url_pliego_administrativo' not in resultado:
                             resultado['url_pliego_administrativo'] = full_url
-                            logger.info(f"✓ Encontrado PCAP (método 1): {link_text[:50]} -> {full_url[:80]}")
+                            logger.info(f"✓ Encontrado PCAP (método 1): '{link_text_original}' -> {full_url[:80]}")
 
                 # MÉTODO 2: Si no encontramos con método 1, buscar por iconos de PDF
                 if not resultado.get('url_pliego_tecnico'):
@@ -1068,19 +1092,18 @@ class AdjudicatarioEnricher:
                         parent_text = parent.get_text(strip=True).lower() if parent else ''
                         texto_busqueda = f"{link_text} {parent_text}"
 
-                        # Clasificar
-                        if any(kw in texto_busqueda for kw in keywords_ppt):
+                        # Clasificar usando la misma lógica mejorada del método 1
+                        es_ppt = 'prescripciones' in texto_busqueda or 'ppt' in texto_busqueda.split()
+                        es_pcap = any(kw in texto_busqueda for kw in keywords_pcap)
+
+                        if es_ppt and not es_pcap:
                             if 'url_pliego_tecnico' not in resultado:
                                 resultado['url_pliego_tecnico'] = full_url
                                 logger.info(f"✓ Encontrado PPT (método 2 icono): {full_url[:80]}")
-                        elif any(kw in texto_busqueda for kw in keywords_pcap):
+                        elif es_pcap and not es_ppt:
                             if 'url_pliego_administrativo' not in resultado:
                                 resultado['url_pliego_administrativo'] = full_url
                                 logger.info(f"✓ Encontrado PCAP (método 2 icono): {full_url[:80]}")
-                        elif 'pliego' in texto_busqueda:
-                            if 'url_pliego_tecnico' not in resultado:
-                                resultado['url_pliego_tecnico'] = full_url
-                                logger.info(f"✓ Encontrado pliego genérico (método 2): {full_url[:80]}")
 
                 # MÉTODO 3: Fallback - buscar cualquier PDF con "pliego" en el contexto
                 if not resultado.get('url_pliego_tecnico'):
