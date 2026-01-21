@@ -1907,9 +1907,18 @@ class AdjudicatarioEnricher:
                     if 'acta' in link_text_lower or 'documento' in link_text_lower or 'resoluci' in link_text_lower:
                         logger.info(f"  Enlace candidato: '{link_text}' -> {href[:80] if href else 'N/A'}...")
 
-                    # Buscar enlaces que contengan "acta" y "resolución"
-                    if ('acta' in link_text_lower and 'resoluci' in link_text_lower) or 'documento de acta' in link_text_lower:
-                        if 'GetDocumentByIdServlet' in href or '.pdf' in href.lower():
+                    # Buscar enlaces que contengan "acta" y/o "resolución"
+                    # Patrones válidos: "Acta de Resolución", "Documento de Acta", "Acta", "Resolución del procedimiento"
+                    is_acta_link = (
+                        ('acta' in link_text_lower and 'resoluci' in link_text_lower) or
+                        'documento de acta' in link_text_lower or
+                        ('acta' in link_text_lower and ('procedimiento' in link_text_lower or 'adjudicaci' in link_text_lower)) or
+                        (link_text_lower.strip() == 'acta') or
+                        ('resoluci' in link_text_lower and 'adjudicaci' in link_text_lower)
+                    )
+
+                    if is_acta_link:
+                        if 'GetDocumentByIdServlet' in href or '.pdf' in href.lower() or 'idDoc=' in href:
                             # Construir URL completa
                             if href.startswith('http'):
                                 pdf_acta_url = href
@@ -1921,6 +1930,22 @@ class AdjudicatarioEnricher:
 
                             datos['pdf_acta_resolucion_url'] = pdf_acta_url
                             logger.info(f"✓ PDF Acta de Resolución encontrado en HTML adjudicación: {pdf_acta_url[:80]}...")
+                            break
+
+                if 'pdf_acta_resolucion_url' not in datos:
+                    # Segundo intento: buscar cualquier PDF con 'acta' en el texto del enlace
+                    for link in all_links:
+                        link_text_lower = link.get_text(strip=True).lower()
+                        href = link.get('href', '')
+
+                        if 'acta' in link_text_lower and ('GetDocumentByIdServlet' in href or '.pdf' in href.lower() or 'idDoc=' in href):
+                            if href.startswith('http'):
+                                pdf_acta_url = href
+                            else:
+                                pdf_acta_url = f"https://contrataciondelestado.es{href}"
+                            pdf_acta_url = pdf_acta_url.replace('&amp;', '&')
+                            datos['pdf_acta_resolucion_url'] = pdf_acta_url
+                            logger.info(f"✓ PDF Acta (fallback 'acta'): {pdf_acta_url[:80]}...")
                             break
 
                 if 'pdf_acta_resolucion_url' not in datos:
@@ -1980,6 +2005,14 @@ class AdjudicatarioEnricher:
                 try:
                     with pdfplumber.open(tmp_path) as pdf:
                         logger.info(f"PDF tiene {len(pdf.pages)} páginas")
+
+                        # Log del texto completo de la primera página para diagnóstico
+                        if pdf.pages:
+                            first_page_text = pdf.pages[0].extract_text()
+                            if first_page_text:
+                                preview = first_page_text[:800].replace('\n', ' | ')
+                                logger.info(f"Vista previa primera página: {preview}...")
+
                         for page_num, page in enumerate(pdf.pages):
                             # Intentar extraer tablas
                             tables = page.extract_tables()
