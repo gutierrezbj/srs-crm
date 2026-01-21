@@ -2516,13 +2516,23 @@ async def analisis_rapido_endpoint(
         empresas_competidoras = None
         pdf_acta_url = datos_placsp.get("pdf_acta_resolucion_url")
 
-        # Si hay HTML de adjudicación, parsearlo para buscar el enlace al PDF del Acta
-        if datos_placsp.get("html_adjudicacion_url") and not pdf_acta_url:
-            logger.info("Parseando HTML de adjudicación para buscar PDF del Acta de Resolución...")
+        # Si hay HTML de adjudicación, parsearlo para extraer datos detallados del adjudicatario
+        # El HTML de adjudicación contiene: email, teléfono, dirección, importes, motivación, ofertas
+        if datos_placsp.get("html_adjudicacion_url"):
+            logger.info("Parseando HTML de adjudicación para extraer datos detallados...")
             datos_html = await enricher._parse_html_adjudicacion(datos_placsp["html_adjudicacion_url"])
-            if datos_html and datos_html.get("pdf_acta_resolucion_url"):
-                pdf_acta_url = datos_html["pdf_acta_resolucion_url"]
-                logger.info(f"PDF Acta encontrado en HTML: {pdf_acta_url[:80]}...")
+            if datos_html:
+                # Mezclar datos del HTML con datos_placsp (el HTML tiene prioridad para datos del adjudicatario)
+                logger.info(f"Datos extraídos del HTML: {list(datos_html.keys())}")
+                for key, value in datos_html.items():
+                    if value and (key not in datos_placsp or not datos_placsp[key]):
+                        datos_placsp[key] = value
+                        logger.debug(f"Añadido desde HTML: {key}={str(value)[:50]}...")
+
+                # PDF del Acta de Resolución
+                if datos_html.get("pdf_acta_resolucion_url"):
+                    pdf_acta_url = datos_html["pdf_acta_resolucion_url"]
+                    logger.info(f"PDF Acta encontrado en HTML: {pdf_acta_url[:80]}...")
 
         # Extraer competidores del PDF del Acta de Resolución (fuente principal)
         if pdf_acta_url:
