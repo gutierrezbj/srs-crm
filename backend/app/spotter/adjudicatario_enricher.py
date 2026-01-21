@@ -1875,36 +1875,71 @@ class AdjudicatarioEnricher:
                                 if text:
                                     lines = text.split('\n')
 
-                                    # MÉTODO A: Buscar patrones de NIF seguidos de nombre
-                                    for i, line in enumerate(lines):
-                                        nif_match = re.search(r'\b([A-Z]\d{8}|\d{8}[A-Z])\b', line, re.I)
-                                        if nif_match:
-                                            nif = nif_match.group(1).upper()
-                                            if nif == nif_ganador_upper:
-                                                continue
+                                    # MÉTODO A: Buscar patrón "NOMBRE EMPRESA, S.L. (NIF)"
+                                    # Formato típico en PDFs de PLACSP: "EMPRESA S.L. (B12345678) 12.764,4 €"
+                                    # El nombre está ANTES del NIF entre paréntesis
+                                    empresa_nif_pattern = r'([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ\s,.\-&]+(?:S\.?L\.?U?\.?|S\.?A\.?U?\.?|SOCIEDAD|COOPERATIVA|SL|SA))\s*\(([A-Z]\d{8}|\d{8}[A-Z])\)'
 
-                                            # Buscar nombre en la misma línea o la siguiente
-                                            nombre = None
-                                            # Texto después del NIF en la misma línea
-                                            after_nif = line[nif_match.end():].strip()
-                                            if after_nif and len(after_nif) > 5:
-                                                # Quitar puntuación si está al final
-                                                nombre = re.sub(r'\s+\d+[,.]?\d*\s*(?:puntos?)?\s*$', '', after_nif, flags=re.I).strip()
-                                            elif i + 1 < len(lines):
-                                                next_line = lines[i + 1].strip()
-                                                if next_line and len(next_line) > 5 and not re.match(r'^[A-Z]\d{8}', next_line, re.I):
-                                                    nombre = re.sub(r'\s+\d+[,.]?\d*\s*(?:puntos?)?\s*$', '', next_line, flags=re.I).strip()
+                                    for match in re.finditer(empresa_nif_pattern, text, re.I):
+                                        nombre = match.group(1).strip().rstrip(',').strip()
+                                        nif = match.group(2).upper()
 
-                                            if nombre and not any(c['nif'] == nif for c in competidores):
-                                                # Buscar puntuación
-                                                punt_match = re.search(r'(\d+[,.]?\d*)\s*(?:puntos?)?', line)
-                                                puntuacion = punt_match.group(1).replace(',', '.') if punt_match else None
+                                        if nif == nif_ganador_upper:
+                                            continue
 
-                                                competidores.append({
-                                                    'nif': nif,
-                                                    'nombre': nombre,
-                                                    'puntuacion': puntuacion
-                                                })
+                                        # Buscar importe cerca (después del NIF)
+                                        after_match = text[match.end():match.end()+50]
+                                        importe_match = re.search(r'([\d.,]+)\s*€', after_match)
+                                        importe = None
+                                        if importe_match:
+                                            importe = importe_match.group(1)
+
+                                        if not any(c['nif'] == nif for c in competidores):
+                                            competidores.append({
+                                                'nif': nif,
+                                                'nombre': nombre,
+                                                'importe_oferta': importe,
+                                                'puntuacion': None
+                                            })
+                                            logger.info(f"Competidor encontrado: {nombre} ({nif}) - {importe}€")
+
+                                    # MÉTODO A2: Buscar NIF y nombre en líneas separadas o formato diferente
+                                    if not competidores:
+                                        for i, line in enumerate(lines):
+                                            nif_match = re.search(r'\(([A-Z]\d{8}|\d{8}[A-Z])\)', line, re.I)
+                                            if nif_match:
+                                                nif = nif_match.group(1).upper()
+                                                if nif == nif_ganador_upper:
+                                                    continue
+
+                                                # Buscar nombre ANTES del NIF en la misma línea
+                                                nombre = None
+                                                before_nif = line[:nif_match.start()].strip()
+                                                # Limpiar y extraer nombre de empresa
+                                                nombre_match = re.search(r'([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ\s,.\-&]+(?:S\.?L\.?U?\.?|S\.?A\.?U?\.?|SL|SA))\s*$', before_nif, re.I)
+                                                if nombre_match:
+                                                    nombre = nombre_match.group(1).strip().rstrip(',').strip()
+
+                                                # Si no encontramos, buscar en línea anterior
+                                                if not nombre and i > 0:
+                                                    prev_line = lines[i-1].strip()
+                                                    nombre_match = re.search(r'([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ\s,.\-&]+(?:S\.?L\.?U?\.?|S\.?A\.?U?\.?|SL|SA))', prev_line, re.I)
+                                                    if nombre_match:
+                                                        nombre = nombre_match.group(1).strip().rstrip(',').strip()
+
+                                                # Buscar importe después del NIF
+                                                after_nif = line[nif_match.end():].strip()
+                                                importe_match = re.search(r'([\d.,]+)\s*€', after_nif)
+                                                importe = importe_match.group(1) if importe_match else None
+
+                                                if nombre and not any(c['nif'] == nif for c in competidores):
+                                                    competidores.append({
+                                                        'nif': nif,
+                                                        'nombre': nombre,
+                                                        'importe_oferta': importe,
+                                                        'puntuacion': None
+                                                    })
+                                                    logger.info(f"Competidor encontrado (método 2): {nombre} ({nif}) - {importe}€")
 
                                     # MÉTODO B: Buscar patrón "Nombre Empresa S.L./S.A." + importe en euros
                                     # Formato típico: "EMPRESA EJEMPLO, S.L.    123.456,78 euros"
