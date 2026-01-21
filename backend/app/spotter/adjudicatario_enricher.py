@@ -1750,12 +1750,20 @@ class AdjudicatarioEnricher:
                 # === BUSCAR ENLACE AL PDF DEL ACTA DE RESOLUCIÓN ===
                 # El Acta de Resolución contiene la lista de empresas competidoras
                 # Estructura típica: <h3>Acta de Resolución</h3><ul><li><a href="...">Documento de Acta de Resolución</a></li></ul>
-                for link in soup.find_all('a', href=True):
-                    link_text = link.get_text(strip=True).lower()
+                all_links = soup.find_all('a', href=True)
+                logger.info(f"Buscando PDF Acta entre {len(all_links)} enlaces en HTML adjudicación...")
+
+                for link in all_links:
+                    link_text = link.get_text(strip=True)
+                    link_text_lower = link_text.lower()
                     href = link.get('href', '')
 
+                    # Log de enlaces que contienen 'acta' o 'documento'
+                    if 'acta' in link_text_lower or 'documento' in link_text_lower or 'resoluci' in link_text_lower:
+                        logger.info(f"  Enlace candidato: '{link_text}' -> {href[:80] if href else 'N/A'}...")
+
                     # Buscar enlaces que contengan "acta" y "resolución"
-                    if ('acta' in link_text and 'resoluci' in link_text) or 'documento de acta' in link_text:
+                    if ('acta' in link_text_lower and 'resoluci' in link_text_lower) or 'documento de acta' in link_text_lower:
                         if 'GetDocumentByIdServlet' in href or '.pdf' in href.lower():
                             # Construir URL completa
                             if href.startswith('http'):
@@ -1769,6 +1777,9 @@ class AdjudicatarioEnricher:
                             datos['pdf_acta_resolucion_url'] = pdf_acta_url
                             logger.info(f"✓ PDF Acta de Resolución encontrado en HTML adjudicación: {pdf_acta_url[:80]}...")
                             break
+
+                if 'pdf_acta_resolucion_url' not in datos:
+                    logger.warning("No se encontró enlace al PDF del Acta de Resolución en el HTML de adjudicación")
 
                 # Resumen final
                 campos_encontrados = [k for k in datos.keys()]
