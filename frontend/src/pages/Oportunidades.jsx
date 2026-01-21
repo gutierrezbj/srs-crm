@@ -79,6 +79,13 @@ import {
     DialogTitle,
     DialogDescription,
 } from "@/components/ui/dialog";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+    DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -150,6 +157,8 @@ export default function Oportunidades({ user }) {
     const [searchQuery, setSearchQuery] = useState("");
     const [asignacionFilter, setAsignacionFilter] = useState("all"); // all, mis, sin_asignar
     const [asignando, setAsignando] = useState({});
+    const [usuarios, setUsuarios] = useState([]);
+    const [asignacionMenuOpen, setAsignacionMenuOpen] = useState(null); // oportunidad_id del menu abierto
 
     const fetchOportunidades = useCallback(async () => {
         try {
@@ -182,9 +191,21 @@ export default function Oportunidades({ user }) {
         }
     };
 
+    const fetchUsuarios = async () => {
+        try {
+            const response = await axios.get(`${API}/users`, {
+                withCredentials: true
+            });
+            setUsuarios(response.data);
+        } catch (error) {
+            console.error("Error fetching usuarios:", error);
+        }
+    };
+
     useEffect(() => {
         fetchOportunidades();
         fetchTiposSrs();
+        fetchUsuarios();
     }, [fetchOportunidades]);
 
     const handleConvertToLead = async () => {
@@ -651,15 +672,15 @@ export default function Oportunidades({ user }) {
         });
     };
 
-    // Asignar/desasignar oportunidad al usuario actual
-    const handleAsignar = async (oportunidadId, currentAsignado) => {
-        const yaAsignado = currentAsignado === user?.email;
-
+    // Asignar oportunidad a un usuario específico
+    const handleAsignar = async (oportunidadId, selectedUser) => {
         setAsignando(prev => ({ ...prev, [oportunidadId]: true }));
+        setAsignacionMenuOpen(null);
+
         try {
-            const payload = yaAsignado
-                ? { user_id: null, nombre: null }  // Desasignar
-                : { user_id: user?.email, nombre: user?.name || user?.email?.split('@')[0] };
+            const payload = selectedUser
+                ? { user_id: selectedUser.email, nombre: selectedUser.name }
+                : { user_id: null, nombre: null };  // Desasignar
 
             await axios.patch(
                 `${API}/oportunidades/${oportunidadId}/asignar`,
@@ -672,14 +693,14 @@ export default function Oportunidades({ user }) {
                 op.oportunidad_id === oportunidadId
                     ? {
                         ...op,
-                        asignado_a: yaAsignado ? null : payload.user_id,
-                        asignado_nombre: yaAsignado ? null : payload.nombre,
-                        fecha_asignacion: yaAsignado ? null : new Date().toISOString()
+                        asignado_a: selectedUser?.email || null,
+                        asignado_nombre: selectedUser?.name || null,
+                        fecha_asignacion: selectedUser ? new Date().toISOString() : null
                     }
                     : op
             ));
 
-            toast.success(yaAsignado ? "Oportunidad desasignada" : "Oportunidad asignada");
+            toast.success(selectedUser ? `Asignado a ${selectedUser.name}` : "Oportunidad desasignada");
         } catch (error) {
             toast.error("Error al asignar oportunidad");
             console.error("Error asignando:", error);
@@ -696,6 +717,14 @@ export default function Oportunidades({ user }) {
             return (parts[0][0] + parts[1][0]).toUpperCase();
         }
         return nombre.substring(0, 2).toUpperCase();
+    };
+
+    // Abreviar tipos SRS para ahorrar espacio
+    const abreviarTipoSrs = (tipo) => {
+        if (!tipo) return "-";
+        return tipo
+            .replace(/Fotovoltaica/gi, "FV")
+            .replace(/Infraestructura/gi, "Infra");
     };
 
     const clearFilters = () => {
@@ -1124,7 +1153,7 @@ export default function Oportunidades({ user }) {
                                         </TableCell>
                                         <TableCell>
                                             <Badge variant="outline" className="theme-text-secondary" style={{ borderColor: 'var(--theme-border)' }}>
-                                                {oportunidad.tipo_srs}
+                                                {abreviarTipoSrs(oportunidad.tipo_srs)}
                                             </Badge>
                                         </TableCell>
                                         <TableCell>
@@ -1189,42 +1218,66 @@ export default function Oportunidades({ user }) {
                                         </TableCell>
                                         {/* Asignado */}
                                         <TableCell>
-                                            <TooltipProvider>
-                                                <Tooltip>
-                                                    <TooltipTrigger asChild>
-                                                        <Button
-                                                            size="sm"
-                                                            variant="ghost"
-                                                            onClick={() => handleAsignar(oportunidad.oportunidad_id, oportunidad.asignado_a)}
-                                                            disabled={asignando[oportunidad.oportunidad_id]}
-                                                            className={`w-8 h-8 p-0 rounded-full ${
-                                                                oportunidad.asignado_a === user?.email
-                                                                    ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
-                                                                    : oportunidad.asignado_a
-                                                                        ? 'bg-slate-500/20 text-slate-400 border border-slate-500/30'
-                                                                        : 'text-slate-500 hover:bg-slate-500/10'
-                                                            }`}
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        disabled={asignando[oportunidad.oportunidad_id]}
+                                                        className={`w-8 h-8 p-0 rounded-full ${
+                                                            oportunidad.asignado_a === user?.email
+                                                                ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
+                                                                : oportunidad.asignado_a
+                                                                    ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30'
+                                                                    : 'text-slate-500 hover:bg-slate-500/10 border border-transparent'
+                                                        }`}
+                                                        title={oportunidad.asignado_nombre || "Sin asignar"}
+                                                    >
+                                                        {asignando[oportunidad.oportunidad_id] ? (
+                                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                                        ) : oportunidad.asignado_nombre ? (
+                                                            <span className="text-xs font-bold">
+                                                                {getInitials(oportunidad.asignado_nombre)}
+                                                            </span>
+                                                        ) : (
+                                                            <UserCircle className="w-4 h-4" />
+                                                        )}
+                                                    </Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent align="end" className="bg-slate-900 border-slate-700">
+                                                    {oportunidad.asignado_a && (
+                                                        <>
+                                                            <DropdownMenuItem
+                                                                onClick={() => handleAsignar(oportunidad.oportunidad_id, null)}
+                                                                className="text-red-400 focus:text-red-400 focus:bg-red-500/10"
+                                                            >
+                                                                <X className="w-4 h-4 mr-2" />
+                                                                Sin asignar
+                                                            </DropdownMenuItem>
+                                                            <DropdownMenuSeparator className="bg-slate-700" />
+                                                        </>
+                                                    )}
+                                                    {usuarios.map((u) => (
+                                                        <DropdownMenuItem
+                                                            key={u.email}
+                                                            onClick={() => handleAsignar(oportunidad.oportunidad_id, u)}
+                                                            className={`${oportunidad.asignado_a === u.email ? 'bg-cyan-500/10 text-cyan-400' : 'text-slate-300'} focus:bg-slate-800`}
                                                         >
-                                                            {asignando[oportunidad.oportunidad_id] ? (
-                                                                <Loader2 className="w-4 h-4 animate-spin" />
-                                                            ) : oportunidad.asignado_nombre ? (
-                                                                <span className="text-xs font-bold">
-                                                                    {getInitials(oportunidad.asignado_nombre)}
-                                                                </span>
-                                                            ) : (
-                                                                <UserCircle className="w-4 h-4" />
+                                                            <div className={`w-6 h-6 rounded-full flex items-center justify-center mr-2 text-xs font-bold ${
+                                                                oportunidad.asignado_a === u.email
+                                                                    ? 'bg-cyan-500/20 text-cyan-400'
+                                                                    : 'bg-slate-700 text-slate-400'
+                                                            }`}>
+                                                                {getInitials(u.name)}
+                                                            </div>
+                                                            {u.name}
+                                                            {oportunidad.asignado_a === u.email && (
+                                                                <CheckCircle2 className="w-4 h-4 ml-auto text-cyan-400" />
                                                             )}
-                                                        </Button>
-                                                    </TooltipTrigger>
-                                                    <TooltipContent>
-                                                        {oportunidad.asignado_a === user?.email
-                                                            ? "Click para desasignar"
-                                                            : oportunidad.asignado_nombre
-                                                                ? `Asignado a ${oportunidad.asignado_nombre}`
-                                                                : "Click para asignarme"}
-                                                    </TooltipContent>
-                                                </Tooltip>
-                                            </TooltipProvider>
+                                                        </DropdownMenuItem>
+                                                    ))}
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
                                         </TableCell>
                                         <TableCell className="text-right">
                                             <div className="flex items-center justify-end gap-2">
