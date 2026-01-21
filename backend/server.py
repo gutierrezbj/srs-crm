@@ -14,6 +14,9 @@ import csv
 import io
 import httpx
 
+# Import spotter licitaciones service
+from services.spotter_licitaciones import LicitacionAnalyzer, LicitacionInput, LicitacionAnalysisResult
+
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
@@ -2522,6 +2525,53 @@ async def apollo_health_check(current_user: UserResponse = Depends(get_current_u
 @api_router.get("/")
 async def root():
     return {"message": "System Rapid Solutions CRM API", "version": "1.1.0"}
+
+
+# ============== LICITACIONES ANALYSIS ROUTES ==============
+
+@api_router.post("/licitaciones/analizar", response_model=LicitacionAnalysisResult)
+async def analizar_licitacion(
+    licitacion: LicitacionInput,
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """
+    Analiza una licitación para detectar relevancia para servicios de drones.
+    
+    Usa CPV matching y búsqueda de keywords para calcular un score (0-100).
+    """
+    try:
+        analyzer = LicitacionAnalyzer()
+        return analyzer.analizar(licitacion)
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=500, detail=f"Config file not found: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error analyzing tender: {str(e)}")
+
+
+@api_router.post("/licitaciones/analizar-batch")
+async def analizar_licitaciones_batch(
+    licitaciones: List[LicitacionInput],
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """
+    Analiza múltiples licitaciones en batch.
+    
+    Retorna resultados ordenados por score (mayor primero) + estadísticas.
+    """
+    try:
+        analyzer = LicitacionAnalyzer()
+        resultados = analyzer.analizar_batch(licitaciones)
+        estadisticas = analyzer.get_estadisticas(resultados)
+        
+        return {
+            "resultados": resultados,
+            "estadisticas": estadisticas
+        }
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=500, detail=f"Config file not found: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error analyzing tenders: {str(e)}")
+
 
 # Include the router
 app.include_router(api_router)

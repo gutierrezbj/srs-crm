@@ -1,0 +1,672 @@
+{
+  "metadata": {
+    "version": "2.0-TALADRO",
+    "created": "2026-01-21",
+    "description": "Mapeo CPV EXHAUSTIVO para SpotterSRS-Licitaciones - TODO lo relacionado con Drones y Cargas de Pago",
+    "strategy": "Dos niveles: CPV directos (objeto principal) y CPV indirectos (drone puede aparecer en PPT). TALADRO: no se escapa nada.",
+    "partner": "Capacidad completa: formación, suministro, servicios, I+D, mantenimiento, operaciones AESA/no-AESA"
+  },
+  "nivel_1_cpv_directos": {
+    "description": "Licitaciones donde el servicio drone es el objeto principal o muy probable",
+    "categories": {
+      "topografia_cartografia": {
+        "name": "Topografía, Cartografía y Geodesia",
+        "cpv_codes": [
+          {"code": "71350000-6", "name": "Servicios científicos y técnicos relacionados con la ingeniería"},
+          {"code": "71351000-3", "name": "Servicios de prospección geológica, geofísica y otros"},
+          {"code": "71351500-8", "name": "Servicios de estudio de suelos"},
+          {"code": "71351800-1", "name": "Servicios topográficos y de radiestesia"},
+          {"code": "71351810-4", "name": "Servicios topográficos"},
+          {"code": "71351811-1", "name": "Levantamiento topográfico de yacimientos arqueológicos"},
+          {"code": "71351900-2", "name": "Servicios de geología, oceanografía e hidrología"},
+          {"code": "71352000-0", "name": "Servicios de topografía subterránea"},
+          {"code": "71353000-7", "name": "Servicios de mediciones topográficas de superficie"},
+          {"code": "71353100-8", "name": "Servicios de reconocimiento hidrográfico"},
+          {"code": "71353200-9", "name": "Servicios de topografía dimensional"},
+          {"code": "71354000-4", "name": "Servicios de elaboración de mapas"},
+          {"code": "71354100-5", "name": "Servicios de cartografía digital"},
+          {"code": "71354200-6", "name": "Servicios de elaboración de mapas aéreos"},
+          {"code": "71354300-7", "name": "Servicios catastrales"},
+          {"code": "71355000-1", "name": "Servicios de agrimensura"},
+          {"code": "71355100-2", "name": "Servicios de fotogrametría"},
+          {"code": "71355200-3", "name": "Servicios de reconocimiento catastral"}
+        ],
+        "keywords": ["fotogrametría", "ortofoto", "MDT", "MDE", "MDS", "modelo digital", "LiDAR", "nube de puntos", "levantamiento", "topográfico", "cartografía", "geodesia", "GNSS", "RTK", "PPK", "georreferenciación", "restitución", "DTM", "DEM", "DSM", "GCP", "puntos de control"]
+      },
+      "inspeccion_tecnica": {
+        "name": "Inspección Técnica de Infraestructuras",
+        "cpv_codes": [
+          {"code": "71630000-3", "name": "Servicios de inspección y ensayo técnico"},
+          {"code": "71631000-0", "name": "Servicios de inspección técnica"},
+          {"code": "71631100-1", "name": "Servicios de inspección de maquinaria"},
+          {"code": "71631200-2", "name": "Servicios de inspección técnica de automóviles"},
+          {"code": "71631300-3", "name": "Servicios de inspección técnica de edificios"},
+          {"code": "71631400-4", "name": "Servicios de inspección técnica de estructuras de ingeniería"},
+          {"code": "71631450-9", "name": "Servicios de inspección de puentes"},
+          {"code": "71631460-2", "name": "Servicios de inspección de presas"},
+          {"code": "71631480-8", "name": "Servicios de inspección de carreteras"},
+          {"code": "71631490-1", "name": "Servicios de inspección de pistas de aterrizaje"},
+          {"code": "71632000-7", "name": "Servicios de ensayo técnico"},
+          {"code": "71632100-8", "name": "Servicios de ensayo de válvulas"},
+          {"code": "71632200-9", "name": "Servicios de ensayo no destructivo"}
+        ],
+        "keywords": ["inspección", "estado", "patología", "fisuras", "grietas", "corrosión", "degradación", "auscultación", "informe técnico", "diagnóstico", "estructural", "termografía", "térmico", "infrarrojo", "END", "ensayo no destructivo"]
+      },
+      "agricultura_precision": {
+        "name": "Agricultura de Precisión y Fitosanitarios",
+        "cpv_codes": [
+          {"code": "77100000-1", "name": "Servicios agrícolas"},
+          {"code": "77110000-4", "name": "Servicios relacionados con la producción agrícola"},
+          {"code": "77111000-1", "name": "Servicios de alquiler de maquinaria agrícola con operador"},
+          {"code": "77112000-8", "name": "Servicios de alquiler de segadoras o de equipo agrícola con operador"},
+          {"code": "77120000-7", "name": "Servicios de compostaje"},
+          {"code": "90670000-4", "name": "Servicios de desinfección y exterminio en zonas urbanas o rurales"},
+          {"code": "90921000-9", "name": "Servicios de desinfección e insecticidas"},
+          {"code": "90922000-6", "name": "Servicios de control de plagas"}
+        ],
+        "keywords": ["fitosanitario", "plaguicida", "fumigación", "tratamiento aéreo", "aplicación ULV", "NDVI", "NDRE", "índice vegetación", "vigor", "estrés hídrico", "multiespectral", "agricultura precisión", "zonificación", "prescripción variable", "fertilización", "abonado", "siembra", "dispersión", "aplicación aérea"]
+      },
+      "medio_ambiente": {
+        "name": "Medio Ambiente y Conservación",
+        "cpv_codes": [
+          {"code": "90700000-4", "name": "Servicios relacionados con el medio ambiente"},
+          {"code": "90710000-7", "name": "Gestión del medio ambiente"},
+          {"code": "90711000-4", "name": "Evaluación del impacto ambiental para fines distintos de la construcción"},
+          {"code": "90711100-5", "name": "Evaluación de riesgos o peligros distintos de los relativos a la construcción"},
+          {"code": "90711300-7", "name": "Análisis de indicadores medioambientales distintos de los relativos a la construcción"},
+          {"code": "90711400-8", "name": "Servicios de evaluación del impacto ambiental (EIA) distintos de los relativos a la construcción"},
+          {"code": "90711500-9", "name": "Seguimiento medioambiental distintos de los relativos a la construcción"},
+          {"code": "90712000-1", "name": "Planificación medioambiental"},
+          {"code": "90712100-2", "name": "Planificación del desarrollo del medio urbano"},
+          {"code": "90712200-3", "name": "Planificación estratégica para la conservación de los bosques"},
+          {"code": "90712300-4", "name": "Planificación estratégica para la conservación de los recursos marinos"},
+          {"code": "90712400-5", "name": "Servicios de planificación de la gestión de recursos naturales o de su conservación"},
+          {"code": "90713000-8", "name": "Servicios de consultoría medioambiental"},
+          {"code": "90714000-5", "name": "Auditoría ambiental"},
+          {"code": "90714500-0", "name": "Servicios de control de calidad del medio ambiente"},
+          {"code": "90720000-0", "name": "Protección del medio ambiente"},
+          {"code": "90721000-7", "name": "Servicios de seguridad medioambiental"},
+          {"code": "90721100-8", "name": "Servicios de protección del paisaje"},
+          {"code": "90721700-4", "name": "Servicios de protección de especies en peligro"},
+          {"code": "90721800-5", "name": "Servicios de protección contra los riesgos o peligros naturales"},
+          {"code": "90722000-4", "name": "Rehabilitación medioambiental"}
+        ],
+        "keywords": ["biodiversidad", "fauna", "flora", "hábitat", "humedal", "especie protegida", "censo", "seguimiento", "monitorización ambiental", "masa forestal", "inventario forestal", "IFN", "LIDAR forestal", "contaminación", "vertido", "impacto ambiental"]
+      },
+      "incendios_emergencias": {
+        "name": "Prevención de Incendios, Emergencias y Salvamento",
+        "cpv_codes": [
+          {"code": "75240000-0", "name": "Servicios de seguridad pública, orden público y protección civil"},
+          {"code": "75241000-7", "name": "Servicios de seguridad pública"},
+          {"code": "75242000-4", "name": "Servicios de orden público"},
+          {"code": "75250000-3", "name": "Servicios de bomberos y de rescate"},
+          {"code": "75251000-0", "name": "Servicios de bomberos"},
+          {"code": "75251100-1", "name": "Servicios de extinción de incendios"},
+          {"code": "75251110-4", "name": "Servicios de prevención de incendios"},
+          {"code": "75251120-7", "name": "Servicios de lucha forestal contra incendios"},
+          {"code": "75252000-7", "name": "Servicios de salvamento"},
+          {"code": "75200000-8", "name": "Servicios prestados a la comunidad"}
+        ],
+        "keywords": ["incendio", "extinción", "prevención", "vigilancia", "detección temprana", "punto caliente", "perímetro fuego", "INFOCA", "BRIF", "bombero", "emergencia", "rescate", "búsqueda", "salvamento", "catástrofe", "desastre", "inundación", "terremoto", "112", "protección civil"]
+      },
+      "energia_termografia": {
+        "name": "Energía, Termografía y Eficiencia Energética",
+        "cpv_codes": [
+          {"code": "09310000-5", "name": "Electricidad"},
+          {"code": "09330000-1", "name": "Energía solar"},
+          {"code": "09331000-8", "name": "Paneles solares"},
+          {"code": "09331100-9", "name": "Captadores solares para la producción de calor"},
+          {"code": "09331200-0", "name": "Módulos solares fotovoltaicos"},
+          {"code": "09332000-5", "name": "Instalación solar"},
+          {"code": "45251000-1", "name": "Trabajos de construcción de centrales eléctricas y de calefacción"},
+          {"code": "45251100-2", "name": "Trabajos de construcción de centrales eléctricas"},
+          {"code": "45251120-8", "name": "Construcción de centrales hidroeléctricas"},
+          {"code": "45251140-4", "name": "Construcción de centrales térmicas"},
+          {"code": "45251141-1", "name": "Construcción de centrales geotérmicas"},
+          {"code": "45251142-8", "name": "Construcción de centrales de cogeneración"},
+          {"code": "45251143-5", "name": "Construcción de centrales de incineración de residuos"},
+          {"code": "45251150-7", "name": "Trabajos de construcción de torres de refrigeración"},
+          {"code": "45251160-0", "name": "Trabajos de eólica"},
+          {"code": "71314000-2", "name": "Servicios de energía y servicios conexos"},
+          {"code": "71314100-3", "name": "Servicios de electricidad"},
+          {"code": "71314200-4", "name": "Servicios de gestión de la energía"},
+          {"code": "71314300-5", "name": "Servicios de rendimiento energético"}
+        ],
+        "keywords": ["termografía", "térmico", "infrarrojo", "panel solar", "fotovoltaico", "aerogenerador", "eólico", "célula caliente", "hot spot", "string", "bypass", "eficiencia energética", "auditoría energética", "certificación energética", "RITE", "envolvente térmica", "puente térmico", "infiltración"]
+      },
+      "telecomunicaciones": {
+        "name": "Telecomunicaciones e Infraestructura de Red",
+        "cpv_codes": [
+          {"code": "32000000-3", "name": "Equipo y aparatos de radio, televisión, comunicaciones, telecomunicaciones y afines"},
+          {"code": "32200000-5", "name": "Aparatos transmisores de radiotelefonía, radiotelegrafía, radiodifusión y televisión"},
+          {"code": "32210000-8", "name": "Equipo de radiodifusión"},
+          {"code": "32220000-1", "name": "Aparatos transmisores de televisión sin aparatos de recepción"},
+          {"code": "32230000-4", "name": "Aparatos transmisores de radio con aparatos receptores"},
+          {"code": "32250000-0", "name": "Teléfonos móviles"},
+          {"code": "32260000-3", "name": "Equipos de transmisión de datos"},
+          {"code": "32270000-6", "name": "Aparatos de transmisión digital"},
+          {"code": "32400000-7", "name": "Redes"},
+          {"code": "32410000-0", "name": "Red de área local"},
+          {"code": "32420000-3", "name": "Equipo de red"},
+          {"code": "32500000-8", "name": "Material y equipo de telecomunicaciones"},
+          {"code": "32510000-1", "name": "Sistema de telecomunicaciones inalámbrico"},
+          {"code": "32520000-4", "name": "Equipo y cables de telecomunicaciones"},
+          {"code": "32521000-1", "name": "Cables de telecomunicaciones"},
+          {"code": "32522000-8", "name": "Equipo de telecomunicaciones"},
+          {"code": "45314000-1", "name": "Instalación de equipo de telecomunicaciones"},
+          {"code": "64200000-8", "name": "Servicios de telecomunicaciones"}
+        ],
+        "keywords": ["antena", "torre comunicaciones", "BTS", "estación base", "5G", "4G", "cobertura", "radioenlace", "fibra óptica", "tendido", "cableado aéreo", "repetidor", "amplificador"]
+      },
+      "audiovisual_cine": {
+        "name": "Audiovisual, Cine y Producciones",
+        "cpv_codes": [
+          {"code": "92110000-5", "name": "Producción de películas cinematográficas y de vídeo y servicios conexos"},
+          {"code": "92111000-2", "name": "Servicios de producción de películas cinematográficas y de vídeo"},
+          {"code": "92111100-3", "name": "Producción de películas y vídeos de carácter educativo"},
+          {"code": "92111200-4", "name": "Producción de películas y vídeos de publicidad, propaganda e información"},
+          {"code": "92111210-7", "name": "Producción de películas de publicidad"},
+          {"code": "92111220-0", "name": "Producción de vídeos de publicidad"},
+          {"code": "92111230-3", "name": "Producción de películas de propaganda"},
+          {"code": "92111240-6", "name": "Producción de vídeos de propaganda"},
+          {"code": "92111250-9", "name": "Producción de películas de información"},
+          {"code": "92111260-2", "name": "Producción de vídeos de información"},
+          {"code": "92111300-5", "name": "Producción de películas y vídeos de entretenimiento"},
+          {"code": "92111310-8", "name": "Producción de películas de entretenimiento"},
+          {"code": "92111320-1", "name": "Producción de vídeos de entretenimiento"},
+          {"code": "92112000-9", "name": "Servicios relacionados con la producción de películas cinematográficas y de vídeo"},
+          {"code": "79961000-8", "name": "Servicios de fotografía"},
+          {"code": "79961100-9", "name": "Servicios de fotografía publicitaria"},
+          {"code": "79961200-0", "name": "Servicios de fotografía aérea"},
+          {"code": "79962000-5", "name": "Servicios de tratamiento de fotografías"}
+        ],
+        "keywords": ["grabación aérea", "toma aérea", "plano aéreo", "vídeo aéreo", "fotografía aérea", "filmación", "producción audiovisual", "documental", "reportaje", "retransmisión", "evento", "espectáculo"]
+      },
+      "patrimonio_arqueologia": {
+        "name": "Patrimonio, Arqueología y Monumentos",
+        "cpv_codes": [
+          {"code": "92521000-9", "name": "Servicios de museos"},
+          {"code": "92521100-0", "name": "Servicios de exposiciones de museos"},
+          {"code": "92521200-1", "name": "Servicios de conservación de exposiciones y de especímenes"},
+          {"code": "92521210-4", "name": "Servicios de conservación de exposiciones"},
+          {"code": "92521220-7", "name": "Servicios de conservación de especímenes"},
+          {"code": "92522000-6", "name": "Servicios de preservación de lugares y edificios históricos"},
+          {"code": "92522100-7", "name": "Servicios de preservación de lugares históricos"},
+          {"code": "92522200-8", "name": "Servicios de preservación de edificios históricos"},
+          {"code": "71351811-1", "name": "Levantamiento topográfico de yacimientos arqueológicos"},
+          {"code": "45212350-4", "name": "Edificios de particular interés histórico o arquitectónico"},
+          {"code": "45454100-5", "name": "Trabajos de restauración"}
+        ],
+        "keywords": ["patrimonio", "arqueología", "yacimiento", "excavación", "prospección", "BIC", "monumento", "histórico", "restauración", "conservación", "catalogación", "inventario patrimonio", "3D patrimonio", "modelo 3D", "gemelo digital patrimonio", "fotogrametría patrimonio", "escaneado láser"]
+      },
+      "formacion_capacitacion": {
+        "name": "Formación y Capacitación en Drones",
+        "cpv_codes": [
+          {"code": "80530000-8", "name": "Servicios de formación profesional"},
+          {"code": "80531000-5", "name": "Servicios de formación industrial y técnica"},
+          {"code": "80531100-6", "name": "Servicios de formación industrial"},
+          {"code": "80531200-7", "name": "Servicios de formación técnica"},
+          {"code": "80532000-2", "name": "Servicios de formación en materia de gestión"},
+          {"code": "80533000-9", "name": "Servicios de formación y de familiarización en materia de informática"},
+          {"code": "80560000-7", "name": "Servicios de formación en materia de salud y primeros auxilios"},
+          {"code": "80561000-4", "name": "Servicios de formación en materia de salud"},
+          {"code": "80562000-1", "name": "Servicios de formación en materia de primeros auxilios"},
+          {"code": "80570000-0", "name": "Servicios de formación para el perfeccionamiento personal"},
+          {"code": "80610000-4", "name": "Servicios de formación y simulación en materia de equipo de seguridad"}
+        ],
+        "keywords": ["formación drone", "curso piloto", "STS-01", "STS-02", "certificación AESA", "piloto RPAS", "operador UAS", "capacitación", "habilitación", "licencia piloto", "categoría abierta", "categoría específica", "SORA", "ConOps", "manual operaciones", "piloto aplicador", "fitosanitario", "radiología"]
+      },
+      "suministro_equipamiento": {
+        "name": "Suministro de Drones y Equipamiento",
+        "cpv_codes": [
+          {"code": "34711200-6", "name": "Aeronaves no tripuladas"},
+          {"code": "34711210-9", "name": "Drones"},
+          {"code": "35613000-4", "name": "Vehículos aéreos no tripulados"},
+          {"code": "38000000-5", "name": "Equipo de laboratorio, óptico y de precisión (excepto gafas)"},
+          {"code": "38100000-6", "name": "Instrumentos de navegación y de meteorología"},
+          {"code": "38110000-9", "name": "Instrumentos de navegación"},
+          {"code": "38111000-6", "name": "Equipo de radionavegación"},
+          {"code": "38111100-7", "name": "Sistemas de navegación por compás"},
+          {"code": "38112000-3", "name": "Sextantes"},
+          {"code": "38112100-4", "name": "Sistemas de navegación por satélite (GPS, GNSS)"},
+          {"code": "38295000-9", "name": "Equipo topográfico"},
+          {"code": "38296000-6", "name": "Instrumentos de agrimensura"},
+          {"code": "38300000-8", "name": "Instrumentos de medida"},
+          {"code": "38500000-0", "name": "Aparatos de control y ensayo"},
+          {"code": "38520000-6", "name": "Escáneres"},
+          {"code": "38521000-3", "name": "Escáneres de presión"},
+          {"code": "38600000-1", "name": "Instrumentos ópticos"},
+          {"code": "38650000-6", "name": "Equipo fotográfico"},
+          {"code": "38651000-3", "name": "Cámaras fotográficas"},
+          {"code": "38651100-4", "name": "Objetivos de cámara fotográfica"},
+          {"code": "38651200-5", "name": "Carcasas de cámaras fotográficas"},
+          {"code": "38651600-9", "name": "Cámaras digitales"},
+          {"code": "38652000-0", "name": "Proyectores cinematográficos"},
+          {"code": "38652100-1", "name": "Proyectores"},
+          {"code": "38653000-7", "name": "Aparatos para laboratorios fotográficos"},
+          {"code": "38800000-3", "name": "Equipos de control de procesos industriales y equipos de control remoto"},
+          {"code": "38820000-9", "name": "Equipo de control remoto"},
+          {"code": "38821000-6", "name": "Aparatos de control remoto por radio"}
+        ],
+        "keywords": ["dron", "drone", "UAV", "UAS", "RPAS", "aeronave no tripulada", "multirrotor", "ala fija", "VTOL", "cámara térmica", "cámara multiespectral", "sensor LiDAR", "gimbal", "estabilizador", "batería", "cargador", "controladora", "emisora", "mando", "autopiloto", "RTK", "PPK", "estación base", "payload", "carga útil", "paracaídas", "sistema anticolisión"]
+      },
+      "id_desarrollo_innovacion": {
+        "name": "I+D, Desarrollo e Innovación con Drones",
+        "cpv_codes": [
+          {"code": "73000000-2", "name": "Servicios de investigación y desarrollo y servicios de consultoría conexos"},
+          {"code": "73100000-3", "name": "Servicios de investigación y desarrollo experimental"},
+          {"code": "73110000-6", "name": "Servicios de investigación"},
+          {"code": "73111000-3", "name": "Servicios de laboratorio de investigación"},
+          {"code": "73112000-0", "name": "Servicios de investigación marina"},
+          {"code": "73120000-9", "name": "Servicios de desarrollo experimental"},
+          {"code": "73200000-4", "name": "Servicios de consultoría en investigación y desarrollo"},
+          {"code": "73210000-7", "name": "Servicios de consultoría en investigación"},
+          {"code": "73220000-0", "name": "Servicios de consultoría en desarrollo"},
+          {"code": "73300000-5", "name": "Diseño y ejecución de investigación y desarrollo"},
+          {"code": "73400000-6", "name": "Servicios de I+D en materia de seguridad y defensa"},
+          {"code": "73420000-2", "name": "Estudio de viabilidad previa, estudio tecnológico de demostración"},
+          {"code": "73421000-9", "name": "Desarrollo de equipo de seguridad"},
+          {"code": "73422000-6", "name": "Desarrollo de equipo de defensa"}
+        ],
+        "keywords": ["I+D", "investigación", "desarrollo", "innovación", "prototipo", "piloto", "POC", "prueba concepto", "demostrador", "banco pruebas", "ensayo", "validación", "tecnología emergente", "inteligencia artificial", "IA", "machine learning", "deep learning", "automatización", "autonomía", "beyond visual line of sight", "BVLOS", "EVLOS", "operaciones avanzadas"]
+      },
+      "seguridad_vigilancia": {
+        "name": "Seguridad, Vigilancia y Control",
+        "cpv_codes": [
+          {"code": "79710000-4", "name": "Servicios de seguridad"},
+          {"code": "79711000-1", "name": "Servicios de vigilancia de sistemas de alarma"},
+          {"code": "79713000-5", "name": "Servicios de guardias de seguridad"},
+          {"code": "79714000-2", "name": "Servicios de vigilancia"},
+          {"code": "79714100-3", "name": "Servicios de localización"},
+          {"code": "79714110-6", "name": "Servicios de búsqueda de fugitivos"},
+          {"code": "79715000-9", "name": "Servicios de patrullaje"},
+          {"code": "79716000-6", "name": "Servicios de expedición de tarjetas de identificación"},
+          {"code": "79720000-7", "name": "Servicios de investigación"},
+          {"code": "35125000-6", "name": "Sistemas de vigilancia"},
+          {"code": "35125100-7", "name": "Sensores"},
+          {"code": "35125110-0", "name": "Sensores biométricos"},
+          {"code": "35125200-8", "name": "Sistema de control del tiempo o sistema de registro de personal"},
+          {"code": "35125300-9", "name": "Cámaras de seguridad"}
+        ],
+        "keywords": ["vigilancia", "seguridad", "patrulla", "monitorización", "control perímetro", "detección intrusos", "frontera", "costa", "marítimo", "control multitud", "evento masivo", "cámara seguridad", "reconocimiento", "identificación", "seguimiento objetivo"]
+      },
+      "gemelos_digitales_bim": {
+        "name": "Gemelos Digitales, BIM y Modelado 3D",
+        "cpv_codes": [
+          {"code": "71240000-2", "name": "Servicios de arquitectura, ingeniería y planificación"},
+          {"code": "71241000-9", "name": "Estudios de viabilidad, servicio de asesoramiento, análisis"},
+          {"code": "71242000-6", "name": "Elaboración de proyectos y diseños, estimación de costes"},
+          {"code": "71243000-3", "name": "Proyectos (sistemas y estructuras)"},
+          {"code": "71244000-0", "name": "Cálculo de costes, supervisión de costes"},
+          {"code": "71245000-7", "name": "Proyectos de aprobación, dibujos de trabajo y especificaciones"},
+          {"code": "71246000-4", "name": "Determinación y enumeración de las cantidades necesarias para la construcción"},
+          {"code": "71247000-1", "name": "Supervisión de los trabajos de construcción"},
+          {"code": "71248000-8", "name": "Supervisión del proyecto y documentación"},
+          {"code": "72200000-7", "name": "Servicios de programación de software y de consultoría"},
+          {"code": "72210000-0", "name": "Servicios de programación de paquetes de software"},
+          {"code": "72211000-7", "name": "Servicios de programación de sistemas y de software de usuario"},
+          {"code": "72212000-4", "name": "Servicios de programación de software de aplicación"},
+          {"code": "72220000-3", "name": "Servicios de consultoría en sistemas y servicios de consultoría técnica"},
+          {"code": "72221000-0", "name": "Servicios de consultoría en análisis de empresas"},
+          {"code": "72222000-7", "name": "Servicios de evaluación y revisión de estrategias de tecnologías de la información"},
+          {"code": "72223000-4", "name": "Servicios de revisión de requisitos de tecnologías de la información"},
+          {"code": "72224000-1", "name": "Servicios de consultoría en gestión de proyectos"},
+          {"code": "72225000-8", "name": "Servicios de evaluación y revisión del control de calidad de sistemas"},
+          {"code": "72226000-5", "name": "Servicios de consultoría en ensayos de aceptación de software de sistemas"},
+          {"code": "72227000-2", "name": "Servicios de consultoría en integración de software"},
+          {"code": "72228000-9", "name": "Servicios de consultoría en integración de hardware"}
+        ],
+        "keywords": ["gemelo digital", "digital twin", "BIM", "Building Information Modeling", "modelo 3D", "maqueta digital", "as-built", "nube de puntos", "escaneo láser", "reality capture", "captura realidad", "LOD", "level of detail", "IFC", "Revit", "PointCloud", "mesh", "malla", "texturizado", "reconstrucción 3D", "virtualización", "realidad aumentada", "AR", "realidad virtual", "VR"]
+      },
+      "seguros_drones": {
+        "name": "Seguros y Cobertura para Operaciones Drone",
+        "cpv_codes": [
+          {"code": "66510000-8", "name": "Servicios de seguros"},
+          {"code": "66512000-2", "name": "Servicios de seguros de accidente y de enfermedad"},
+          {"code": "66512100-3", "name": "Servicios de seguros de accidente"},
+          {"code": "66512200-4", "name": "Servicios de seguros de enfermedad"},
+          {"code": "66513000-9", "name": "Servicios de seguros de asistencia jurídica y de seguros a todo riesgo"},
+          {"code": "66514000-6", "name": "Servicios de seguros de transporte de carga y de seguros relacionados con el transporte"},
+          {"code": "66514100-7", "name": "Servicios de seguros relacionados con el transporte"},
+          {"code": "66514110-0", "name": "Servicios de seguros de vehículos de motor"},
+          {"code": "66514120-3", "name": "Servicios de seguros de embarcaciones marítimas, de aeronaves y otros medios de transporte"},
+          {"code": "66514130-6", "name": "Servicios de seguros ferroviarios"},
+          {"code": "66514140-9", "name": "Servicios de seguros de aeronaves"},
+          {"code": "66514150-2", "name": "Servicios de seguros de embarcaciones"},
+          {"code": "66515000-3", "name": "Servicios de seguros de daños o de pérdidas"},
+          {"code": "66515100-4", "name": "Servicios de seguros contra incendio"},
+          {"code": "66515200-5", "name": "Servicios de seguros de propiedad"},
+          {"code": "66515300-6", "name": "Servicios de seguros climáticos y de seguros de pérdidas financieras"},
+          {"code": "66516000-0", "name": "Servicios de seguros de responsabilidad civil"},
+          {"code": "66516100-1", "name": "Servicios de seguros de responsabilidad civil de vehículos de motor"},
+          {"code": "66516200-2", "name": "Servicios de seguros de responsabilidad civil de aeronaves"},
+          {"code": "66516300-3", "name": "Servicios de seguros de responsabilidad civil de embarcaciones"},
+          {"code": "66516400-4", "name": "Servicios de seguros de responsabilidad civil general"},
+          {"code": "66516500-5", "name": "Servicios de seguros de responsabilidad civil profesional"}
+        ],
+        "keywords": ["seguro dron", "póliza drone", "responsabilidad civil aeronave", "RC drone", "seguro RPAS", "cobertura operaciones", "daños terceros", "seguro equipamiento", "pérdida equipo", "robo drone"]
+      },
+      "mantenimiento_reparacion": {
+        "name": "Mantenimiento y Reparación de Flotas Drone",
+        "cpv_codes": [
+          {"code": "50000000-5", "name": "Servicios de reparación y mantenimiento"},
+          {"code": "50100000-6", "name": "Servicios de reparación, mantenimiento y servicios asociados para vehículos y equipos relacionados"},
+          {"code": "50110000-9", "name": "Servicios de reparación y mantenimiento de vehículos de motor y equipos asociados"},
+          {"code": "50200000-7", "name": "Servicios de reparación, mantenimiento y servicios asociados para aeronaves, ferrocarriles, vehículos y embarcaciones marítimas"},
+          {"code": "50210000-0", "name": "Servicios de reparación, mantenimiento y servicios asociados relacionados con aeronaves y otros equipos"},
+          {"code": "50211000-7", "name": "Servicios de reparación y mantenimiento de aeronaves"},
+          {"code": "50211100-8", "name": "Servicios de mantenimiento de aeronaves"},
+          {"code": "50211200-9", "name": "Servicios de reparación de aeronaves"},
+          {"code": "50211210-2", "name": "Servicios de reparación y mantenimiento de motores de aeronaves"},
+          {"code": "50211211-9", "name": "Servicios de mantenimiento de motores de aeronaves"},
+          {"code": "50211212-6", "name": "Servicios de reparación de motores de aeronaves"},
+          {"code": "50211300-0", "name": "Servicios de reconversión de aeronaves"},
+          {"code": "50212000-4", "name": "Servicios de reparación y mantenimiento de helicópteros"},
+          {"code": "50300000-8", "name": "Servicios de reparación, mantenimiento y servicios asociados relacionados con ordenadores personales, equipo de oficina, equipo de telecomunicaciones y audiovisual"},
+          {"code": "50330000-7", "name": "Servicios de mantenimiento de equipo de telecomunicaciones"},
+          {"code": "50331000-4", "name": "Servicios de reparación y mantenimiento de líneas de telecomunicaciones"},
+          {"code": "50332000-1", "name": "Servicios de mantenimiento de infraestructura de telecomunicaciones"},
+          {"code": "50340000-0", "name": "Servicios de reparación y mantenimiento de equipo audiovisual y óptico"}
+        ],
+        "keywords": ["mantenimiento drone", "reparación drone", "revisión", "calibración", "actualización firmware", "sustitución piezas", "batería", "motor", "hélice", "ESC", "gimbal", "cámara", "sensor", "inspección preoperativa", "mantenimiento preventivo", "mantenimiento correctivo", "flota", "gestión flota", "disponibilidad operativa"]
+      }
+    }
+  },
+  "nivel_2_cpv_indirectos": {
+    "description": "Licitaciones donde el servicio drone puede aparecer como requisito técnico dentro del PPT, aunque el objeto principal sea otro",
+    "categories": {
+      "obras_civiles": {
+        "name": "Obras Civiles y Construcción",
+        "cpv_codes": [
+          {"code": "45000000-7", "name": "Trabajos de construcción"},
+          {"code": "45100000-8", "name": "Preparación del terreno para obras"},
+          {"code": "45110000-1", "name": "Trabajos de demolición de inmuebles y movimiento de tierras"},
+          {"code": "45111000-8", "name": "Trabajos de demolición, preparación y despeje del terreno"},
+          {"code": "45112000-5", "name": "Trabajos de excavación y movimiento de tierras"},
+          {"code": "45200000-9", "name": "Trabajos generales de construcción de inmuebles y obras de ingeniería civil"},
+          {"code": "45210000-2", "name": "Trabajos de construcción de inmuebles"},
+          {"code": "45220000-5", "name": "Obras de ingeniería y trabajos de construcción"},
+          {"code": "45230000-8", "name": "Trabajos de construcción de tuberías, líneas de comunicación y de alimentación eléctrica, de autopistas, carreteras, aeródromos y vías férreas; trabajos de explanación"},
+          {"code": "45233000-9", "name": "Trabajos de construcción, de cimentación y de revestimiento de superficies de autopistas y carreteras"}
+        ],
+        "keywords_ppt": ["replanteo", "control obra", "seguimiento obra", "avance obra", "cubicación", "movimiento tierras", "volumen", "mediciones", "as-built", "certificación", "topografía obra", "control geométrico"],
+        "probability": "alta"
+      },
+      "lineas_electricas": {
+        "name": "Líneas Eléctricas y Tendidos",
+        "cpv_codes": [
+          {"code": "45231400-9", "name": "Trabajos de construcción de líneas eléctricas"},
+          {"code": "45232200-4", "name": "Trabajos auxiliares para líneas de transmisión de electricidad"},
+          {"code": "45232210-7", "name": "Construcción de líneas aéreas"},
+          {"code": "45232220-0", "name": "Construcción de subestaciones"},
+          {"code": "45315100-9", "name": "Trabajos de instalación electrotécnica"},
+          {"code": "45315300-1", "name": "Instalación de alimentación de energía eléctrica"},
+          {"code": "45315400-2", "name": "Instalación de alta tensión"},
+          {"code": "45315500-3", "name": "Instalación de media tensión"},
+          {"code": "45315600-4", "name": "Instalación de baja tensión"},
+          {"code": "65300000-6", "name": "Distribución de electricidad y servicios conexos"},
+          {"code": "65310000-9", "name": "Distribución de electricidad"}
+        ],
+        "keywords_ppt": ["inspección líneas", "termografía líneas", "vegetación línea", "servidumbre", "calle seguridad", "aislador", "apoyo", "torre eléctrica", "catenaria", "LAT", "línea alta tensión", "corredor eléctrico"],
+        "probability": "muy alta"
+      },
+      "hidrologia_cuencas": {
+        "name": "Hidrología y Gestión de Cuencas",
+        "cpv_codes": [
+          {"code": "45240000-1", "name": "Trabajos de construcción de obras hidráulicas"},
+          {"code": "45241000-8", "name": "Construcción portuaria"},
+          {"code": "45242000-5", "name": "Construcción de instalaciones de ocio acuático"},
+          {"code": "45243000-2", "name": "Obras de defensa costera"},
+          {"code": "45244000-9", "name": "Construcción marítima"},
+          {"code": "45246000-3", "name": "Trabajos de regulación de caudales y de control de inundaciones"},
+          {"code": "45246100-4", "name": "Construcción de muros de defensa contra los ríos"},
+          {"code": "45246200-5", "name": "Trabajos de protección de riberas"},
+          {"code": "45247000-0", "name": "Trabajos de construcción de presas, canales, canalizaciones y acequias"},
+          {"code": "45247100-1", "name": "Construcción de canalizaciones"},
+          {"code": "45247110-4", "name": "Construcción de canales"},
+          {"code": "45247111-1", "name": "Construcción de canales de riego"},
+          {"code": "45247112-8", "name": "Construcción de canales de drenaje"},
+          {"code": "45247120-7", "name": "Construcción de vías navegables excepto canales"},
+          {"code": "45247130-0", "name": "Construcción de acequias"},
+          {"code": "45247200-2", "name": "Construcción de presas y estructuras similares"},
+          {"code": "45247210-5", "name": "Construcción de presas"},
+          {"code": "45247220-8", "name": "Construcción de aliviaderos"},
+          {"code": "45247230-1", "name": "Construcción de diques"},
+          {"code": "45247270-3", "name": "Construcción de embalses"},
+          {"code": "90400000-1", "name": "Servicios de alcantarillado"},
+          {"code": "90410000-4", "name": "Servicios de aguas residuales"},
+          {"code": "90420000-7", "name": "Servicios de tratamiento de aguas residuales"}
+        ],
+        "keywords_ppt": ["batimetría", "cauce", "río", "embalse", "presa", "canal", "acequia", "inundabilidad", "zona inundable", "cuenca", "LIDAR hidrológico", "modelo hidráulico", "lámina agua", "cota inundación"],
+        "probability": "alta"
+      },
+      "forestal": {
+        "name": "Trabajos Forestales",
+        "cpv_codes": [
+          {"code": "77200000-2", "name": "Servicios silvícolas"},
+          {"code": "77210000-5", "name": "Servicios de tala de árboles"},
+          {"code": "77211000-2", "name": "Servicios relacionados con la tala de árboles"},
+          {"code": "77211100-3", "name": "Servicios de explotación forestal"},
+          {"code": "77211400-6", "name": "Servicios de tala de árboles"},
+          {"code": "77211500-7", "name": "Servicios de mantenimiento de árboles"},
+          {"code": "77220000-8", "name": "Servicios de impregnación de la madera"},
+          {"code": "77230000-1", "name": "Servicios relacionados con la silvicultura"},
+          {"code": "77231000-8", "name": "Servicios de gestión silvícola"},
+          {"code": "77231200-0", "name": "Servicios de lucha contra las plagas forestales"},
+          {"code": "77231300-1", "name": "Servicios de ordenación forestal"},
+          {"code": "77231400-2", "name": "Servicios de inventario forestal"},
+          {"code": "77231500-3", "name": "Servicios de control silvícola"},
+          {"code": "77231600-4", "name": "Servicios de repoblación forestal"}
+        ],
+        "keywords_ppt": ["inventario forestal", "masa forestal", "dasométrico", "cubicación", "existencias", "rodal", "parcela", "LIDAR forestal", "nube puntos", "altura árboles", "densidad", "biomasa", "sanidad vegetal", "plaga forestal"],
+        "probability": "muy alta"
+      },
+      "parques_jardines": {
+        "name": "Parques y Jardines",
+        "cpv_codes": [
+          {"code": "77300000-3", "name": "Servicios de horticultura"},
+          {"code": "77310000-6", "name": "Servicios de plantación y mantenimiento de zonas verdes"},
+          {"code": "77311000-3", "name": "Servicios de mantenimiento de jardines y parques"},
+          {"code": "77312000-0", "name": "Servicios de escarda"},
+          {"code": "77312100-1", "name": "Servicios de desbroce"},
+          {"code": "77313000-7", "name": "Servicios de mantenimiento de parques"},
+          {"code": "77314000-4", "name": "Servicios de mantenimiento de terrenos"},
+          {"code": "77314100-5", "name": "Servicios de encespedado"},
+          {"code": "77315000-1", "name": "Servicios de siembra"},
+          {"code": "77320000-9", "name": "Servicios de mantenimiento de instalaciones deportivas"},
+          {"code": "77340000-5", "name": "Servicios de poda de árboles y arbustos"},
+          {"code": "77341000-2", "name": "Servicios de poda de árboles"},
+          {"code": "77342000-9", "name": "Servicios de poda de arbustos"}
+        ],
+        "keywords_ppt": ["inventario arbolado", "censo árboles", "estado fitosanitario", "cartografía verde urbano", "ortofoto parque", "gestión arbolado", "poda", "tratamiento", "plaga urbana", "procesionaria", "xylella"],
+        "probability": "alta"
+      },
+      "litoral_costa": {
+        "name": "Litoral y Costas",
+        "cpv_codes": [
+          {"code": "45243000-2", "name": "Obras de defensa costera"},
+          {"code": "45244000-9", "name": "Construcción marítima"},
+          {"code": "71351900-2", "name": "Servicios de geología, oceanografía e hidrología"},
+          {"code": "71353100-8", "name": "Servicios de reconocimiento hidrográfico"},
+          {"code": "90712300-4", "name": "Planificación estratégica para la conservación de los recursos marinos"}
+        ],
+        "keywords_ppt": ["deslinde marítimo", "línea de costa", "erosión costera", "playa", "duna", "acantilado", "puerto", "espigón", "dique", "batimetría costera", "DPMT", "dominio público marítimo terrestre"],
+        "probability": "alta"
+      },
+      "urbanismo_planificacion": {
+        "name": "Urbanismo y Planificación",
+        "cpv_codes": [
+          {"code": "71400000-2", "name": "Servicios de planificación urbana y de arquitectura paisajística"},
+          {"code": "71410000-5", "name": "Servicios de planificación urbana"},
+          {"code": "71420000-8", "name": "Servicios de arquitectura paisajística"},
+          {"code": "90712100-2", "name": "Planificación del desarrollo del medio urbano"}
+        ],
+        "keywords_ppt": ["PGOU", "planeamiento", "catastro", "parcelario", "ortofoto urbana", "modelo 3D ciudad", "smart city", "cartografía municipal", "SIG", "GIS", "IDE", "actualización cartográfica"],
+        "probability": "media-alta"
+      },
+      "minas_canteras": {
+        "name": "Minería y Canteras",
+        "cpv_codes": [
+          {"code": "45254000-9", "name": "Trabajos de construcción de minas y canteras"},
+          {"code": "45254100-0", "name": "Trabajos de construcción de minas"},
+          {"code": "45254110-3", "name": "Trabajos de construcción de bocaminas"},
+          {"code": "45254200-1", "name": "Trabajos de construcción de canteras"},
+          {"code": "71351000-3", "name": "Servicios de prospección geológica, geofísica y otros"},
+          {"code": "71351500-8", "name": "Servicios de estudio de suelos"},
+          {"code": "14000000-1", "name": "Productos de minería, metales básicos y productos conexos"}
+        ],
+        "keywords_ppt": ["cubicación", "volumen acopios", "control stock", "avance excavación", "frente cantera", "estabilidad taludes", "topografía mina", "modelo terreno", "restauración minera"],
+        "probability": "muy alta"
+      },
+      "vertederos_residuos": {
+        "name": "Vertederos y Gestión de Residuos",
+        "cpv_codes": [
+          {"code": "90500000-2", "name": "Servicios de eliminación y tratamiento de residuos"},
+          {"code": "90510000-5", "name": "Eliminación y tratamiento de residuos"},
+          {"code": "90511000-2", "name": "Servicios de recogida de residuos"},
+          {"code": "90512000-9", "name": "Servicios de transporte de residuos"},
+          {"code": "90513000-6", "name": "Servicios de tratamiento y eliminación de residuos urbanos no peligrosos"},
+          {"code": "90514000-3", "name": "Servicios de reciclado de residuos"},
+          {"code": "90520000-8", "name": "Servicios de eliminación de residuos radiactivos, tóxicos, médicos y peligrosos"},
+          {"code": "90530000-1", "name": "Explotación de un vertedero"},
+          {"code": "90531000-8", "name": "Servicios de gestión de vertederos"}
+        ],
+        "keywords_ppt": ["cubicación vertedero", "volumen residuos", "cota vertido", "control capacidad", "seguimiento sellado", "restauración vertedero", "topografía vertedero", "modelo digital", "balance masas"],
+        "probability": "alta"
+      },
+      "defensa_militar": {
+        "name": "Defensa y Aplicaciones Militares",
+        "cpv_codes": [
+          {"code": "35000000-4", "name": "Equipo de seguridad, extinción de incendios, policía y defensa"},
+          {"code": "35100000-5", "name": "Equipo de emergencia y de seguridad"},
+          {"code": "35200000-6", "name": "Equipo policial"},
+          {"code": "35300000-7", "name": "Armas, municiones y piezas afines"},
+          {"code": "35400000-8", "name": "Vehículos militares y sus piezas"},
+          {"code": "35500000-9", "name": "Buques de guerra y sus piezas"},
+          {"code": "35600000-0", "name": "Aeronaves militares, misiles y naves espaciales"},
+          {"code": "35610000-3", "name": "Aeronaves militares"},
+          {"code": "35611000-0", "name": "Aviones militares"},
+          {"code": "35611100-1", "name": "Aviones de combate"},
+          {"code": "35611200-2", "name": "Aviones de ataque con base en portaaviones"},
+          {"code": "35611300-3", "name": "Aviones de alerta"},
+          {"code": "35611400-4", "name": "Aviones de transporte militar"},
+          {"code": "35611500-5", "name": "Aviones de entrenamiento militar"},
+          {"code": "35612000-7", "name": "Helicópteros militares"},
+          {"code": "35612100-8", "name": "Helicópteros de combate"},
+          {"code": "35612200-9", "name": "Helicópteros de ataque antisubmarino"},
+          {"code": "35612300-0", "name": "Helicópteros de transporte militar"},
+          {"code": "35612400-1", "name": "Helicópteros de servicio militar"},
+          {"code": "35612500-2", "name": "Helicópteros de entrenamiento militar"},
+          {"code": "35613000-4", "name": "Vehículos aéreos no tripulados"}
+        ],
+        "keywords_ppt": ["reconocimiento", "vigilancia", "ISR", "inteligencia", "target acquisition", "objetivo", "misión", "operación", "simulación", "entrenamiento", "táctica"],
+        "probability": "alta"
+      }
+    }
+  },
+  "keywords_universales": {
+    "description": "Palabras clave que indican alta probabilidad de requerir servicios drone, independientemente del CPV",
+    "keywords_tecnicos": [
+      "dron", "drone", "RPAS", "UAV", "UAS", "aeronave no tripulada", "sistema aéreo no tripulado",
+      "fotogrametría", "ortofoto", "ortofotografía", "ortoimagen", "ortomosaico",
+      "LiDAR", "LIDAR", "láser escáner", "escáner láser", "nube de puntos", "point cloud",
+      "modelo digital terreno", "MDT", "MDE", "MDS", "DEM", "DSM", "DTM",
+      "termografía", "térmico", "infrarrojo", "IR", "cámara térmica", "imagen térmica",
+      "multiespectral", "hiperespectral", "NDVI", "NDRE", "índice vegetación",
+      "topografía aérea", "levantamiento aéreo", "vuelo fotogramétrico",
+      "cartografía aérea", "mapeo aéreo",
+      "inspección aérea", "inspección visual aérea",
+      "vigilancia aérea", "monitorización aérea",
+      "censo aéreo", "conteo aéreo",
+      "reconocimiento aéreo", "prospección aérea",
+      "gemelo digital", "digital twin", "realidad capturada", "reality capture"
+    ],
+    "keywords_regulatorios": [
+      "AESA", "EASA", "espacio aéreo", "zona vuelo", "autorización vuelo", "permiso vuelo",
+      "categoría abierta", "categoría específica", "categoría certificada",
+      "STS-01", "STS-02", "SORA", "ConOps", "PDRA",
+      "BVLOS", "EVLOS", "VLOS", "beyond visual line of sight",
+      "operador UAS", "piloto remoto", "piloto RPAS"
+    ],
+    "keywords_equipamiento": [
+      "multirrotor", "quadcopter", "hexacopter", "octocopter",
+      "ala fija", "fixed wing", "VTOL",
+      "gimbal", "estabilizador", "payload", "carga útil",
+      "RTK", "PPK", "base GNSS", "receptor GNSS",
+      "autopiloto", "controladora vuelo", "flight controller",
+      "GCS", "ground control station", "estación control"
+    ]
+  },
+  "exclusiones": {
+    "description": "CPVs a excluir aunque contengan keywords relevantes (demasiado genéricos o irrelevantes)",
+    "cpv_codes": [
+      "72000000-5",
+      "79000000-4",
+      "85000000-9"
+    ]
+  },
+  "scoring_weights": {
+    "description": "Pesos para el scoring de oportunidades - TALADRO v2",
+    "cpv_nivel_1": 40,
+    "cpv_nivel_2": 20,
+    "keyword_titulo": 15,
+    "keyword_ppt": 25,
+    "plazo_presentacion": {
+      "menos_7_dias": -10,
+      "7_15_dias": 5,
+      "15_30_dias": 10,
+      "mas_30_dias": 0
+    },
+    "presupuesto": {
+      "menos_10k": 5,
+      "10k_50k": 15,
+      "50k_100k": 25,
+      "100k_500k": 35,
+      "mas_500k": 40
+    },
+    "bonus_keywords_multiples": {
+      "description": "Bonus por encontrar múltiples keywords relevantes",
+      "2_keywords": 5,
+      "3_keywords": 10,
+      "4_o_mas_keywords": 15
+    },
+    "bonus_urgencia_partner": {
+      "description": "Bonus si el pliego tiene requisitos que el partner cumple directamente",
+      "formacion_requerida": 10,
+      "suministro_incluido": 15,
+      "mantenimiento_incluido": 10
+    }
+  },
+  "capacidades_partner": {
+    "description": "Capacidades completas del partner para matching",
+    "servicios": [
+      "Formación y certificación AESA",
+      "Piloto aplicador fitosanitario",
+      "Formación radiológica",
+      "Suministro de drones y equipamiento",
+      "Suministro de cargas de pago (cámaras, sensores)",
+      "Inspección técnica con drones",
+      "Topografía y fotogrametría",
+      "Termografía infrarroja",
+      "Agricultura de precisión",
+      "Aplicación fitosanitarios",
+      "Medio ambiente y conservación",
+      "Emergencias y salvamento",
+      "Vigilancia y seguridad",
+      "Audiovisual y producciones",
+      "Patrimonio y arqueología",
+      "Gemelos digitales y BIM",
+      "I+D e innovación",
+      "Mantenimiento de flotas drone",
+      "Operaciones BVLOS",
+      "Operaciones en espacio aéreo controlado"
+    ],
+    "certificaciones": [
+      "Operador UAS registrado AESA",
+      "STS-01 y STS-02",
+      "Piloto aplicador fitosanitario",
+      "Certificaciones fabricante (DJI Enterprise, etc.)"
+    ],
+    "cobertura_geografica": "Nacional (España) + Internacional bajo demanda"
+  }
+}
