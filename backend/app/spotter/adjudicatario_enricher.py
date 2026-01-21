@@ -1426,11 +1426,17 @@ class AdjudicatarioEnricher:
 
                 # Es PYME
                 if 'pyme' in texto_completo:
-                    pyme_match = re.search(r'(?:es\s*)?pyme[:\s]*(sí|si|yes|true|no|false)?', texto_completo, re.I)
+                    pyme_match = re.search(r'(?:es\s*una?\s*)?pyme[:\s]*(sí|si|yes|true|no|false)?', texto_completo, re.I)
                     if pyme_match:
                         valor_pyme = pyme_match.group(1) if pyme_match.group(1) else ''
                         datos['es_pyme'] = valor_pyme.lower() in ['sí', 'si', 'yes', 'true', '']
                         logger.debug(f"Es PYME: {datos['es_pyme']}")
+
+                # País de origen del producto/servicio
+                pais_match = re.search(r'Pa[íi]s\s*(?:Origen|de\s*Origen)[^:]*[:\s]*([A-ZÁÉÍÓÚÑa-záéíóúñ]+)', texto_raw, re.I)
+                if pais_match:
+                    datos['pais_origen'] = pais_match.group(1).strip()
+                    logger.debug(f"País origen: {datos['pais_origen']}")
 
                 # === DATOS DE CONTACTO DEL ADJUDICATARIO (teléfono y email) ===
                 # La estructura típica de PLACSP usa:
@@ -1784,6 +1790,14 @@ class AdjudicatarioEnricher:
                 # Resumen final
                 campos_encontrados = [k for k in datos.keys()]
                 logger.info(f"HTML adjudicación parseado: {len(datos)} campos - {campos_encontrados}")
+
+                # Log datos del adjudicatario extraídos
+                datos_adj = {k: datos.get(k) for k in ['telefono', 'email', 'direccion', 'localidad', 'codigo_postal', 'es_pyme', 'pais_origen'] if datos.get(k)}
+                if datos_adj:
+                    logger.info(f"Datos adjudicatario extraídos: {datos_adj}")
+                else:
+                    logger.warning("No se extrajeron datos de contacto del adjudicatario")
+
                 return datos if datos else None
 
         except Exception as e:

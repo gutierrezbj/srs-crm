@@ -2576,7 +2576,11 @@ async def analisis_rapido_endpoint(
                 "telefono": datos_placsp.get("telefono"),
                 "email": datos_placsp.get("email"),
                 "direccion": datos_placsp.get("direccion"),
+                "localidad": datos_placsp.get("localidad"),
+                "codigo_postal": datos_placsp.get("codigo_postal"),
+                "provincia": datos_placsp.get("provincia"),
                 "es_pyme": datos_placsp.get("es_pyme"),
+                "pais_origen": datos_placsp.get("pais_origen"),
             },
             "datos_organo": {
                 "nombre": datos_placsp.get("organo_contratacion"),
