@@ -425,29 +425,36 @@ export default function Oportunidades({ user }) {
                     { duration: 4000 }
                 );
 
-                // Si hay competidores, mostrar resumen con ellos
-                if (empresas_competidoras && empresas_competidoras.length > 0) {
-                    setResumenOperador({
-                        oportunidad_id: oportunidadId,
-                        ref_code: oportunidad?.ref_code,
-                        organismo: oportunidad?.adjudicatario || oportunidad?.organo_contratacion || "Organismo",
-                        objeto: oportunidad?.objeto || "",
-                        importe: oportunidad?.importe,
-                        adjudicatario: oportunidad?.adjudicatario,
-                        nif: oportunidad?.nif,
-                        organo_contratacion: oportunidad?.organo_contratacion,
-                        tiene_it: tiene_componente_it,
-                        nivel_analisis: "rapido",
-                        empresas_competidoras: empresas_competidoras,
-                        datos_adjudicatario: response.data.datos_adjudicatario,
-                        datos_organo: response.data.datos_organo,
-                        url_pliego_tecnico: response.data.url_pliego_tecnico,
-                    });
-                    setResumenOperadorOpen(true);
-                }
+                // Siempre mostrar modal con los resultados
+                setResumenOperador({
+                    oportunidad_id: oportunidadId,
+                    ref_code: oportunidad?.ref_code,
+                    organismo: oportunidad?.adjudicatario || oportunidad?.organo_contratacion || "Organismo",
+                    objeto: oportunidad?.objeto || "",
+                    importe: oportunidad?.importe,
+                    adjudicatario: oportunidad?.adjudicatario,
+                    nif: oportunidad?.nif,
+                    organo_contratacion: oportunidad?.organo_contratacion,
+                    tiene_it: tiene_componente_it,
+                    nivel_analisis: "rapido",
+                    empresas_competidoras: empresas_competidoras || [],
+                    datos_adjudicatario: response.data.datos_adjudicatario,
+                    datos_organo: response.data.datos_organo,
+                    url_pliego_tecnico: response.data.url_pliego_tecnico,
+                });
+                setResumenOperadorOpen(true);
 
-                // Refrescar lista en background
-                fetchOportunidades();
+                // Actualizar solo esta oportunidad localmente (sin recargar toda la lista)
+                setOportunidades(prev => prev.map(op =>
+                    op.oportunidad_id === oportunidadId
+                        ? {
+                            ...op,
+                            tiene_componente_it,
+                            empresas_competidoras: empresas_competidoras || [],
+                            analisis_rapido: response.data
+                        }
+                        : op
+                ));
             }
         } catch (error) {
             toast.error(error.response?.data?.detail || "Error en análisis rápido");
