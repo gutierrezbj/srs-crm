@@ -584,11 +584,13 @@ export default function Oportunidades({ user }) {
         try {
             // Crear un lead directamente desde la empresa competidora
             const leadData = {
-                nombre_empresa: empresa.nombre,
-                nif: empresa.nif,
-                fuente: "Licitación",
-                notas: `Empresa que participó en licitación (puntuación: ${empresa.puntuacion || 'N/A'} pts). Posible cliente potencial - no ganaron la adjudicación.`,
-                stage: "nuevo"
+                empresa: empresa.nombre,
+                contacto: "Por identificar",
+                email: "",  // Se enriquecerá después
+                telefono: "",
+                fuente: "Licitación perdida",
+                notas: `NIF: ${empresa.nif || 'No disponible'}. ${empresa.importe_oferta ? `Oferta: ${empresa.importe_oferta}€.` : ''} ${empresa.puntuacion ? `Puntuación: ${empresa.puntuacion} pts.` : ''} Empresa que participó en licitación pero no ganó - posible cliente potencial.`,
+                etapa: "nuevo"
             };
 
             const response = await axios.post(
