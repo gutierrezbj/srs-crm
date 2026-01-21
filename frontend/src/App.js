@@ -9,6 +9,7 @@ import Pipeline from "@/pages/Pipeline";
 import Reports from "@/pages/Reports";
 import Admin from "@/pages/Admin";
 import Oportunidades from "@/pages/Oportunidades";
+import AnalizarDrones from "@/pages/AnalizarDrones";
 import Layout from "@/components/Layout";
 import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/context/ThemeContext";
@@ -189,6 +190,18 @@ function AppRouter() {
             {({ user }) => (
               <Layout user={user}>
                 <Admin user={user} />
+              </Layout>
+            )}
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/analizar-drones"
+        element={
+          <ProtectedRoute>
+            {({ user }) => (
+              <Layout user={user}>
+                <AnalizarDrones user={user} />
               </Layout>
             )}
           </ProtectedRoute>
