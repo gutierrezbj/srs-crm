@@ -2512,6 +2512,12 @@ async def analisis_rapido_endpoint(
             nif_adjudicatario=nif
         )
 
+        # Log de diagnóstico: qué datos tenemos de PLACSP
+        logger.info(f"PLACSP retornó {len(datos_placsp)} campos: {list(datos_placsp.keys())}")
+        logger.info(f"  - nombre_comercial: {datos_placsp.get('nombre_comercial', 'NO')}")
+        logger.info(f"  - html_adjudicacion_url: {'SÍ' if datos_placsp.get('html_adjudicacion_url') else 'NO'}")
+        logger.info(f"  - email: {datos_placsp.get('email', 'NO')}")
+
         # Extraer competidores - el PDF del Acta de Resolución está DENTRO del HTML de adjudicación
         empresas_competidoras = None
         pdf_acta_url = datos_placsp.get("pdf_acta_resolucion_url")
@@ -2522,10 +2528,27 @@ async def analisis_rapido_endpoint(
             logger.info("Parseando HTML de adjudicación para extraer datos detallados...")
             datos_html = await enricher._parse_html_adjudicacion(datos_placsp["html_adjudicacion_url"])
             if datos_html:
-                # Mezclar datos del HTML con datos_placsp (el HTML tiene prioridad para datos del adjudicatario)
+                # Campos del adjudicatario donde el HTML tiene PRIORIDAD sobre la página principal
+                # El HTML de adjudicación es la fuente más fiable para estos datos
+                campos_prioridad_html = {
+                    'nombre_comercial', 'nif_verificado', 'telefono', 'email',
+                    'direccion', 'codigo_postal', 'localidad', 'es_pyme', 'pais_origen',
+                    'importe_sin_iva', 'importe_con_iva', 'motivacion_adjudicacion',
+                    'fecha_adjudicacion', 'numero_ofertas', 'ofertas_pymes',
+                    'precio_oferta_baja', 'precio_oferta_alta'
+                }
+
                 logger.info(f"Datos extraídos del HTML: {list(datos_html.keys())}")
                 for key, value in datos_html.items():
-                    if value and (key not in datos_placsp or not datos_placsp[key]):
+                    if not value:
+                        continue
+                    # Para campos prioritarios: SIEMPRE sobrescribir si el HTML tiene un valor válido
+                    if key in campos_prioridad_html:
+                        if datos_placsp.get(key) != value:
+                            logger.info(f"HTML prioridad: {key}={str(value)[:50]}... (antes: {str(datos_placsp.get(key))[:30]})")
+                        datos_placsp[key] = value
+                    # Para otros campos: solo añadir si no existe o está vacío
+                    elif key not in datos_placsp or not datos_placsp[key]:
                         datos_placsp[key] = value
                         logger.debug(f"Añadido desde HTML: {key}={str(value)[:50]}...")
 
@@ -2533,6 +2556,8 @@ async def analisis_rapido_endpoint(
                 if datos_html.get("pdf_acta_resolucion_url"):
                     pdf_acta_url = datos_html["pdf_acta_resolucion_url"]
                     logger.info(f"PDF Acta encontrado en HTML: {pdf_acta_url[:80]}...")
+        else:
+            logger.warning(f"⚠️ No se encontró html_adjudicacion_url - los datos del adjudicatario pueden ser incompletos")
 
         # Extraer competidores del PDF del Acta de Resolución (fuente principal)
         if pdf_acta_url:
