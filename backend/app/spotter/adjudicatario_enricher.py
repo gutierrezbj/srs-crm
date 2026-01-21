@@ -1438,24 +1438,26 @@ class AdjudicatarioEnricher:
                     datos['pais_origen'] = pais_match.group(1).strip()
                     logger.debug(f"País origen: {datos['pais_origen']}")
 
-                # === DATOS DE CONTACTO DEL ADJUDICATARIO (teléfono y email) ===
-                # La estructura típica de PLACSP usa:
-                # - Sección "Adjudicatario" seguida de datos
-                # - "→" como bullet points
-                # - Labels como "Teléfono", "Correo Electrónico", "Dirección Física"
+                # === DATOS COMPLETOS DEL ADJUDICATARIO ===
+                # Estructura típica del HTML de PLACSP:
+                # - Sección "Adjudicatario" con nombre, NIF, es PYME, país origen
+                # - Subsección "Dirección Física" con calle y CP/localidad
+                # - Subsección "Contacto" con teléfono y email
+                # - Sección "Importes de Adjudicación" con importes sin/con IVA
+                # - Sección "Motivación" con razón de adjudicación
+                # - Sección "Información Sobre las Ofertas" con estadísticas
 
-                # MÉTODO PRINCIPAL: Buscar en la sección entre "Adjudicatario" y la siguiente sección
-                # (típicamente "Importes de Adjudicación" o "Entidad Adjudicadora")
+                # MÉTODO PRINCIPAL: Buscar sección Adjudicatario (hasta Importes)
                 adj_section_match = re.search(
-                    r'Adjudicatario.*?(?=Importes|Entidad\s*Adjudicadora|Motivación|Información|$)',
+                    r'Adjudicatario.*?(?=Importes\s*de\s*Adjudicaci[óo]n|Entidad\s*Adjudicadora|Motivaci[óo]n|$)',
                     texto_raw, re.I | re.DOTALL
                 )
 
                 if adj_section_match:
                     adj_text = adj_section_match.group(0)
-                    logger.debug(f"Sección Adjudicatario encontrada: {len(adj_text)} chars")
+                    logger.info(f"Sección Adjudicatario encontrada: {len(adj_text)} chars")
 
-                    # Teléfono del adjudicatario (formato: +34 922276634 o 922276634)
+                    # Teléfono del adjudicatario (en subsección Contacto)
                     tel_patterns = [
                         r'Tel[ée]fono[:\s→]*\+?34?\s*(\d{9}|\d{3}[\s.-]?\d{3}[\s.-]?\d{3})',
                         r'Tel[:\s→]*\+?34?\s*(\d{9})',
@@ -1470,46 +1472,113 @@ class AdjudicatarioEnricher:
                                 logger.info(f"✓ Teléfono adjudicatario: {tel}")
                                 break
 
-                    # Email del adjudicatario (formato: Correo Electrónico domaser@domasercanaria.com)
-                    email_patterns = [
+                    # Email del adjudicatario (en subsección Contacto)
+                    # IMPORTANTE: Buscar específicamente después de "Correo Electrónico"
+                    email_match = re.search(
                         r'Correo\s*Electr[óo]nico[:\s→]*([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})',
-                        r'(?:Email|E-mail)[:\s→]*([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})',
-                        r'→\s*([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})',
-                    ]
-                    for pattern in email_patterns:
-                        email_match = re.search(pattern, adj_text, re.I)
-                        if email_match:
-                            email = email_match.group(1)
-                            if not any(x in email.lower() for x in ['noreply', 'no-reply', 'example', 'contratacion']):
-                                datos['email'] = email
-                                logger.info(f"✓ Email adjudicatario: {email}")
-                                break
+                        adj_text, re.I
+                    )
+                    if email_match:
+                        email = email_match.group(1)
+                        if not any(x in email.lower() for x in ['noreply', 'no-reply', 'example']):
+                            datos['email'] = email
+                            logger.info(f"✓ Email adjudicatario: {email}")
 
                     # Dirección Física del adjudicatario
-                    # Formato típico: "Dirección Física → ACCESO AUTOPISTA, LA HIDALGA, Nº14, → (38550) ARAFO España"
-                    dir_patterns = [
-                        r'Direcci[óo]n\s*F[íi]sica[:\s→]*([^→\n]+(?:→[^→\n]+)*)',
-                        r'Direcci[óo]n[:\s→]*([A-Z][^→\n]{10,80})',
-                        r'→\s*((?:CALLE|AVENIDA|ACCESO|PLAZA|PASEO|C/)[^→\n]+)',
-                    ]
-                    for pattern in dir_patterns:
-                        dir_match = re.search(pattern, adj_text, re.I)
-                        if dir_match:
-                            direccion = dir_match.group(1).strip()
-                            # Limpiar múltiples → y espacios
-                            direccion = re.sub(r'→\s*', ', ', direccion)
-                            direccion = re.sub(r',\s*,', ',', direccion).strip(' ,')
-                            if len(direccion) > 10:
-                                datos['direccion'] = direccion
-                                logger.info(f"✓ Dirección adjudicatario: {direccion[:60]}...")
-                                break
+                    # Formato: "Dirección Física → Camino Cerro De los Gamos, 1 → (28224) Pozuelo..."
+                    dir_section = re.search(
+                        r'Direcci[óo]n\s*F[íi]sica[:\s→]*(.*?)(?=Contacto|Importes|Motivaci|$)',
+                        adj_text, re.I | re.DOTALL
+                    )
+                    if dir_section:
+                        dir_text = dir_section.group(1)
+                        # Extraer la calle (primera línea después de Dirección Física)
+                        calle_match = re.search(r'→?\s*([A-Za-záéíóúñÁÉÍÓÚÑ][^→\n]{5,80}?)(?=→|\n|$)', dir_text)
+                        if calle_match:
+                            calle = calle_match.group(1).strip()
+                            # Evitar capturar el CP como dirección
+                            if not re.match(r'^\(\d{5}\)', calle):
+                                datos['direccion'] = calle
+                                logger.info(f"✓ Dirección adjudicatario: {calle}")
 
-                    # Código postal y localidad (formato: (38550) ARAFO)
-                    cp_match = re.search(r'\((\d{5})\)\s*([A-ZÁÉÍÓÚÑa-záéíóúñ\s]+?)(?:\s*España)?(?:→|$|\n)', adj_text)
+                    # Código postal y localidad (formato: (28224) Pozuelo de Alarcón)
+                    cp_match = re.search(r'\((\d{5})\)\s*([A-ZÁÉÍÓÚÑa-záéíóúñ\s]+?)(?:\s*España)?(?:→|<|$|\n)', adj_text)
                     if cp_match:
                         datos['codigo_postal'] = cp_match.group(1)
                         datos['localidad'] = cp_match.group(2).strip()
-                        logger.debug(f"CP: {datos['codigo_postal']}, Localidad: {datos['localidad']}")
+                        logger.info(f"✓ CP/Localidad: {datos['codigo_postal']} {datos['localidad']}")
+
+                # === IMPORTES DE ADJUDICACIÓN ===
+                importes_section = re.search(
+                    r'Importes\s*de\s*Adjudicaci[óo]n.*?(?=Motivaci[óo]n|Informaci[óo]n|Entidad|$)',
+                    texto_raw, re.I | re.DOTALL
+                )
+                if importes_section:
+                    imp_text = importes_section.group(0)
+
+                    # Importe sin impuestos
+                    sin_iva = re.search(r'sin\s*impuestos[:\s→]*([\d.,]+)\s*EUR', imp_text, re.I)
+                    if sin_iva:
+                        datos['importe_sin_iva'] = sin_iva.group(1)
+                        logger.info(f"✓ Importe sin IVA: {datos['importe_sin_iva']} EUR")
+
+                    # Importe con impuestos
+                    con_iva = re.search(r'con\s*impuestos[:\s→]*([\d.,]+)\s*EUR', imp_text, re.I)
+                    if con_iva:
+                        datos['importe_con_iva'] = con_iva.group(1)
+                        logger.info(f"✓ Importe con IVA: {datos['importe_con_iva']} EUR")
+
+                # === MOTIVACIÓN DE LA ADJUDICACIÓN ===
+                motivacion_section = re.search(
+                    r'Motivaci[óo]n.*?(?=Informaci[óo]n|Entidad|$)',
+                    texto_raw, re.I | re.DOTALL
+                )
+                if motivacion_section:
+                    mot_text = motivacion_section.group(0)
+
+                    # Razón de la adjudicación
+                    motivo = re.search(r'Motivaci[óo]n[:\s→]*([A-Za-záéíóúñÁÉÍÓÚÑ][^→\n]{5,100})', mot_text, re.I)
+                    if motivo:
+                        datos['motivacion_adjudicacion'] = motivo.group(1).strip()
+                        logger.info(f"✓ Motivación: {datos['motivacion_adjudicacion']}")
+
+                    # Fecha del acuerdo
+                    fecha_acuerdo = re.search(r'Fecha\s*del\s*Acuerdo[:\s→]*(\d{1,2}/\d{1,2}/\d{4})', mot_text, re.I)
+                    if fecha_acuerdo:
+                        datos['fecha_adjudicacion'] = fecha_acuerdo.group(1)
+                        logger.info(f"✓ Fecha acuerdo: {datos['fecha_adjudicacion']}")
+
+                # === INFORMACIÓN SOBRE LAS OFERTAS ===
+                ofertas_section = re.search(
+                    r'Informaci[óo]n\s*[Ss]obre\s*las\s*[Oo]fertas.*?(?=Entidad|$)',
+                    texto_raw, re.I | re.DOTALL
+                )
+                if ofertas_section:
+                    of_text = ofertas_section.group(0)
+
+                    # Número de ofertas recibidas
+                    ofertas_recibidas = re.search(r'Ofertas\s*recibidas[:\s→]*(\d+)', of_text, re.I)
+                    if ofertas_recibidas:
+                        datos['numero_ofertas'] = int(ofertas_recibidas.group(1))
+                        logger.info(f"✓ Ofertas recibidas: {datos['numero_ofertas']}")
+
+                    # Ofertas de PYMEs
+                    pymes = re.search(r'(?:ofertas\s*)?(?:recibidas\s*)?(?:de\s*)?PYMEs?[:\s→]*(\d+)', of_text, re.I)
+                    if pymes:
+                        datos['ofertas_pymes'] = int(pymes.group(1))
+                        logger.info(f"✓ Ofertas PYMEs: {datos['ofertas_pymes']}")
+
+                    # Precio oferta más baja
+                    precio_bajo = re.search(r'(?:Precio|oferta)\s*m[áa]s\s*baja[:\s→]*([\d.,]+)\s*EUR', of_text, re.I)
+                    if precio_bajo:
+                        datos['precio_oferta_baja'] = precio_bajo.group(1)
+                        logger.info(f"✓ Precio más bajo: {datos['precio_oferta_baja']} EUR")
+
+                    # Precio oferta más alta
+                    precio_alto = re.search(r'(?:Precio|oferta)\s*m[áa]s\s*alta[:\s→]*([\d.,]+)\s*EUR', of_text, re.I)
+                    if precio_alto:
+                        datos['precio_oferta_alta'] = precio_alto.group(1)
+                        logger.info(f"✓ Precio más alto: {datos['precio_oferta_alta']} EUR")
 
                 # Si no encontramos con el método principal, intentar patrones globales
                 if not datos.get('telefono'):

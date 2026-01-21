@@ -2581,6 +2581,9 @@ async def analisis_rapido_endpoint(
                 "provincia": datos_placsp.get("provincia"),
                 "es_pyme": datos_placsp.get("es_pyme"),
                 "pais_origen": datos_placsp.get("pais_origen"),
+                # Nuevos campos de importes
+                "importe_sin_iva": datos_placsp.get("importe_sin_iva"),
+                "importe_con_iva": datos_placsp.get("importe_con_iva"),
             },
             "datos_organo": {
                 "nombre": datos_placsp.get("organo_contratacion"),
@@ -2588,6 +2591,14 @@ async def analisis_rapido_endpoint(
                 "email": datos_placsp.get("organo_email"),
                 "direccion": datos_placsp.get("organo_direccion"),
                 "localidad": datos_placsp.get("organo_localidad"),
+            },
+            # Información adicional de la adjudicación
+            "info_adjudicacion": {
+                "motivacion": datos_placsp.get("motivacion_adjudicacion"),
+                "fecha_acuerdo": datos_placsp.get("fecha_adjudicacion"),
+                "ofertas_pymes": datos_placsp.get("ofertas_pymes"),
+                "precio_oferta_baja": datos_placsp.get("precio_oferta_baja"),
+                "precio_oferta_alta": datos_placsp.get("precio_oferta_alta"),
             },
             "cpv": cpv,
             "num_ofertas": datos_placsp.get("numero_ofertas"),
