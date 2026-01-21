@@ -1822,12 +1822,15 @@ class AdjudicatarioEnricher:
 
                 competidores = []
                 nif_ganador_upper = nif_ganador.upper() if nif_ganador else ""
+                logger.info(f"PDF Acta descargado: {len(response.content)} bytes, NIF ganador a excluir: {nif_ganador_upper}")
 
                 try:
                     with pdfplumber.open(tmp_path) as pdf:
-                        for page in pdf.pages:
+                        logger.info(f"PDF tiene {len(pdf.pages)} páginas")
+                        for page_num, page in enumerate(pdf.pages):
                             # Intentar extraer tablas
                             tables = page.extract_tables()
+                            logger.info(f"Página {page_num+1}: {len(tables)} tablas encontradas")
 
                             for table in tables:
                                 if not table:
@@ -1884,6 +1887,9 @@ class AdjudicatarioEnricher:
                             if not competidores:
                                 text = page.extract_text()
                                 if text:
+                                    # Log primeras líneas del texto para debug
+                                    preview = text[:500].replace('\n', ' | ')
+                                    logger.info(f"Texto extraído de página {page_num+1} (preview): {preview}...")
                                     lines = text.split('\n')
 
                                     # MÉTODO A: Buscar patrón "NOMBRE EMPRESA (NIF)" o "NOMBRE (NIF)"
