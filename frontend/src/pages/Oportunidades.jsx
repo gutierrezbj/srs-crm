@@ -34,7 +34,8 @@ import {
     Sparkles,
     Ban,
     Users,
-    Trophy
+    Trophy,
+    UserCircle
 } from "lucide-react";
 import {
     Tooltip,
@@ -78,6 +79,13 @@ import {
     DialogTitle,
     DialogDescription,
 } from "@/components/ui/dialog";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+    DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -144,7 +152,13 @@ export default function Oportunidades({ user }) {
     const [loadingResumen, setLoadingResumen] = useState(false);
     const [enrichingAdjudicatario, setEnrichingAdjudicatario] = useState(false);
     const [analyzingPliego, setAnalyzingPliego] = useState({});
+    const [analyzingRapido, setAnalyzingRapido] = useState({});
     const [analisisPliego, setAnalisisPliego] = useState(null);
+    const [searchQuery, setSearchQuery] = useState("");
+    const [asignacionFilter, setAsignacionFilter] = useState("all"); // all, mis, sin_asignar
+    const [asignando, setAsignando] = useState({});
+    const [usuarios, setUsuarios] = useState([]);
+    const [asignacionMenuOpen, setAsignacionMenuOpen] = useState(null); // oportunidad_id del menu abierto
 
     const fetchOportunidades = useCallback(async () => {
         try {
@@ -177,9 +191,21 @@ export default function Oportunidades({ user }) {
         }
     };
 
+    const fetchUsuarios = async () => {
+        try {
+            const response = await axios.get(`${API}/users`, {
+                withCredentials: true
+            });
+            setUsuarios(response.data);
+        } catch (error) {
+            console.error("Error fetching usuarios:", error);
+        }
+    };
+
     useEffect(() => {
         fetchOportunidades();
         fetchTiposSrs();
+        fetchUsuarios();
     }, [fetchOportunidades]);
 
     const handleConvertToLead = async () => {
@@ -313,18 +339,29 @@ export default function Oportunidades({ user }) {
     };
 
     const handleAnalyzePliego = async (oportunidadId) => {
+        console.log("[DEBUG] handleAnalyzePliego called with:", oportunidadId);
+
+        if (!oportunidadId) {
+            console.error("[ERROR] oportunidadId is undefined/null");
+            toast.error("Error: ID de oportunidad no válido");
+            return;
+        }
+
         setAnalyzingPliego(prev => ({ ...prev, [oportunidadId]: true }));
         toast.info("Analizando pliego... Esto puede tardar 30-60 segundos", { duration: 5000 });
 
         // Buscar la oportunidad para obtener datos del organismo
         const oportunidad = oportunidades.find(o => o.oportunidad_id === oportunidadId);
+        console.log("[DEBUG] Found oportunidad:", oportunidad ? "yes" : "no");
 
         try {
+            console.log("[DEBUG] Calling API:", `${API}/oportunidades/${oportunidadId}/analizar-pliego`);
             const response = await axios.post(
                 `${API}/oportunidades/${oportunidadId}/analizar-pliego`,
                 {},
-                { withCredentials: true, timeout: 180000 } // 3 min timeout para análisis largos
+                { withCredentials: true, timeout: 330000 } // 5.5 min timeout para PDFs grandes
             );
+            console.log("[DEBUG] API response:", response.status);
 
             if (response.data.success) {
                 const analisis = response.data.analisis;
@@ -340,6 +377,7 @@ export default function Oportunidades({ user }) {
                 setResumenOperador({
                     ...analisis.resumen_operador,
                     oportunidad_id: oportunidadId,
+                    ref_code: oportunidad?.ref_code,
                     organismo: oportunidad?.adjudicatario || oportunidad?.organo_contratacion || "Organismo",
                     objeto: oportunidad?.objeto || "",
                     importe: oportunidad?.importe || analisis.importe,
@@ -368,6 +406,11 @@ export default function Oportunidades({ user }) {
                 setAnalyzingPliego(prev => ({ ...prev, [oportunidadId]: false }));
             }
         } catch (error) {
+            console.error("[DEBUG] Error full:", error);
+            console.error("[DEBUG] Error response:", error.response);
+            console.error("[DEBUG] Error code:", error.code);
+            console.error("[DEBUG] Error message:", error.message);
+
             if (error.code === 'ECONNABORTED') {
                 toast.error("Timeout: El análisis tardó demasiado. Inténtalo de nuevo.");
             } else {
@@ -375,6 +418,73 @@ export default function Oportunidades({ user }) {
             }
             console.error("Error analyzing pliego:", error);
             setAnalyzingPliego(prev => ({ ...prev, [oportunidadId]: false }));
+        }
+    };
+
+    // Análisis rápido Level 1 (~5 segundos) - solo extracción sin IA
+    const handleAnalisisRapido = async (oportunidadId) => {
+        if (!oportunidadId) {
+            toast.error("Error: ID de oportunidad no válido");
+            return;
+        }
+
+        setAnalyzingRapido(prev => ({ ...prev, [oportunidadId]: true }));
+        toast.info("Análisis rápido en progreso...", { duration: 3000 });
+
+        const oportunidad = oportunidades.find(o => o.oportunidad_id === oportunidadId);
+
+        try {
+            const response = await axios.post(
+                `${API}/oportunidades/${oportunidadId}/analisis-rapido`,
+                {},
+                { withCredentials: true, timeout: 30000 }
+            );
+
+            if (response.data) {
+                const { tiene_componente_it, num_competidores, empresas_competidoras } = response.data;
+
+                // Mostrar resultado
+                toast.success(
+                    `Análisis rápido completado. IT: ${tiene_componente_it ? "Sí" : "No"}, Competidores: ${num_competidores}`,
+                    { duration: 4000 }
+                );
+
+                // Siempre mostrar modal con los resultados
+                setResumenOperador({
+                    oportunidad_id: oportunidadId,
+                    ref_code: oportunidad?.ref_code,
+                    organismo: oportunidad?.adjudicatario || oportunidad?.organo_contratacion || "Organismo",
+                    objeto: oportunidad?.objeto || "",
+                    importe: oportunidad?.importe,
+                    adjudicatario: oportunidad?.adjudicatario,
+                    nif: oportunidad?.nif,
+                    organo_contratacion: oportunidad?.organo_contratacion,
+                    tiene_it: tiene_componente_it,
+                    nivel_analisis: "rapido",
+                    empresas_competidoras: empresas_competidoras || [],
+                    datos_adjudicatario: response.data.datos_adjudicatario,
+                    datos_organo: response.data.datos_organo,
+                    url_pliego_tecnico: response.data.url_pliego_tecnico,
+                });
+                setResumenOperadorOpen(true);
+
+                // Actualizar solo esta oportunidad localmente (sin recargar toda la lista)
+                setOportunidades(prev => prev.map(op =>
+                    op.oportunidad_id === oportunidadId
+                        ? {
+                            ...op,
+                            tiene_componente_it,
+                            empresas_competidoras: empresas_competidoras || [],
+                            analisis_rapido: response.data
+                        }
+                        : op
+                ));
+            }
+        } catch (error) {
+            toast.error(error.response?.data?.detail || "Error en análisis rápido");
+            console.error("Error en análisis rápido:", error);
+        } finally {
+            setAnalyzingRapido(prev => ({ ...prev, [oportunidadId]: false }));
         }
     };
 
@@ -410,6 +520,7 @@ export default function Oportunidades({ user }) {
             setResumenOperador({
                 ...oportunidad.analisis_pliego.resumen_operador,
                 oportunidad_id: oportunidad.oportunidad_id,
+                ref_code: oportunidad.ref_code,
                 organismo: oportunidad.adjudicatario || oportunidad.organo_contratacion || "Organismo",
                 objeto: oportunidad.objeto,
                 importe: oportunidad.importe,
@@ -504,11 +615,13 @@ export default function Oportunidades({ user }) {
         try {
             // Crear un lead directamente desde la empresa competidora
             const leadData = {
-                nombre_empresa: empresa.nombre,
-                nif: empresa.nif,
-                fuente: "Licitación",
-                notas: `Empresa que participó en licitación (puntuación: ${empresa.puntuacion || 'N/A'} pts). Posible cliente potencial - no ganaron la adjudicación.`,
-                stage: "nuevo"
+                empresa: empresa.nombre,
+                contacto: "Por identificar",
+                email: "",  // Se enriquecerá después
+                telefono: "",
+                fuente: "Licitación perdida",
+                notas: `NIF: ${empresa.nif || 'No disponible'}. ${empresa.importe_oferta ? `Oferta: ${empresa.importe_oferta}€.` : ''} ${empresa.puntuacion ? `Puntuación: ${empresa.puntuacion} pts.` : ''} Empresa que participó en licitación pero no ganó - posible cliente potencial.`,
+                etapa: "nuevo"
             };
 
             const response = await axios.post(
@@ -559,18 +672,100 @@ export default function Oportunidades({ user }) {
         });
     };
 
+    // Asignar oportunidad a un usuario específico
+    const handleAsignar = async (oportunidadId, selectedUser) => {
+        setAsignando(prev => ({ ...prev, [oportunidadId]: true }));
+        setAsignacionMenuOpen(null);
+
+        try {
+            const payload = selectedUser
+                ? { user_id: selectedUser.email, nombre: selectedUser.name }
+                : { user_id: null, nombre: null };  // Desasignar
+
+            await axios.patch(
+                `${API}/oportunidades/${oportunidadId}/asignar`,
+                payload,
+                { withCredentials: true }
+            );
+
+            // Actualizar localmente
+            setOportunidades(prev => prev.map(op =>
+                op.oportunidad_id === oportunidadId
+                    ? {
+                        ...op,
+                        asignado_a: selectedUser?.email || null,
+                        asignado_nombre: selectedUser?.name || null,
+                        fecha_asignacion: selectedUser ? new Date().toISOString() : null
+                    }
+                    : op
+            ));
+
+            toast.success(selectedUser ? `Asignado a ${selectedUser.name}` : "Oportunidad desasignada");
+        } catch (error) {
+            toast.error("Error al asignar oportunidad");
+            console.error("Error asignando:", error);
+        } finally {
+            setAsignando(prev => ({ ...prev, [oportunidadId]: false }));
+        }
+    };
+
+    // Obtener iniciales del nombre
+    const getInitials = (nombre) => {
+        if (!nombre) return "?";
+        const parts = nombre.split(' ').filter(Boolean);
+        if (parts.length >= 2) {
+            return (parts[0][0] + parts[1][0]).toUpperCase();
+        }
+        return nombre.substring(0, 2).toUpperCase();
+    };
+
+    // Abreviar tipos SRS para ahorrar espacio
+    const abreviarTipoSrs = (tipo) => {
+        if (!tipo) return "-";
+        return tipo
+            .replace(/Fotovoltaica/gi, "FV")
+            .replace(/Infraestructura/gi, "Infra");
+    };
+
     const clearFilters = () => {
         setTipoSrsFilter("all");
         setEstadoRevisionFilter("all");
+        setSearchQuery("");
+        setAsignacionFilter("all");
     };
 
-    const hasFilters = tipoSrsFilter !== "all" || estadoRevisionFilter !== "all";
+    const hasFilters = tipoSrsFilter !== "all" || estadoRevisionFilter !== "all" || searchQuery !== "" || asignacionFilter !== "all";
 
-    // Filtrar oportunidades por estado de revisión (cliente-side)
+    // Filtrar oportunidades por estado de revisión y búsqueda (cliente-side)
     const filteredOportunidades = oportunidades.filter(o => {
-        if (estadoRevisionFilter === "all") return true;
-        const estado = o.estado_revision || "nueva";
-        return estado === estadoRevisionFilter;
+        // Filtro por estado
+        if (estadoRevisionFilter !== "all") {
+            const estado = o.estado_revision || "nueva";
+            if (estado !== estadoRevisionFilter) return false;
+        }
+
+        // Filtro por búsqueda (ref_code, adjudicatario, objeto, NIF)
+        if (searchQuery) {
+            const query = searchQuery.toLowerCase().trim();
+            const refCode = (o.ref_code || "").toLowerCase();
+            const adjudicatario = (o.adjudicatario || "").toLowerCase();
+            const objeto = (o.objeto || "").toLowerCase();
+            const nif = (o.nif || "").toLowerCase();
+
+            // Buscar coincidencia en cualquiera de los campos
+            if (!refCode.includes(query) &&
+                !adjudicatario.includes(query) &&
+                !objeto.includes(query) &&
+                !nif.includes(query)) {
+                return false;
+            }
+        }
+
+        // Filtro por asignación
+        if (asignacionFilter === "mis" && o.asignado_a !== user?.email) return false;
+        if (asignacionFilter === "sin_asignar" && o.asignado_a) return false;
+
+        return true;
     });
 
     // Stats (sobre datos filtrados)
@@ -722,10 +917,19 @@ export default function Oportunidades({ user }) {
             <Card className="theme-bg-secondary p-4" style={{ border: '1px solid var(--theme-border)' }}>
                 <div className="flex flex-col sm:flex-row gap-4 items-center">
                     <div className="flex items-center gap-2 flex-1">
-                        <Filter className="w-4 h-4 theme-text-muted" />
-                        <span className="theme-text-secondary text-sm">Filtrar por:</span>
+                        <div className="relative w-full max-w-xs">
+                            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 theme-text-muted" />
+                            <Input
+                                placeholder="Buscar por ref, empresa, NIF..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="pl-9 theme-bg-tertiary w-full"
+                                style={{ borderColor: 'var(--theme-border)' }}
+                            />
+                        </div>
                     </div>
-                    <div className="flex gap-2 flex-wrap">
+                    <div className="flex gap-2 flex-wrap items-center">
+                        <Filter className="w-4 h-4 theme-text-muted" />
                         <Select value={tipoSrsFilter} onValueChange={setTipoSrsFilter}>
                             <SelectTrigger
                                 className="w-[200px] theme-bg-tertiary"
@@ -770,6 +974,29 @@ export default function Oportunidades({ user }) {
                                 </SelectItem>
                             </SelectContent>
                         </Select>
+                        <Select value={asignacionFilter} onValueChange={setAsignacionFilter}>
+                            <SelectTrigger
+                                className="w-[160px] theme-bg-tertiary"
+                                style={{ borderColor: 'var(--theme-border)' }}
+                            >
+                                <SelectValue placeholder="Asignación" />
+                            </SelectTrigger>
+                            <SelectContent className="theme-bg-secondary" style={{ borderColor: 'var(--theme-border)' }}>
+                                <SelectItem value="all">Todas</SelectItem>
+                                <SelectItem value="mis">
+                                    <span className="flex items-center gap-2">
+                                        <UserCircle className="w-3 h-3 text-cyan-400" />
+                                        Mis asignadas
+                                    </span>
+                                </SelectItem>
+                                <SelectItem value="sin_asignar">
+                                    <span className="flex items-center gap-2">
+                                        <UserCircle className="w-3 h-3 text-slate-400" />
+                                        Sin asignar
+                                    </span>
+                                </SelectItem>
+                            </SelectContent>
+                        </Select>
                         {hasFilters && (
                             <Button
                                 variant="ghost"
@@ -807,6 +1034,7 @@ export default function Oportunidades({ user }) {
                         <Table>
                             <TableHeader>
                                 <TableRow className="border-b" style={{ borderColor: 'var(--theme-border)' }}>
+                                    <TableHead className="theme-text-secondary font-semibold w-12">Ref</TableHead>
                                     <TableHead className="theme-text-secondary font-semibold">
                                         <div className="flex items-center gap-1">
                                             Score
@@ -825,6 +1053,7 @@ export default function Oportunidades({ user }) {
                                     <TableHead className="theme-text-secondary font-semibold">Días Restantes</TableHead>
                                     <TableHead className="theme-text-secondary font-semibold">Revisión</TableHead>
                                     <TableHead className="theme-text-secondary font-semibold">Lead</TableHead>
+                                    <TableHead className="theme-text-secondary font-semibold">Asignado</TableHead>
                                     <TableHead className="theme-text-secondary font-semibold text-right">Acciones</TableHead>
                                 </TableRow>
                             </TableHeader>
@@ -838,6 +1067,9 @@ export default function Oportunidades({ user }) {
                                         style={{ borderColor: 'var(--theme-border)' }}
                                         data-testid={`oportunidad-row-${oportunidad.oportunidad_id}`}
                                     >
+                                        <TableCell className="font-mono text-sm theme-text-secondary">
+                                            {oportunidad.ref_code || "-"}
+                                        </TableCell>
                                         <TableCell>
                                             <Badge
                                                 className={`${getScoreBadgeClass(oportunidad.score)} shadow-lg font-bold px-3 py-1`}
@@ -921,7 +1153,7 @@ export default function Oportunidades({ user }) {
                                         </TableCell>
                                         <TableCell>
                                             <Badge variant="outline" className="theme-text-secondary" style={{ borderColor: 'var(--theme-border)' }}>
-                                                {oportunidad.tipo_srs}
+                                                {abreviarTipoSrs(oportunidad.tipo_srs)}
                                             </Badge>
                                         </TableCell>
                                         <TableCell>
@@ -984,9 +1216,98 @@ export default function Oportunidades({ user }) {
                                                 </Badge>
                                             )}
                                         </TableCell>
+                                        {/* Asignado */}
+                                        <TableCell>
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        disabled={asignando[oportunidad.oportunidad_id]}
+                                                        className={`w-8 h-8 p-0 rounded-full ${
+                                                            oportunidad.asignado_a === user?.email
+                                                                ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
+                                                                : oportunidad.asignado_a
+                                                                    ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30'
+                                                                    : 'text-slate-500 hover:bg-slate-500/10 border border-transparent'
+                                                        }`}
+                                                        title={oportunidad.asignado_nombre || "Sin asignar"}
+                                                    >
+                                                        {asignando[oportunidad.oportunidad_id] ? (
+                                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                                        ) : oportunidad.asignado_nombre ? (
+                                                            <span className="text-xs font-bold">
+                                                                {getInitials(oportunidad.asignado_nombre)}
+                                                            </span>
+                                                        ) : (
+                                                            <UserCircle className="w-4 h-4" />
+                                                        )}
+                                                    </Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent align="end" className="bg-slate-900 border-slate-700">
+                                                    {oportunidad.asignado_a && (
+                                                        <>
+                                                            <DropdownMenuItem
+                                                                onClick={() => handleAsignar(oportunidad.oportunidad_id, null)}
+                                                                className="text-red-400 focus:text-red-400 focus:bg-red-500/10"
+                                                            >
+                                                                <X className="w-4 h-4 mr-2" />
+                                                                Sin asignar
+                                                            </DropdownMenuItem>
+                                                            <DropdownMenuSeparator className="bg-slate-700" />
+                                                        </>
+                                                    )}
+                                                    {usuarios.map((u) => (
+                                                        <DropdownMenuItem
+                                                            key={u.email}
+                                                            onClick={() => handleAsignar(oportunidad.oportunidad_id, u)}
+                                                            className={`${oportunidad.asignado_a === u.email ? 'bg-cyan-500/10 text-cyan-400' : 'text-slate-300'} focus:bg-slate-800`}
+                                                        >
+                                                            <div className={`w-6 h-6 rounded-full flex items-center justify-center mr-2 text-xs font-bold ${
+                                                                oportunidad.asignado_a === u.email
+                                                                    ? 'bg-cyan-500/20 text-cyan-400'
+                                                                    : 'bg-slate-700 text-slate-400'
+                                                            }`}>
+                                                                {getInitials(u.name)}
+                                                            </div>
+                                                            {u.name}
+                                                            {oportunidad.asignado_a === u.email && (
+                                                                <CheckCircle2 className="w-4 h-4 ml-auto text-cyan-400" />
+                                                            )}
+                                                        </DropdownMenuItem>
+                                                    ))}
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
+                                        </TableCell>
                                         <TableCell className="text-right">
                                             <div className="flex items-center justify-end gap-2">
-                                                {/* Botón Analizar Pliego */}
+                                                {/* Botón Análisis Rápido (Level 1) */}
+                                                <TooltipProvider>
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                onClick={() => handleAnalisisRapido(oportunidad.oportunidad_id)}
+                                                                disabled={analyzingRapido[oportunidad.oportunidad_id]}
+                                                                className={`${oportunidad.empresas_competidoras?.length > 0 ? 'text-amber-400 border-amber-500/30' : 'text-slate-400 border-slate-500/30'} hover:bg-amber-500/10`}
+                                                            >
+                                                                {analyzingRapido[oportunidad.oportunidad_id] ? (
+                                                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                                                ) : (
+                                                                    <Search className="w-4 h-4" />
+                                                                )}
+                                                            </Button>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>
+                                                            {oportunidad.empresas_competidoras?.length > 0
+                                                                ? `Análisis rápido (${oportunidad.empresas_competidoras.length} competidores)`
+                                                                : "Análisis rápido (~5s) - Extrae competidores"}
+                                                        </TooltipContent>
+                                                    </Tooltip>
+                                                </TooltipProvider>
+
+                                                {/* Botón Analizar Pliego (Level 2) */}
                                                 <TooltipProvider>
                                                     <Tooltip>
                                                         <TooltipTrigger asChild>
@@ -1007,7 +1328,7 @@ export default function Oportunidades({ user }) {
                                                         <TooltipContent>
                                                             {oportunidad.analisis_pliego
                                                                 ? "Re-analizar pliego (ya analizado)"
-                                                                : "Analizar pliego completo con IA"}
+                                                                : "Analizar pliego completo con IA (~30-60s)"}
                                                         </TooltipContent>
                                                     </Tooltip>
                                                 </TooltipProvider>
@@ -1105,6 +1426,11 @@ export default function Oportunidades({ user }) {
                         <DialogTitle className="text-white flex items-center gap-2">
                             <Lightbulb className="w-5 h-5 text-yellow-400" />
                             Resumen para el Operador
+                            {resumenOperador?.ref_code && (
+                                <Badge variant="outline" className="ml-2 font-mono text-xs bg-slate-700/50 text-slate-300 border-slate-600">
+                                    #{resumenOperador.ref_code}
+                                </Badge>
+                            )}
                         </DialogTitle>
                         <DialogDescription className="text-slate-400">
                             Información clave para preparar el contacto comercial
@@ -1174,6 +1500,38 @@ export default function Oportunidades({ user }) {
                                         <p className="text-slate-400 text-xs mb-1">NIF</p>
                                         <p className="text-white font-medium">{resumenOperador.nif || "-"}</p>
                                     </div>
+                                    {/* Botones de acción rápida cuando hay datos de contacto */}
+                                    {(resumenOperador.datos_adjudicatario?.email || resumenOperador.email_contacto ||
+                                      resumenOperador.datos_adjudicatario?.telefono || resumenOperador.telefono_contacto) && (
+                                        <div className="flex gap-2 py-2">
+                                            {(resumenOperador.datos_adjudicatario?.telefono || resumenOperador.telefono_contacto) && (
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    className="flex-1 text-cyan-400 border-cyan-500/30 hover:bg-cyan-500/20"
+                                                    asChild
+                                                >
+                                                    <a href={`tel:${resumenOperador.datos_adjudicatario?.telefono || resumenOperador.telefono_contacto}`}>
+                                                        <Phone className="w-4 h-4 mr-2" />
+                                                        Llamar
+                                                    </a>
+                                                </Button>
+                                            )}
+                                            {(resumenOperador.datos_adjudicatario?.email || resumenOperador.email_contacto) && (
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    className="flex-1 text-purple-400 border-purple-500/30 hover:bg-purple-500/20"
+                                                    asChild
+                                                >
+                                                    <a href={`mailto:${resumenOperador.datos_adjudicatario?.email || resumenOperador.email_contacto}`}>
+                                                        <Mail className="w-4 h-4 mr-2" />
+                                                        Email
+                                                    </a>
+                                                </Button>
+                                            )}
+                                        </div>
+                                    )}
                                     {(resumenOperador.datos_adjudicatario?.email || resumenOperador.email_contacto) && (
                                         <div>
                                             <p className="text-slate-400 text-xs mb-1">Email</p>
@@ -1197,6 +1555,13 @@ export default function Oportunidades({ user }) {
                                                 {resumenOperador.datos_adjudicatario?.telefono || resumenOperador.telefono_contacto}
                                             </a>
                                         </div>
+                                    )}
+                                    {/* Mensaje cuando no hay datos de contacto */}
+                                    {!resumenOperador.datos_adjudicatario?.email && !resumenOperador.email_contacto &&
+                                     !resumenOperador.datos_adjudicatario?.telefono && !resumenOperador.telefono_contacto && (
+                                        <p className="text-slate-500 text-xs italic py-2">
+                                            Haz clic en "Buscar datos" para obtener contacto
+                                        </p>
                                     )}
                                     {resumenOperador.datos_adjudicatario?.web && (
                                         <div>
@@ -1265,6 +1630,37 @@ export default function Oportunidades({ user }) {
                                                 {resumenOperador.datos_adjudicatario?.organo_contratacion || resumenOperador.organo_contratacion}
                                             </p>
                                         </div>
+                                        {/* Botones de acción rápida para órgano contratante */}
+                                        {(resumenOperador.datos_adjudicatario?.organo_email || resumenOperador.datos_adjudicatario?.organo_telefono) && (
+                                            <div className="flex gap-2 py-2">
+                                                {resumenOperador.datos_adjudicatario?.organo_telefono && (
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        className="flex-1 text-cyan-400 border-cyan-500/30 hover:bg-cyan-500/20"
+                                                        asChild
+                                                    >
+                                                        <a href={`tel:${resumenOperador.datos_adjudicatario.organo_telefono}`}>
+                                                            <Phone className="w-4 h-4 mr-2" />
+                                                            Llamar
+                                                        </a>
+                                                    </Button>
+                                                )}
+                                                {resumenOperador.datos_adjudicatario?.organo_email && (
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        className="flex-1 text-purple-400 border-purple-500/30 hover:bg-purple-500/20"
+                                                        asChild
+                                                    >
+                                                        <a href={`mailto:${resumenOperador.datos_adjudicatario.organo_email}`}>
+                                                            <Mail className="w-4 h-4 mr-2" />
+                                                            Email
+                                                        </a>
+                                                    </Button>
+                                                )}
+                                            </div>
+                                        )}
                                         {resumenOperador.datos_adjudicatario?.organo_email && (
                                             <div>
                                                 <p className="text-slate-400 text-xs mb-1">Email</p>
@@ -1385,14 +1781,34 @@ export default function Oportunidades({ user }) {
                             </div>
 
                             {/* Documentos Disponibles (si existen) */}
-                            {resumenOperador.datos_adjudicatario?.documentos?.length > 0 && (
+                            {(resumenOperador.datos_adjudicatario?.documentos?.length > 0 ||
+                              resumenOperador.pliegos?.url_pliego_tecnico ||
+                              resumenOperador.datos_adjudicatario?.url_pliego_tecnico ||
+                              (analisisPliego || resumenOperador.analisis_pliego)?.metadata?.url_pliego) && (
                                 <div className="p-4 rounded-lg bg-slate-800/50">
                                     <h3 className="text-slate-300 font-semibold flex items-center gap-2 mb-3">
                                         <FileText className="w-4 h-4" />
                                         Documentos Disponibles
                                     </h3>
                                     <div className="flex flex-wrap gap-2">
-                                        {resumenOperador.datos_adjudicatario.documentos.slice(0, 8).map((doc, idx) => (
+                                        {/* Pliego Técnico Analizado (destacado) */}
+                                        {(resumenOperador.pliegos?.url_pliego_tecnico ||
+                                          resumenOperador.datos_adjudicatario?.url_pliego_tecnico ||
+                                          (analisisPliego || resumenOperador.analisis_pliego)?.metadata?.url_pliego) && (
+                                            <a
+                                                href={resumenOperador.pliegos?.url_pliego_tecnico ||
+                                                      resumenOperador.datos_adjudicatario?.url_pliego_tecnico ||
+                                                      (analisisPliego || resumenOperador.analisis_pliego)?.metadata?.url_pliego}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-xs px-2 py-1 bg-emerald-700 text-emerald-100 rounded hover:bg-emerald-600 flex items-center gap-1 font-medium"
+                                            >
+                                                <FileText className="w-3 h-3" />
+                                                Pliego Técnico (PDF)
+                                            </a>
+                                        )}
+                                        {/* Otros documentos */}
+                                        {resumenOperador.datos_adjudicatario?.documentos?.slice(0, 8).map((doc, idx) => (
                                             <a
                                                 key={idx}
                                                 href={doc.url}
@@ -1572,22 +1988,7 @@ export default function Oportunidades({ user }) {
                                 </div>
                             )}
 
-                            {/* Alertas */}
-                            {resumenOperador.alertas?.length > 0 && (
-                                <div className="p-4 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
-                                    <h3 className="text-yellow-400 font-semibold flex items-center gap-2 mb-2">
-                                        <AlertTriangle className="w-4 h-4" />
-                                        Alertas
-                                    </h3>
-                                    <ul className="space-y-1">
-                                        {resumenOperador.alertas.map((alerta, idx) => (
-                                            <li key={idx} className="text-yellow-200 text-sm">
-                                                ⚠️ {alerta}
-                                            </li>
-                                        ))}
-                                    </ul>
-                                </div>
-                            )}
+{/* Alertas eliminadas - ya se muestran en Oportunidades para SRS */}
 
                             {/* Metadata */}
                             <div className="flex justify-between items-center text-xs text-slate-500 pt-4 border-t border-slate-700">

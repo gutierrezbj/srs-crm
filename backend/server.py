@@ -242,6 +242,10 @@ class OportunidadPLACSPBase(BaseModel):
     estado_revision: str = "nueva"  # nueva, revisada, descartada
     fecha_revision: Optional[datetime] = None
     revisado_por: Optional[str] = None
+    # Asignación de oportunidad
+    asignado_a: Optional[str] = None  # user_id del usuario asignado
+    asignado_nombre: Optional[str] = None  # nombre para mostrar
+    fecha_asignacion: Optional[datetime] = None
     # Pain Score y análisis
     pain_score: Optional[int] = None  # 0-100
     nivel_urgencia: Optional[str] = None  # critico, alto, medio, bajo
@@ -260,6 +264,7 @@ class OportunidadPLACSPCreate(OportunidadPLACSPBase):
 class OportunidadPLACSP(OportunidadPLACSPBase):
     model_config = ConfigDict(extra="ignore")
     oportunidad_id: str
+    ref_code: Optional[str] = None  # Código corto de referencia: "01", "02", etc.
 
 class OportunidadSpotterImport(BaseModel):
     oportunidades: List[OportunidadPLACSPCreate]
@@ -1562,10 +1567,63 @@ async def delete_user(user_id: str, current_user: UserResponse = Depends(get_cur
 
 # ============== OPORTUNIDADES ROUTES ==============
 
+async def get_next_ref_code() -> str:
+    """Genera el siguiente ref_code secuencial (01, 02, ... 99, 100, ...)"""
+    # Buscar el mayor ref_code existente
+    pipeline = [
+        {"$match": {"ref_code": {"$exists": True, "$ne": None}}},
+        {"$project": {"ref_num": {"$toInt": "$ref_code"}}},
+        {"$sort": {"ref_num": -1}},
+        {"$limit": 1}
+    ]
+    result = await db.oportunidades_placsp.aggregate(pipeline).to_list(1)
+
+    if result:
+        next_num = result[0]["ref_num"] + 1
+    else:
+        next_num = 1
+
+    # Formato: "01", "02", ... "99", "100", etc.
+    return str(next_num).zfill(2)
+
+@api_router.post("/oportunidades/migrar-ref-codes")
+async def migrar_ref_codes(current_user: UserResponse = Depends(get_current_user)):
+    """Asigna ref_codes a todas las oportunidades que no tienen uno"""
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Solo admin puede ejecutar migraciones")
+
+    # Obtener oportunidades sin ref_code, ordenadas por fecha de detección
+    oportunidades = await db.oportunidades_placsp.find(
+        {"$or": [{"ref_code": {"$exists": False}}, {"ref_code": None}]},
+        {"_id": 1, "oportunidad_id": 1, "fecha_deteccion": 1}
+    ).sort("fecha_deteccion", 1).to_list(10000)
+
+    if not oportunidades:
+        return {"message": "No hay oportunidades sin ref_code", "migrated": 0}
+
+    # Obtener el último ref_code existente
+    next_code = int(await get_next_ref_code())
+    migrated = 0
+
+    for op in oportunidades:
+        ref_code = str(next_code).zfill(2)
+        await db.oportunidades_placsp.update_one(
+            {"_id": op["_id"]},
+            {"$set": {"ref_code": ref_code}}
+        )
+        next_code += 1
+        migrated += 1
+
+    return {"message": f"Migración completada", "migrated": migrated}
+
 @api_router.get("/oportunidades/tipos-srs")
 async def get_tipos_srs():
-    """Get available SRS types for filtering"""
-    return TIPOS_SRS
+    """Get available SRS types for filtering - from actual data in DB"""
+    # Obtener tipos únicos de la base de datos
+    tipos_en_db = await db.oportunidades_placsp.distinct("tipo_srs")
+    # Filtrar valores vacíos y ordenar
+    tipos_validos = sorted([t for t in tipos_en_db if t and t.strip()])
+    return tipos_validos if tipos_validos else TIPOS_SRS
 
 @api_router.get("/oportunidades", response_model=List[OportunidadPLACSP])
 async def get_oportunidades(
@@ -1626,14 +1684,18 @@ async def import_oportunidades_spotter(
                 if isinstance(oportunidad_dict[key], datetime):
                     oportunidad_dict[key] = oportunidad_dict[key].isoformat()
         
+        # Generar ref_code único
+        ref_code = await get_next_ref_code()
+
         oportunidad_doc = {
             "oportunidad_id": oportunidad_id,
+            "ref_code": ref_code,
             **oportunidad_dict
         }
-        
+
         await db.oportunidades_placsp.insert_one(oportunidad_doc)
         imported += 1
-    
+
     return {
         "message": "Importación completada",
         "imported": imported,
@@ -1658,7 +1720,9 @@ async def import_oportunidades_spotter_internal(data: OportunidadSpotterImport):
             if oportunidad_dict.get(key):
                 if isinstance(oportunidad_dict[key], datetime):
                     oportunidad_dict[key] = oportunidad_dict[key].isoformat()
-        oportunidad_doc = {"oportunidad_id": oportunidad_id, **oportunidad_dict}
+        # Generar ref_code único
+        ref_code = await get_next_ref_code()
+        oportunidad_doc = {"oportunidad_id": oportunidad_id, "ref_code": ref_code, **oportunidad_dict}
         await db.oportunidades_placsp.insert_one(oportunidad_doc)
         imported += 1
     return {"message": "Importacion completada", "imported": imported, "duplicates": duplicates, "total": len(data.oportunidades)}
@@ -1987,15 +2051,21 @@ async def analizar_pliego_exhaustivo(
     """
     import asyncio
     import logging
+    import time
     logger = logging.getLogger(__name__)
+
+    start_time = time.time()
+    logger.info(f"=== INICIO análisis pliego {oportunidad_id} ===")
 
     try:
         from app.spotter.pliego_analyzer import analizar_pliego_completo
+        logger.info(f"[{time.time()-start_time:.1f}s] Módulo importado OK")
 
         # Buscar la oportunidad
         oportunidad = await db.oportunidades_placsp.find_one(
             {"oportunidad_id": oportunidad_id}
         )
+        logger.info(f"[{time.time()-start_time:.1f}s] Oportunidad encontrada: {oportunidad is not None}")
 
         if not oportunidad:
             raise HTTPException(status_code=404, detail="Oportunidad no encontrada")
@@ -2003,15 +2073,55 @@ async def analizar_pliego_exhaustivo(
         # Buscar URL del pliego
         url_pliego = None
         pliegos = oportunidad.get("pliegos", {})
+        datos_adj = oportunidad.get("datos_adjudicatario", {})
 
         # Priorizar pliego técnico, luego administrativo
+        # Buscar en pliegos y también en datos_adjudicatario (donde lo guarda el enricher)
         if pliegos.get("url_pliego_tecnico"):
             url_pliego = pliegos["url_pliego_tecnico"]
+        elif datos_adj.get("url_pliego_tecnico"):
+            url_pliego = datos_adj["url_pliego_tecnico"]
         elif pliegos.get("url_pliego_administrativo"):
             url_pliego = pliegos["url_pliego_administrativo"]
-        elif oportunidad.get("url_licitacion"):
-            # Fallback a URL de la licitación
+        elif datos_adj.get("url_pliego_administrativo"):
+            url_pliego = datos_adj["url_pliego_administrativo"]
+
+        # Si no hay URL de pliego, intentar extraerla de la página de PLACSP
+        if not url_pliego and oportunidad.get("url_licitacion"):
+            logger.info(f"No hay URL de pliego guardada, extrayendo de PLACSP...")
+            try:
+                from app.spotter.adjudicatario_enricher import AdjudicatarioEnricher
+                enricher = AdjudicatarioEnricher()
+
+                # Extraer datos de la página de licitación (incluye URLs de pliegos)
+                datos_extraidos = await enricher.extraer_datos_placsp(
+                    url_licitacion=oportunidad["url_licitacion"],
+                    nombre_adjudicatario=oportunidad.get("adjudicatario", ""),
+                    nif_adjudicatario=oportunidad.get("nif", "")
+                )
+
+                # Buscar URL de pliego en los datos extraídos
+                if datos_extraidos.get("url_pliego_tecnico"):
+                    url_pliego = datos_extraidos["url_pliego_tecnico"]
+                    logger.info(f"✓ PPT extraído de PLACSP: {url_pliego[:80]}")
+                elif datos_extraidos.get("url_pliego_administrativo"):
+                    url_pliego = datos_extraidos["url_pliego_administrativo"]
+                    logger.info(f"✓ PCAP extraído de PLACSP: {url_pliego[:80]}")
+
+                # Guardar datos extraídos para futuras consultas
+                if datos_extraidos:
+                    await db.oportunidades_placsp.update_one(
+                        {"oportunidad_id": oportunidad_id},
+                        {"$set": {"datos_adjudicatario": datos_extraidos}}
+                    )
+                    logger.info(f"✓ Datos adjudicatario guardados con URLs de pliegos")
+            except Exception as e:
+                logger.warning(f"Error extrayendo datos de PLACSP: {e}")
+
+        # Último fallback: usar URL de licitación (analizará la página HTML)
+        if not url_pliego and oportunidad.get("url_licitacion"):
             url_pliego = oportunidad["url_licitacion"]
+            logger.warning(f"Usando URL de licitación como fallback (no es el PDF del pliego)")
 
         if not url_pliego:
             raise HTTPException(
@@ -2019,10 +2129,12 @@ async def analizar_pliego_exhaustivo(
                 detail="No se encontró URL de pliego para esta oportunidad"
             )
 
-        logger.info(f"Iniciando análisis de pliego para {oportunidad_id}, URL: {url_pliego}")
+        logger.info(f"[{time.time()-start_time:.1f}s] URL pliego: {url_pliego[:100]}...")
 
-        # Ejecutar análisis con timeout global de 150 segundos
+        # Ejecutar análisis con timeout global de 300 segundos (5 min)
+        # PDFs muy grandes (400+ páginas) pueden tardar 2+ min solo en extracción
         try:
+            logger.info(f"[{time.time()-start_time:.1f}s] Iniciando analizar_pliego_completo...")
             resultado = await asyncio.wait_for(
                 analizar_pliego_completo(
                     oportunidad_id=oportunidad_id,
@@ -2030,16 +2142,19 @@ async def analizar_pliego_exhaustivo(
                     objeto=oportunidad.get("objeto", ""),
                     importe=oportunidad.get("importe", 0)
                 ),
-                timeout=150.0  # 2.5 minutos máximo
+                timeout=300.0  # 5 minutos máximo para PDFs grandes
             )
+            logger.info(f"[{time.time()-start_time:.1f}s] Análisis completado OK")
         except asyncio.TimeoutError:
-            logger.error(f"Timeout de 150s en análisis de pliego para {oportunidad_id}")
+            elapsed = time.time() - start_time
+            logger.error(f"[{elapsed:.1f}s] TIMEOUT en análisis de pliego para {oportunidad_id}")
             raise HTTPException(
                 status_code=504,
-                detail="El análisis tardó demasiado (>150s). Intente de nuevo más tarde."
+                detail=f"El análisis tardó demasiado (>{elapsed:.0f}s). El PDF puede ser muy grande."
             )
 
         # Guardar resultado en BD
+        logger.info(f"[{time.time()-start_time:.1f}s] Guardando resultado en BD...")
         await db.oportunidades_placsp.update_one(
             {"oportunidad_id": oportunidad_id},
             {
@@ -2053,6 +2168,9 @@ async def analizar_pliego_exhaustivo(
             }
         )
 
+        total_time = time.time() - start_time
+        logger.info(f"=== FIN análisis pliego {oportunidad_id} - {total_time:.1f}s total ===")
+
         return {
             "success": True,
             "oportunidad_id": oportunidad_id,
@@ -2062,6 +2180,8 @@ async def analizar_pliego_exhaustivo(
         }
 
     except ImportError as e:
+        elapsed = time.time() - start_time
+        logger.error(f"[{elapsed:.1f}s] Error importando módulo pliego_analyzer: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail=f"Error importando módulo pliego_analyzer: {str(e)}"
@@ -2069,6 +2189,10 @@ async def analizar_pliego_exhaustivo(
     except HTTPException:
         raise
     except Exception as e:
+        import traceback
+        elapsed = time.time() - start_time
+        error_traceback = traceback.format_exc()
+        logger.error(f"[{elapsed:.1f}s] Error en análisis de pliego para {oportunidad_id}: {e}\n{error_traceback}")
         raise HTTPException(
             status_code=500,
             detail=f"Error en análisis de pliego: {str(e)}"
@@ -2123,6 +2247,157 @@ async def obtener_resumen_operador(
         "certificaciones": resumen.get("certificaciones_requeridas", []),
         "alertas": resumen.get("alertas", []),
         "confianza": resumen.get("confianza_analisis", "")
+    }
+
+
+@api_router.post("/oportunidades/{oportunidad_id}/analisis-comercial")
+async def generar_analisis_comercial_endpoint(
+    oportunidad_id: str,
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """
+    Genera un ANÁLISIS COMERCIAL COMPLETO orientado a la acción.
+
+    Incluye:
+    - Clasificación y scoring detallado
+    - Resumen ejecutivo (30 segundos)
+    - Información del adjudicatario
+    - Dolores principales y secundarios
+    - Servicios SRS aplicables con valor estimado
+    - Competencia y ventajas
+    - Comunicación lista para usar (WhatsApp, email, llamada)
+    - Objeciones y respuestas preparadas
+    - Siguientes pasos
+
+    Timeout máximo: 180 segundos.
+    """
+    import asyncio
+    import logging
+    logger = logging.getLogger(__name__)
+
+    try:
+        from app.spotter.pliego_analyzer import generar_analisis_comercial
+
+        # Buscar la oportunidad con todos sus datos
+        oportunidad = await db.oportunidades_placsp.find_one(
+            {"oportunidad_id": oportunidad_id}
+        )
+
+        if not oportunidad:
+            raise HTTPException(status_code=404, detail="Oportunidad no encontrada")
+
+        # Buscar URL del pliego
+        url_pliego = None
+        pliegos = oportunidad.get("pliegos", {})
+        datos_adj = oportunidad.get("datos_adjudicatario", {})
+
+        # Priorizar pliego técnico, buscar en pliegos y datos_adjudicatario
+        if pliegos.get("url_pliego_tecnico"):
+            url_pliego = pliegos["url_pliego_tecnico"]
+        elif datos_adj.get("url_pliego_tecnico"):
+            url_pliego = datos_adj["url_pliego_tecnico"]
+        elif pliegos.get("url_pliego_admin"):
+            url_pliego = pliegos["url_pliego_admin"]
+        elif datos_adj.get("url_pliego_administrativo"):
+            url_pliego = datos_adj["url_pliego_administrativo"]
+        elif oportunidad.get("url_licitacion"):
+            url_pliego = oportunidad["url_licitacion"]
+
+        if not url_pliego:
+            raise HTTPException(
+                status_code=400,
+                detail="Esta oportunidad no tiene URL de pliego disponible"
+            )
+
+        logger.info(f"Generando análisis comercial para {oportunidad_id}")
+
+        # Datos del adjudicatario
+        datos_adj = oportunidad.get("datos_adjudicatario", {})
+
+        # Ejecutar análisis con timeout
+        try:
+            resultado = await asyncio.wait_for(
+                generar_analisis_comercial(
+                    oportunidad_id=oportunidad_id,
+                    url_pliego=url_pliego,
+                    objeto=oportunidad.get("objeto", ""),
+                    importe=oportunidad.get("importe", 0),
+                    adjudicatario_nombre=oportunidad.get("adjudicatario", ""),
+                    adjudicatario_cif=oportunidad.get("nif", ""),
+                    organo_contratante=oportunidad.get("organo_contratacion", ""),
+                    fecha_adjudicacion=oportunidad.get("fecha_adjudicacion", ""),
+                ),
+                timeout=180.0  # 3 minutos máximo
+            )
+        except asyncio.TimeoutError:
+            logger.error(f"Timeout de 180s en análisis comercial para {oportunidad_id}")
+            raise HTTPException(
+                status_code=504,
+                detail="El análisis tardó demasiado (>180s). Intente de nuevo más tarde."
+            )
+
+        if resultado.get("error"):
+            raise HTTPException(
+                status_code=500,
+                detail=resultado["error"]
+            )
+
+        # Guardar resultado en BD
+        await db.oportunidades_placsp.update_one(
+            {"oportunidad_id": oportunidad_id},
+            {
+                "$set": {
+                    "analisis_comercial": resultado,
+                    "analisis_comercial_fecha": datetime.now()
+                }
+            }
+        )
+
+        return {
+            "success": True,
+            "oportunidad_id": oportunidad_id,
+            "analisis_comercial": resultado
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error en análisis comercial: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error en análisis comercial: {str(e)}"
+        )
+
+
+@api_router.get("/oportunidades/{oportunidad_id}/analisis-comercial")
+async def obtener_analisis_comercial(
+    oportunidad_id: str,
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """
+    Obtiene el análisis comercial completo de una oportunidad.
+    Requiere que se haya generado previamente con POST /analisis-comercial
+    """
+    oportunidad = await db.oportunidades_placsp.find_one(
+        {"oportunidad_id": oportunidad_id},
+        {"analisis_comercial": 1, "analisis_comercial_fecha": 1}
+    )
+
+    if not oportunidad:
+        raise HTTPException(status_code=404, detail="Oportunidad no encontrada")
+
+    analisis = oportunidad.get("analisis_comercial")
+
+    if not analisis:
+        raise HTTPException(
+            status_code=400,
+            detail="Esta oportunidad no tiene análisis comercial. Ejecute primero POST /analisis-comercial"
+        )
+
+    return {
+        "oportunidad_id": oportunidad_id,
+        "fecha_analisis": oportunidad.get("analisis_comercial_fecha"),
+        "analisis_comercial": analisis
     }
 
 
@@ -2196,8 +2471,265 @@ async def enriquecer_adjudicatario_endpoint(
         )
 
 
+@api_router.post("/oportunidades/{oportunidad_id}/analisis-rapido")
+async def analisis_rapido_endpoint(
+    oportunidad_id: str,
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """
+    Análisis rápido Level 1 (~5 segundos).
+
+    Extrae información básica de la página de adjudicación de PLACSP:
+    - Datos del adjudicatario y del órgano contratante
+    - URLs de pliegos (PPT, PCAP)
+    - Lista de empresas competidoras (licitadores perdedores)
+    - Detecta si hay componente IT basado en CPV y objeto
+
+    NO analiza el pliego con IA (eso es Level 2 con /analizar-pliego).
+
+    Ideal para:
+    - Triaje inicial de oportunidades
+    - Identificar prospectos (empresas que perdieron la licitación)
+    - Pre-filtrar antes del análisis profundo
+    """
+    try:
+        from app.spotter.adjudicatario_enricher import AdjudicatarioEnricher
+
+        # Obtener la oportunidad
+        oportunidad = await db.oportunidades_placsp.find_one(
+            {"oportunidad_id": oportunidad_id},
+            {"_id": 0, "adjudicatario": 1, "nif": 1, "url_licitacion": 1, "objeto": 1, "cpv": 1, "importe": 1}
+        )
+
+        if not oportunidad:
+            raise HTTPException(status_code=404, detail="Oportunidad no encontrada")
+
+        url_licitacion = oportunidad.get("url_licitacion")
+        if not url_licitacion:
+            raise HTTPException(status_code=400, detail="La oportunidad no tiene URL de licitación")
+
+        nombre = oportunidad.get("adjudicatario", "")
+        nif = oportunidad.get("nif", "")
+
+        # Extraer datos de PLACSP (rápido, ~5 segundos)
+        enricher = AdjudicatarioEnricher()
+        datos_placsp = await enricher.extraer_datos_placsp(
+            url_licitacion=url_licitacion,
+            nombre_adjudicatario=nombre,
+            nif_adjudicatario=nif
+        )
+
+        # Log de diagnóstico: qué datos tenemos de PLACSP
+        logger.info(f"PLACSP retornó {len(datos_placsp)} campos: {list(datos_placsp.keys())}")
+        logger.info(f"  - nombre_comercial: {datos_placsp.get('nombre_comercial', 'NO')}")
+        logger.info(f"  - html_adjudicacion_url: {'SÍ' if datos_placsp.get('html_adjudicacion_url') else 'NO'}")
+        logger.info(f"  - email: {datos_placsp.get('email', 'NO')}")
+
+        # Extraer competidores - el PDF del Acta de Resolución está DENTRO del HTML de adjudicación
+        empresas_competidoras = None
+        pdf_acta_url = datos_placsp.get("pdf_acta_resolucion_url")
+
+        # Si hay HTML de adjudicación, parsearlo para extraer datos detallados del adjudicatario
+        # El HTML de adjudicación contiene: email, teléfono, dirección, importes, motivación, ofertas
+        if datos_placsp.get("html_adjudicacion_url"):
+            logger.info("Parseando HTML de adjudicación para extraer datos detallados...")
+            datos_html = await enricher._parse_html_adjudicacion(datos_placsp["html_adjudicacion_url"])
+            if datos_html:
+                # Campos del adjudicatario donde el HTML tiene PRIORIDAD sobre la página principal
+                # El HTML de adjudicación es la fuente más fiable para estos datos
+                campos_prioridad_html = {
+                    'nombre_comercial', 'nif_verificado', 'telefono', 'email',
+                    'direccion', 'codigo_postal', 'localidad', 'es_pyme', 'pais_origen',
+                    'importe_sin_iva', 'importe_con_iva', 'motivacion_adjudicacion',
+                    'fecha_adjudicacion', 'numero_ofertas', 'ofertas_pymes',
+                    'precio_oferta_baja', 'precio_oferta_alta'
+                }
+
+                logger.info(f"Datos extraídos del HTML: {list(datos_html.keys())}")
+                for key, value in datos_html.items():
+                    if not value:
+                        continue
+                    # Para campos prioritarios: SIEMPRE sobrescribir si el HTML tiene un valor válido
+                    if key in campos_prioridad_html:
+                        if datos_placsp.get(key) != value:
+                            logger.info(f"HTML prioridad: {key}={str(value)[:50]}... (antes: {str(datos_placsp.get(key))[:30]})")
+                        datos_placsp[key] = value
+                    # Para otros campos: solo añadir si no existe o está vacío
+                    elif key not in datos_placsp or not datos_placsp[key]:
+                        datos_placsp[key] = value
+                        logger.debug(f"Añadido desde HTML: {key}={str(value)[:50]}...")
+
+                # PDF del Acta de Resolución
+                if datos_html.get("pdf_acta_resolucion_url"):
+                    pdf_acta_url = datos_html["pdf_acta_resolucion_url"]
+                    logger.info(f"PDF Acta encontrado en HTML: {pdf_acta_url[:80]}...")
+        else:
+            logger.warning(f"⚠️ No se encontró html_adjudicacion_url - los datos del adjudicatario pueden ser incompletos")
+
+        # Extraer competidores del PDF del Acta de Resolución (fuente principal)
+        logger.info(f"PDF Acta URL: {pdf_acta_url[:80] if pdf_acta_url else 'NO ENCONTRADO'}")
+        if pdf_acta_url:
+            logger.info(f"Extrayendo competidores del PDF del Acta: {pdf_acta_url[:80]}...")
+            empresas_competidoras = await enricher._extract_competidores_from_pdf(
+                pdf_acta_url,
+                nif
+            )
+            logger.info(f"Competidores extraídos del PDF: {len(empresas_competidoras) if empresas_competidoras else 0}")
+        else:
+            logger.warning("⚠️ No se encontró PDF del Acta de Resolución - no se pueden extraer competidores")
+
+        # Fallback: intentar extraer del HTML de adjudicación directamente
+        if not empresas_competidoras and datos_placsp.get("html_adjudicacion_url"):
+            logger.info("Intentando extraer competidores del HTML de adjudicación...")
+            empresas_competidoras = await enricher._extract_competidores_from_html(
+                datos_placsp["html_adjudicacion_url"],
+                nif
+            )
+            logger.info(f"Competidores extraídos del HTML: {len(empresas_competidoras) if empresas_competidoras else 0}")
+
+        # Detectar si hay componente IT (básico, sin IA)
+        tiene_it = False
+        objeto = oportunidad.get("objeto", "").lower()
+        cpv = datos_placsp.get("cpv", "") or oportunidad.get("cpv", "")
+
+        # CPVs de IT (72xxxxxx = servicios IT, 48xxxxxx = software)
+        if cpv and (cpv.startswith("72") or cpv.startswith("48") or cpv.startswith("64")):
+            tiene_it = True
+
+        # Keywords IT en objeto
+        keywords_it = [
+            "informátic", "informatica", "software", "hardware", "sistemas",
+            "tecnología", "tecnologia", "cloud", "nube", "servidor",
+            "telecomunicacion", "red", "redes", "ciberseguridad", "seguridad",
+            "mantenimiento", "soporte técnico", "soporte tecnico", "helpdesk",
+            "desarrollo", "aplicacion", "base de datos", "infraestructura",
+            "virtualiza", "backup", "monitoriz", "cpd", "data center",
+            "microsoft", "oracle", "sap", "vmware", "cisco", "aws", "azure"
+        ]
+        if any(kw in objeto for kw in keywords_it):
+            tiene_it = True
+
+        # Preparar respuesta
+        resultado = {
+            "oportunidad_id": oportunidad_id,
+            "nivel_analisis": "rapido",
+            "tiene_componente_it": tiene_it,
+            "url_pliego_tecnico": datos_placsp.get("url_pliego_tecnico"),
+            "url_pliego_administrativo": datos_placsp.get("url_pliego_administrativo"),
+            "empresas_competidoras": empresas_competidoras,
+            "num_competidores": len(empresas_competidoras) if empresas_competidoras else 0,
+            "datos_adjudicatario": {
+                "nombre": datos_placsp.get("nombre_comercial", nombre),
+                "nif": datos_placsp.get("nif_verificado", nif),
+                "telefono": datos_placsp.get("telefono"),
+                "email": datos_placsp.get("email"),
+                "direccion": datos_placsp.get("direccion"),
+                "localidad": datos_placsp.get("localidad"),
+                "codigo_postal": datos_placsp.get("codigo_postal"),
+                "provincia": datos_placsp.get("provincia"),
+                "es_pyme": datos_placsp.get("es_pyme"),
+                "pais_origen": datos_placsp.get("pais_origen"),
+                # Nuevos campos de importes
+                "importe_sin_iva": datos_placsp.get("importe_sin_iva"),
+                "importe_con_iva": datos_placsp.get("importe_con_iva"),
+            },
+            "datos_organo": {
+                "nombre": datos_placsp.get("organo_contratacion"),
+                "telefono": datos_placsp.get("organo_telefono"),
+                "email": datos_placsp.get("organo_email"),
+                "direccion": datos_placsp.get("organo_direccion"),
+                "localidad": datos_placsp.get("organo_localidad"),
+            },
+            # Información adicional de la adjudicación
+            "info_adjudicacion": {
+                "motivacion": datos_placsp.get("motivacion_adjudicacion"),
+                "fecha_acuerdo": datos_placsp.get("fecha_adjudicacion"),
+                "ofertas_pymes": datos_placsp.get("ofertas_pymes"),
+                "precio_oferta_baja": datos_placsp.get("precio_oferta_baja"),
+                "precio_oferta_alta": datos_placsp.get("precio_oferta_alta"),
+            },
+            "cpv": cpv,
+            "num_ofertas": datos_placsp.get("numero_ofertas"),
+            "fecha_adjudicacion": datos_placsp.get("fecha_adjudicacion"),
+        }
+
+        # Guardar en la base de datos
+        update_data = {
+            "analisis_rapido": resultado,
+            "analisis_rapido_fecha": datetime.now(timezone.utc).isoformat(),
+        }
+
+        # Guardar datos del adjudicatario si no existían
+        if not await db.oportunidades_placsp.find_one(
+            {"oportunidad_id": oportunidad_id, "datos_adjudicatario": {"$exists": True}}
+        ):
+            update_data["datos_adjudicatario"] = datos_placsp
+
+        # Guardar competidores
+        if empresas_competidoras:
+            update_data["empresas_competidoras"] = empresas_competidoras
+
+        await db.oportunidades_placsp.update_one(
+            {"oportunidad_id": oportunidad_id},
+            {"$set": update_data}
+        )
+
+        return resultado
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error en análisis rápido: {str(e)}"
+        )
+
+
 class EstadoRevisionUpdate(BaseModel):
     estado: str  # nueva, revisada, descartada
+
+
+class AsignarUsuarioUpdate(BaseModel):
+    user_id: Optional[str] = None  # None para desasignar
+    nombre: Optional[str] = None
+
+
+@api_router.patch("/oportunidades/{oportunidad_id}/asignar")
+async def asignar_oportunidad(
+    oportunidad_id: str,
+    data: AsignarUsuarioUpdate,
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """Asignar o desasignar una oportunidad a un usuario"""
+    update_data = {
+        "fecha_asignacion": datetime.now(timezone.utc).isoformat() if data.user_id else None
+    }
+
+    if data.user_id:
+        # Asignar a usuario específico
+        update_data["asignado_a"] = data.user_id
+        update_data["asignado_nombre"] = data.nombre or data.user_id
+    else:
+        # Desasignar
+        update_data["asignado_a"] = None
+        update_data["asignado_nombre"] = None
+
+    result = await db.oportunidades_placsp.update_one(
+        {"oportunidad_id": oportunidad_id},
+        {"$set": update_data}
+    )
+
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Oportunidad no encontrada")
+
+    return {
+        "success": True,
+        "oportunidad_id": oportunidad_id,
+        "asignado_a": data.user_id,
+        "asignado_nombre": update_data.get("asignado_nombre")
+    }
 
 
 @api_router.patch("/oportunidades/{oportunidad_id}/estado-revision")

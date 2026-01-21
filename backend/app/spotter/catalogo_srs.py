@@ -7,7 +7,21 @@ organizados por categoría. Se usa para:
 2. Clasificar componentes IT detectados
 3. Generar prompts para análisis con IA
 4. Evaluar zonas de cobertura geográfica
+
+Versión: 2.1.0
+Fecha: 2026-01-19
+Total servicios: 211 (incluye 25 nuevos de drones/cartografía)
+
+CATEGORÍAS:
+- Servicios gestionados IT (31)
+- Infraestructura (50)
+- Comunicaciones (24)
+- Software (52)
+- Drones, Cartografía y Seguimiento de Obra (25) ← LÍNEA ESTRATÉGICA
+- Seguridad (41)
 """
+
+from typing import Dict, List, Optional
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # ZONAS DE COBERTURA GEOGRÁFICA
@@ -18,7 +32,7 @@ ZONAS_COBERTURA = {
         "descripcion": "Presencia directa, respuesta inmediata, sin coste desplazamiento",
         "tiempo_respuesta": "mismo día",
         "coste_desplazamiento": "incluido",
-        "prioridad_score": 20,  # Bonus para scoring de oportunidad
+        "prioridad_score": 20,
         "provincias": [
             "Madrid",
             "Sevilla",
@@ -127,159 +141,261 @@ def es_zona_prioritaria(provincia: str) -> bool:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# CATÁLOGO DE SERVICIOS
+# CATÁLOGO DE SERVICIOS COMPLETO v2.0
 # ═══════════════════════════════════════════════════════════════════════════════
 
 CATALOGO_SRS = [
     # ═══════════════════════════════════════════════════════════════════════════
-    # SERVICIOS
+    # SERVICIOS (31)
     # ═══════════════════════════════════════════════════════════════════════════
-    {"tipo": "servicios", "nombre": "Soporte técnico Nivel 1", "descripcion": "Atención primera línea: incidencias básicas, reseteo contraseñas, troubleshooting inicial, gestión tickets", "urgencia": "critica"},
-    {"tipo": "servicios", "nombre": "Soporte técnico Nivel 2", "descripcion": "Resolución incidencias complejas, administración sistemas, escalado técnico especializado", "urgencia": "critica"},
-    {"tipo": "servicios", "nombre": "Soporte técnico Nivel 3", "descripcion": "Ingeniería avanzada, resolución problemas críticos, diseño soluciones, escalado fabricante", "urgencia": "alta"},
-    {"tipo": "servicios", "nombre": "Helpdesk 24x7", "descripcion": "Centro de atención multicanal (teléfono, email, chat, portal) con cobertura horaria completa", "urgencia": "critica"},
-    {"tipo": "servicios", "nombre": "Smart Hands / Manos Remotas", "descripcion": "Ojos y manos en data centers: rack & stack, cableado, verificaciones físicas, reinicio equipos", "urgencia": "alta"},
-    {"tipo": "servicios", "nombre": "Field Services / Soporte Onsite", "descripcion": "Técnicos desplazados a ubicación cliente para intervenciones presenciales", "urgencia": "alta"},
-    {"tipo": "servicios", "nombre": "Mantenimiento preventivo", "descripcion": "Revisiones programadas, actualizaciones firmware, limpieza equipos, verificación estado", "urgencia": "media"},
-    {"tipo": "servicios", "nombre": "Mantenimiento correctivo", "descripcion": "Reparación y sustitución de equipos averiados, diagnóstico fallos hardware", "urgencia": "alta"},
-    {"tipo": "servicios", "nombre": "Gestión de incidencias (ITIL)", "descripcion": "Proceso completo: registro, clasificación, priorización, resolución, cierre según ITIL", "urgencia": "alta"},
-    {"tipo": "servicios", "nombre": "Gestión de cambios", "descripcion": "Control de cambios en infraestructura: CAB, aprobaciones, ventanas de mantenimiento", "urgencia": "media"},
-    {"tipo": "servicios", "nombre": "Gestión de problemas", "descripcion": "Análisis causa raíz, eliminación incidencias recurrentes, documentación soluciones", "urgencia": "media"},
-    {"tipo": "servicios", "nombre": "Administración remota de sistemas", "descripcion": "Gestión continua de servidores, aplicaciones y servicios vía conexión remota segura", "urgencia": "critica"},
-    {"tipo": "servicios", "nombre": "Monitorización 24x7", "descripcion": "Vigilancia proactiva de infraestructura, alertas, dashboards, informes disponibilidad", "urgencia": "critica"},
-    {"tipo": "servicios", "nombre": "Staff Augmentation", "descripcion": "Refuerzo equipos cliente con técnicos dedicados bajo su dirección", "urgencia": "media"},
-    {"tipo": "servicios", "nombre": "Consultoría tecnológica", "descripcion": "Asesoramiento estratégico, diseño arquitecturas, roadmaps tecnológicos", "urgencia": "media"},
-    {"tipo": "servicios", "nombre": "vCIO / CIO Virtual", "descripcion": "Dirección tecnológica externalizada: estrategia, presupuestos, governance IT", "urgencia": "baja"},
-    {"tipo": "servicios", "nombre": "Auditoría IT", "descripcion": "Evaluación estado infraestructura, identificación riesgos, recomendaciones mejora", "urgencia": "media"},
-    {"tipo": "servicios", "nombre": "Formación técnica", "descripcion": "Capacitación usuarios y técnicos en herramientas, plataformas y procedimientos", "urgencia": "baja"},
-    {"tipo": "servicios", "nombre": "Gestión de proveedores / Vendor Liaison", "descripcion": "Coordinación con fabricantes, gestión contratos, escalados, renovaciones", "urgencia": "media"},
-    {"tipo": "servicios", "nombre": "Procurement / Gestión de compras IT", "descripcion": "Adquisición hardware y software, comparativas, negociación, logística", "urgencia": "media"},
-    {"tipo": "servicios", "nombre": "Roll-out / Despliegue masivo", "descripcion": "Instalación equipos a escala: puestos de trabajo, dispositivos, configuración estándar", "urgencia": "alta"},
-    {"tipo": "servicios", "nombre": "Tech Refresh / Renovación tecnológica", "descripcion": "Sustitución planificada de equipos obsoletos, migración datos, retirada RAEE", "urgencia": "media"},
-    {"tipo": "servicios", "nombre": "IMAC (Install, Move, Add, Change)", "descripcion": "Servicios de instalación, movimiento, adición y cambio de equipos", "urgencia": "media"},
+    {"tipo": "servicios", "subtipo": "soporte", "nombre": "Soporte técnico Nivel 1", "descripcion": "Atención primera línea: incidencias básicas, reseteo contraseñas, troubleshooting inicial, gestión tickets", "urgencia": "critica", "es_core_srs": True, "keywords": ["helpdesk", "nivel 1", "N1", "primera línea", "incidencias", "tickets", "soporte básico"]},
+    {"tipo": "servicios", "subtipo": "soporte", "nombre": "Soporte técnico Nivel 2", "descripcion": "Resolución incidencias complejas, administración sistemas, escalado técnico especializado", "urgencia": "critica", "es_core_srs": True, "keywords": ["nivel 2", "N2", "administración", "escalado", "incidencias complejas"]},
+    {"tipo": "servicios", "subtipo": "soporte", "nombre": "Soporte técnico Nivel 3", "descripcion": "Ingeniería avanzada, resolución problemas críticos, diseño soluciones, escalado fabricante", "urgencia": "alta", "es_core_srs": True, "keywords": ["nivel 3", "N3", "ingeniería", "escalado fabricante", "problemas críticos"]},
+    {"tipo": "servicios", "subtipo": "soporte", "nombre": "Helpdesk 24x7", "descripcion": "Centro de atención multicanal (teléfono, email, chat, portal) con cobertura horaria completa", "urgencia": "critica", "es_core_srs": True, "keywords": ["24x7", "24/7", "helpdesk", "CAU", "centro atención", "multicanal", "service desk"]},
+    {"tipo": "servicios", "subtipo": "soporte", "nombre": "Service Desk dedicado", "descripcion": "Equipo de service desk exclusivo para cliente, SPOC, gestión integral ITSM", "urgencia": "alta", "es_core_srs": True, "keywords": ["service desk", "SPOC", "dedicado", "exclusivo", "ITSM"]},
+    {"tipo": "servicios", "subtipo": "campo", "nombre": "Smart Hands / Manos Remotas", "descripcion": "Ojos y manos en data centers: rack & stack, cableado, verificaciones físicas, reinicio equipos", "urgencia": "alta", "es_core_srs": True, "keywords": ["smart hands", "manos remotas", "data center", "rack", "stack", "verificación física"]},
+    {"tipo": "servicios", "subtipo": "campo", "nombre": "Field Services / Soporte Onsite", "descripcion": "Técnicos desplazados a ubicación cliente para intervenciones presenciales", "urgencia": "alta", "es_core_srs": True, "keywords": ["field services", "onsite", "presencial", "desplazamiento", "in situ", "técnico de campo"]},
+    {"tipo": "servicios", "subtipo": "campo", "nombre": "Servicio de guardia / On-call", "descripcion": "Disponibilidad técnica fuera de horario laboral, escalado urgente, intervención crítica", "urgencia": "alta", "es_core_srs": True, "keywords": ["guardia", "on-call", "fuera de horario", "urgente", "emergencia", "retén"]},
+    {"tipo": "servicios", "subtipo": "mantenimiento", "nombre": "Mantenimiento preventivo", "descripcion": "Revisiones programadas, actualizaciones firmware, limpieza equipos, verificación estado", "urgencia": "media", "es_core_srs": True, "keywords": ["preventivo", "revisiones", "firmware", "programado", "verificación"]},
+    {"tipo": "servicios", "subtipo": "mantenimiento", "nombre": "Mantenimiento correctivo", "descripcion": "Reparación y sustitución de equipos averiados, diagnóstico fallos hardware", "urgencia": "alta", "es_core_srs": True, "keywords": ["correctivo", "reparación", "avería", "sustitución", "fallo hardware"]},
+    {"tipo": "servicios", "subtipo": "gestion", "nombre": "Gestión de incidencias (ITIL)", "descripcion": "Proceso completo: registro, clasificación, priorización, resolución, cierre según ITIL", "urgencia": "alta", "es_core_srs": True, "keywords": ["ITIL", "incidencias", "tickets", "SLA", "priorización"]},
+    {"tipo": "servicios", "subtipo": "gestion", "nombre": "Gestión de cambios", "descripcion": "Control de cambios en infraestructura: CAB, aprobaciones, ventanas de mantenimiento", "urgencia": "media", "es_core_srs": False, "keywords": ["cambios", "CAB", "change management", "ventana mantenimiento"]},
+    {"tipo": "servicios", "subtipo": "gestion", "nombre": "Gestión de problemas", "descripcion": "Análisis causa raíz, eliminación incidencias recurrentes, documentación soluciones", "urgencia": "media", "es_core_srs": False, "keywords": ["problemas", "causa raíz", "RCA", "recurrentes", "problem management"]},
+    {"tipo": "servicios", "subtipo": "gestion", "nombre": "Gestión de proyectos / PMO", "descripcion": "Coordinación proyectos IT, metodologías, planificación, seguimiento, reporting", "urgencia": "media", "es_core_srs": False, "keywords": ["PMO", "project manager", "proyectos", "coordinación", "planificación"]},
+    {"tipo": "servicios", "subtipo": "gestion", "nombre": "Gestión de SLAs", "descripcion": "Definición, medición, reporting de niveles de servicio, penalizaciones", "urgencia": "media", "es_core_srs": False, "keywords": ["SLA", "niveles de servicio", "KPI", "penalizaciones", "reporting"]},
+    {"tipo": "servicios", "subtipo": "gestion", "nombre": "Inventario y gestión de activos", "descripcion": "CMDB, control de licencias, ciclo de vida activos, gestión de configuración", "urgencia": "media", "es_core_srs": False, "keywords": ["CMDB", "inventario", "activos", "licencias", "configuración", "asset management"]},
+    {"tipo": "servicios", "subtipo": "operaciones", "nombre": "Administración remota de sistemas", "descripcion": "Gestión continua de servidores, aplicaciones y servicios vía conexión remota segura", "urgencia": "critica", "es_core_srs": True, "keywords": ["administración remota", "gestión servidores", "remoto", "sistemas"]},
+    {"tipo": "servicios", "subtipo": "operaciones", "nombre": "Monitorización 24x7", "descripcion": "Vigilancia proactiva de infraestructura, alertas, dashboards, informes disponibilidad", "urgencia": "critica", "es_core_srs": True, "keywords": ["monitorización", "24x7", "alertas", "dashboards", "disponibilidad", "NOC"]},
+    {"tipo": "servicios", "subtipo": "operaciones", "nombre": "NOC - Centro de Operaciones de Red", "descripcion": "Centro de operaciones 24x7, gestión de alertas, coordinación incidencias, escalado", "urgencia": "critica", "es_core_srs": True, "keywords": ["NOC", "centro operaciones", "red", "alertas", "24x7"]},
+    {"tipo": "servicios", "subtipo": "consultoria", "nombre": "Staff Augmentation", "descripcion": "Refuerzo equipos cliente con técnicos dedicados bajo su dirección", "urgencia": "media", "es_core_srs": True, "keywords": ["staff augmentation", "refuerzo", "técnicos dedicados", "outsourcing"]},
+    {"tipo": "servicios", "subtipo": "consultoria", "nombre": "Consultoría tecnológica", "descripcion": "Asesoramiento estratégico, diseño arquitecturas, roadmaps tecnológicos", "urgencia": "media", "es_core_srs": False, "keywords": ["consultoría", "asesoramiento", "arquitectura", "roadmap", "estrategia"]},
+    {"tipo": "servicios", "subtipo": "consultoria", "nombre": "vCIO / CIO Virtual", "descripcion": "Dirección tecnológica externalizada: estrategia, presupuestos, governance IT", "urgencia": "baja", "es_core_srs": False, "keywords": ["vCIO", "CIO virtual", "dirección tecnológica", "governance"]},
+    {"tipo": "servicios", "subtipo": "consultoria", "nombre": "Auditoría IT", "descripcion": "Evaluación estado infraestructura, identificación riesgos, recomendaciones mejora", "urgencia": "media", "es_core_srs": False, "keywords": ["auditoría", "evaluación", "riesgos", "assessment", "diagnóstico"]},
+    {"tipo": "servicios", "subtipo": "consultoria", "nombre": "Documentación técnica", "descripcion": "Creación y mantenimiento documentación AS-IS/TO-BE, procedimientos, runbooks", "urgencia": "media", "es_core_srs": False, "keywords": ["documentación", "AS-IS", "TO-BE", "procedimientos", "runbooks"]},
+    {"tipo": "servicios", "subtipo": "consultoria", "nombre": "Formación técnica", "descripcion": "Capacitación usuarios y técnicos en herramientas, plataformas y procedimientos", "urgencia": "baja", "es_core_srs": False, "keywords": ["formación", "capacitación", "training", "usuarios", "técnicos"]},
+    {"tipo": "servicios", "subtipo": "gestion", "nombre": "Gestión de proveedores / Vendor Liaison", "descripcion": "Coordinación con fabricantes, gestión contratos, escalados, renovaciones", "urgencia": "media", "es_core_srs": False, "keywords": ["vendor", "proveedores", "fabricantes", "contratos", "escalado"]},
+    {"tipo": "servicios", "subtipo": "gestion", "nombre": "Procurement / Gestión de compras IT", "descripcion": "Adquisición hardware y software, comparativas, negociación, logística", "urgencia": "media", "es_core_srs": False, "keywords": ["procurement", "compras", "adquisición", "logística", "suministro"]},
+    {"tipo": "servicios", "subtipo": "despliegue", "nombre": "Roll-out / Despliegue masivo", "descripcion": "Instalación equipos a escala: puestos de trabajo, dispositivos, configuración estándar", "urgencia": "alta", "es_core_srs": True, "keywords": ["rollout", "roll-out", "despliegue", "masivo", "instalación", "puestos"]},
+    {"tipo": "servicios", "subtipo": "despliegue", "nombre": "Tech Refresh / Renovación tecnológica", "descripcion": "Sustitución planificada de equipos obsoletos, migración datos, retirada RAEE", "urgencia": "media", "es_core_srs": True, "keywords": ["tech refresh", "renovación", "obsoleto", "RAEE", "sustitución"]},
+    {"tipo": "servicios", "subtipo": "despliegue", "nombre": "IMAC (Install, Move, Add, Change)", "descripcion": "Servicios de instalación, movimiento, adición y cambio de equipos", "urgencia": "media", "es_core_srs": True, "keywords": ["IMAC", "instalación", "movimiento", "traslado", "cambio equipo"]},
+    {"tipo": "servicios", "subtipo": "transicion", "nombre": "Transición de servicios / Takeover", "descripcion": "Takeover/handover de contratos, due diligence técnica, transferencia conocimiento", "urgencia": "alta", "es_core_srs": False, "keywords": ["transición", "takeover", "handover", "due diligence", "transferencia"]},
 
     # ═══════════════════════════════════════════════════════════════════════════
-    # INFRAESTRUCTURA
+    # INFRAESTRUCTURA (50)
     # ═══════════════════════════════════════════════════════════════════════════
-    {"tipo": "infraestructura", "nombre": "Servidores físicos", "descripcion": "Suministro, instalación y mantenimiento servidores rack/torre (Dell, HPE, Lenovo)", "urgencia": "alta"},
-    {"tipo": "infraestructura", "nombre": "Virtualización VMware", "descripcion": "Diseño, implementación y gestión entornos vSphere, ESXi, vCenter, clusters HA/DRS", "urgencia": "alta"},
-    {"tipo": "infraestructura", "nombre": "Virtualización Hyper-V", "descripcion": "Implementación y administración Microsoft Hyper-V, failover clustering", "urgencia": "alta"},
-    {"tipo": "infraestructura", "nombre": "Virtualización Proxmox", "descripcion": "Entornos virtualizados open source, gestión VMs y contenedores", "urgencia": "media"},
-    {"tipo": "infraestructura", "nombre": "Almacenamiento SAN/NAS", "descripcion": "Diseño e implementación storage enterprise, cabinas, expansiones, tiering", "urgencia": "alta"},
-    {"tipo": "infraestructura", "nombre": "Almacenamiento hiperconvergente (HCI)", "descripcion": "Soluciones vSAN, Nutanix, Azure Stack HCI", "urgencia": "media"},
-    {"tipo": "infraestructura", "nombre": "Infraestructura Cloud AWS", "descripcion": "Diseño, migración y gestión workloads en Amazon Web Services", "urgencia": "alta"},
-    {"tipo": "infraestructura", "nombre": "Infraestructura Cloud Azure", "descripcion": "Implementación y administración Microsoft Azure, híbrido con on-premise", "urgencia": "alta"},
-    {"tipo": "infraestructura", "nombre": "Infraestructura Cloud GCP", "descripcion": "Servicios Google Cloud Platform, Compute Engine, Kubernetes", "urgencia": "media"},
-    {"tipo": "infraestructura", "nombre": "Cloud híbrido / Multi-cloud", "descripcion": "Arquitecturas combinando on-premise con múltiples proveedores cloud", "urgencia": "media"},
-    {"tipo": "infraestructura", "nombre": "Migración a cloud", "descripcion": "Planificación y ejecución migraciones on-premise a cloud, lift & shift, refactoring", "urgencia": "media"},
-    {"tipo": "infraestructura", "nombre": "Cableado estructurado cobre", "descripcion": "Diseño, instalación y certificación cableado Cat6/Cat6A/Cat7, horizontal y vertical", "urgencia": "alta"},
-    {"tipo": "infraestructura", "nombre": "Cableado estructurado fibra óptica", "descripcion": "Tendido, fusión, terminación y certificación fibra óptica monomodo y multimodo", "urgencia": "alta"},
-    {"tipo": "infraestructura", "nombre": "Replanteo de red", "descripcion": "Estudio previo, diseño de recorridos, planificación de tiradas y puntos de red", "urgencia": "alta"},
-    {"tipo": "infraestructura", "nombre": "Certificación de cableado", "descripcion": "Medición y certificación de enlaces con equipos Fluke/equivalente, informes de cumplimiento", "urgencia": "alta"},
-    {"tipo": "infraestructura", "nombre": "Fusión de fibra óptica", "descripcion": "Empalme por fusión, instalación cajas de empalme, pigtails y latiguillos", "urgencia": "alta"},
-    {"tipo": "infraestructura", "nombre": "Canalizaciones y bandejas", "descripcion": "Instalación de bandejas portacables, canaletas, tubos y conductos para cableado", "urgencia": "alta"},
-    {"tipo": "infraestructura", "nombre": "Patch panels y distribuidores", "descripcion": "Instalación y terminación de paneles de parcheo cobre y fibra, organizadores", "urgencia": "alta"},
-    {"tipo": "infraestructura", "nombre": "Rosetas y tomas de red", "descripcion": "Instalación de rosetas RJ45, cajas de superficie/empotrar, tomas de usuario", "urgencia": "alta"},
-    {"tipo": "infraestructura", "nombre": "Cableado vertical / troncal", "descripcion": "Backbone entre plantas, conexión armarios distribuidores, fibra/cobre troncal", "urgencia": "alta"},
-    {"tipo": "infraestructura", "nombre": "Etiquetado y documentación de red", "descripcion": "Etiquetado normalizado de puntos, paneles y cables, planos as-built, documentación técnica", "urgencia": "media"},
-    {"tipo": "infraestructura", "nombre": "FTTH / FTTD", "descripcion": "Fibra hasta el hogar o hasta el puesto, despliegue última milla, ONTs", "urgencia": "alta"},
-    {"tipo": "infraestructura", "nombre": "Testing y medición de red", "descripcion": "Pruebas de continuidad, atenuación, OTDR, certificación de enlaces", "urgencia": "alta"},
-    {"tipo": "infraestructura", "nombre": "Armarios rack y distribuidores", "descripcion": "Suministro e instalación de armarios de comunicaciones, distribuidores de planta", "urgencia": "alta"},
-    {"tipo": "infraestructura", "nombre": "Obra civil para telecomunicaciones", "descripcion": "Canalizaciones enterradas, arquetas, pedestales, acometidas, paso de muros", "urgencia": "media"},
-    {"tipo": "infraestructura", "nombre": "Racks y PDUs", "descripcion": "Suministro e instalación armarios rack, regletas inteligentes, gestión energía", "urgencia": "media"},
-    {"tipo": "infraestructura", "nombre": "SAI/UPS", "descripcion": "Sistemas alimentación ininterrumpida, dimensionamiento, instalación, mantenimiento", "urgencia": "alta"},
-    {"tipo": "infraestructura", "nombre": "Climatización CPD", "descripcion": "Sistemas refrigeración data centers, monitorización temperatura/humedad", "urgencia": "alta"},
-    {"tipo": "infraestructura", "nombre": "Data Center - Diseño y construcción", "descripcion": "Diseño salas técnicas, distribución, redundancia, certificación Tier", "urgencia": "media"},
-    {"tipo": "infraestructura", "nombre": "Colocation", "descripcion": "Gestión espacios en data centers terceros, housing equipos cliente", "urgencia": "media"},
-    {"tipo": "infraestructura", "nombre": "Puestos de trabajo / Endpoints", "descripcion": "Suministro, configuración y soporte PCs, portátiles, thin clients", "urgencia": "alta"},
-    {"tipo": "infraestructura", "nombre": "Dispositivos móviles", "descripcion": "Gestión tablets, smartphones corporativos, MDM", "urgencia": "media"},
-    {"tipo": "infraestructura", "nombre": "Impresoras y periféricos", "descripcion": "Gestión parque impresoras, multifuncionales, escáneres, plotters", "urgencia": "baja"},
+    {"tipo": "infraestructura", "subtipo": "servidores", "nombre": "Servidores físicos", "descripcion": "Suministro, instalación y mantenimiento servidores rack/torre (Dell, HPE, Lenovo)", "urgencia": "alta", "es_core_srs": True, "keywords": ["servidores", "rack", "torre", "Dell", "HPE", "Lenovo", "PowerEdge", "ProLiant"]},
+    {"tipo": "infraestructura", "subtipo": "virtualizacion", "nombre": "Virtualización VMware", "descripcion": "Diseño, implementación y gestión entornos vSphere, ESXi, vCenter, clusters HA/DRS", "urgencia": "alta", "es_core_srs": True, "keywords": ["VMware", "vSphere", "ESXi", "vCenter", "HA", "DRS", "virtualización"]},
+    {"tipo": "infraestructura", "subtipo": "virtualizacion", "nombre": "Virtualización Hyper-V", "descripcion": "Implementación y administración Microsoft Hyper-V, failover clustering", "urgencia": "alta", "es_core_srs": True, "keywords": ["Hyper-V", "Microsoft", "failover", "clustering", "virtualización"]},
+    {"tipo": "infraestructura", "subtipo": "virtualizacion", "nombre": "Virtualización Proxmox", "descripcion": "Entornos virtualizados open source, gestión VMs y contenedores", "urgencia": "media", "es_core_srs": False, "keywords": ["Proxmox", "open source", "VMs", "contenedores", "KVM"]},
+    {"tipo": "infraestructura", "subtipo": "almacenamiento", "nombre": "Almacenamiento SAN/NAS", "descripcion": "Diseño e implementación storage enterprise, cabinas, expansiones, tiering", "urgencia": "alta", "es_core_srs": True, "keywords": ["SAN", "NAS", "storage", "cabina", "NetApp", "EMC", "Pure", "almacenamiento"]},
+    {"tipo": "infraestructura", "subtipo": "almacenamiento", "nombre": "Almacenamiento hiperconvergente (HCI)", "descripcion": "Soluciones vSAN, Nutanix, Azure Stack HCI", "urgencia": "media", "es_core_srs": False, "keywords": ["HCI", "hiperconvergente", "vSAN", "Nutanix", "Azure Stack"]},
+    {"tipo": "infraestructura", "subtipo": "cloud", "nombre": "Infraestructura Cloud AWS", "descripcion": "Diseño, migración y gestión workloads en Amazon Web Services", "urgencia": "alta", "es_core_srs": True, "keywords": ["AWS", "Amazon", "EC2", "S3", "cloud", "migración"]},
+    {"tipo": "infraestructura", "subtipo": "cloud", "nombre": "Infraestructura Cloud Azure", "descripcion": "Implementación y administración Microsoft Azure, híbrido con on-premise", "urgencia": "alta", "es_core_srs": True, "keywords": ["Azure", "Microsoft", "cloud", "híbrido", "migración"]},
+    {"tipo": "infraestructura", "subtipo": "cloud", "nombre": "Infraestructura Cloud GCP", "descripcion": "Servicios Google Cloud Platform, Compute Engine, Kubernetes", "urgencia": "media", "es_core_srs": True, "keywords": ["GCP", "Google Cloud", "Compute Engine", "GKE", "cloud"]},
+    {"tipo": "infraestructura", "subtipo": "cloud", "nombre": "Cloud híbrido / Multi-cloud", "descripcion": "Arquitecturas combinando on-premise con múltiples proveedores cloud", "urgencia": "media", "es_core_srs": False, "keywords": ["híbrido", "multi-cloud", "on-premise", "arquitectura"]},
+    {"tipo": "infraestructura", "subtipo": "cloud", "nombre": "Migración a cloud", "descripcion": "Planificación y ejecución migraciones on-premise a cloud, lift & shift, refactoring", "urgencia": "media", "es_core_srs": True, "keywords": ["migración", "cloud", "lift and shift", "refactoring", "modernización"]},
+    {"tipo": "infraestructura", "subtipo": "cableado", "nombre": "Cableado estructurado cobre", "descripcion": "Diseño, instalación y certificación cableado Cat5e/Cat6/Cat6A/Cat7, horizontal y vertical", "urgencia": "alta", "es_core_srs": True, "keywords": ["cableado", "cobre", "Cat6", "Cat6A", "Cat7", "UTP", "STP", "estructurado", "red"]},
+    {"tipo": "infraestructura", "subtipo": "cableado", "nombre": "Cableado estructurado fibra óptica", "descripcion": "Tendido, fusión, terminación y certificación fibra óptica monomodo y multimodo", "urgencia": "alta", "es_core_srs": True, "keywords": ["fibra óptica", "monomodo", "multimodo", "OM3", "OM4", "OS2", "fusión"]},
+    {"tipo": "infraestructura", "subtipo": "cableado", "nombre": "Replanteo de red", "descripcion": "Estudio previo, diseño de recorridos, planificación de tiradas y puntos de red", "urgencia": "alta", "es_core_srs": True, "keywords": ["replanteo", "diseño", "recorridos", "planificación", "puntos de red"]},
+    {"tipo": "infraestructura", "subtipo": "cableado", "nombre": "Certificación de cableado", "descripcion": "Medición y certificación de enlaces con equipos Fluke/equivalente, informes de cumplimiento", "urgencia": "alta", "es_core_srs": True, "keywords": ["certificación", "Fluke", "DSX", "medición", "cumplimiento", "informes"]},
+    {"tipo": "infraestructura", "subtipo": "cableado", "nombre": "Fusión de fibra óptica", "descripcion": "Empalme por fusión, instalación cajas de empalme, pigtails y latiguillos", "urgencia": "alta", "es_core_srs": True, "keywords": ["fusión", "empalme", "pigtails", "latiguillos", "caja empalme"]},
+    {"tipo": "infraestructura", "subtipo": "cableado", "nombre": "Canalizaciones y bandejas", "descripcion": "Instalación de bandejas portacables, canaletas, tubos y conductos para cableado", "urgencia": "alta", "es_core_srs": True, "keywords": ["bandejas", "canaletas", "conductos", "tubos", "portacables", "canalización"]},
+    {"tipo": "infraestructura", "subtipo": "cableado", "nombre": "Patch panels y distribuidores", "descripcion": "Instalación y terminación de paneles de parcheo cobre y fibra, organizadores", "urgencia": "alta", "es_core_srs": True, "keywords": ["patch panel", "panel de parcheo", "distribuidor", "organizador", "terminación"]},
+    {"tipo": "infraestructura", "subtipo": "cableado", "nombre": "Rosetas y tomas de red", "descripcion": "Instalación de rosetas RJ45, cajas de superficie/empotrar, tomas de usuario", "urgencia": "alta", "es_core_srs": True, "keywords": ["rosetas", "RJ45", "tomas", "cajas", "puntos de red", "usuario"]},
+    {"tipo": "infraestructura", "subtipo": "cableado", "nombre": "Cableado vertical / troncal", "descripcion": "Backbone entre plantas, conexión armarios distribuidores, fibra/cobre troncal", "urgencia": "alta", "es_core_srs": True, "keywords": ["backbone", "vertical", "troncal", "entre plantas", "riser"]},
+    {"tipo": "infraestructura", "subtipo": "cableado", "nombre": "Etiquetado y documentación de red", "descripcion": "Etiquetado normalizado de puntos, paneles y cables, planos as-built, documentación técnica", "urgencia": "media", "es_core_srs": True, "keywords": ["etiquetado", "documentación", "as-built", "planos", "identificación"]},
+    {"tipo": "infraestructura", "subtipo": "cableado", "nombre": "FTTH / FTTD", "descripcion": "Fibra hasta el hogar o hasta el puesto, despliegue última milla, ONTs", "urgencia": "alta", "es_core_srs": True, "keywords": ["FTTH", "FTTD", "FTTP", "última milla", "ONT", "fibra al hogar"]},
+    {"tipo": "infraestructura", "subtipo": "cableado", "nombre": "Testing y medición de red", "descripcion": "Pruebas de continuidad, atenuación, OTDR, certificación de enlaces", "urgencia": "alta", "es_core_srs": True, "keywords": ["testing", "OTDR", "atenuación", "continuidad", "medición"]},
+    {"tipo": "infraestructura", "subtipo": "cableado", "nombre": "Armarios rack y distribuidores", "descripcion": "Suministro e instalación de armarios de comunicaciones, distribuidores de planta", "urgencia": "alta", "es_core_srs": True, "keywords": ["armario", "rack", "distribuidor", "comunicaciones", "19 pulgadas"]},
+    {"tipo": "infraestructura", "subtipo": "cableado", "nombre": "Obra civil para telecomunicaciones", "descripcion": "Canalizaciones enterradas, arquetas, pedestales, acometidas, paso de muros", "urgencia": "media", "es_core_srs": False, "keywords": ["obra civil", "arquetas", "canalización enterrada", "acometida", "ICT"]},
+    {"tipo": "infraestructura", "subtipo": "datacenter", "nombre": "Racks y PDUs", "descripcion": "Suministro e instalación armarios rack, regletas inteligentes, gestión energía", "urgencia": "media", "es_core_srs": True, "keywords": ["rack", "PDU", "regleta", "energía", "armario"]},
+    {"tipo": "infraestructura", "subtipo": "datacenter", "nombre": "SAI/UPS", "descripcion": "Sistemas alimentación ininterrumpida, dimensionamiento, instalación, mantenimiento", "urgencia": "alta", "es_core_srs": True, "keywords": ["SAI", "UPS", "alimentación ininterrumpida", "baterías", "Eaton", "APC"]},
+    {"tipo": "infraestructura", "subtipo": "datacenter", "nombre": "Climatización CPD", "descripcion": "Sistemas refrigeración data centers, monitorización temperatura/humedad", "urgencia": "alta", "es_core_srs": False, "keywords": ["climatización", "refrigeración", "CPD", "temperatura", "humedad", "CRAC"]},
+    {"tipo": "infraestructura", "subtipo": "datacenter", "nombre": "Data Center - Diseño y construcción", "descripcion": "Diseño salas técnicas, distribución, redundancia, certificación Tier", "urgencia": "media", "es_core_srs": False, "keywords": ["data center", "CPD", "sala técnica", "Tier", "diseño", "Uptime"]},
+    {"tipo": "infraestructura", "subtipo": "datacenter", "nombre": "Colocation", "descripcion": "Gestión espacios en data centers terceros, housing equipos cliente", "urgencia": "media", "es_core_srs": False, "keywords": ["colocation", "housing", "data center", "alojamiento"]},
+    {"tipo": "infraestructura", "subtipo": "puesto", "nombre": "Puestos de trabajo / Endpoints", "descripcion": "Suministro, configuración y soporte PCs, portátiles, thin clients", "urgencia": "alta", "es_core_srs": True, "keywords": ["puesto de trabajo", "PC", "portátil", "endpoint", "thin client", "desktop"]},
+    {"tipo": "infraestructura", "subtipo": "puesto", "nombre": "Dispositivos móviles", "descripcion": "Gestión tablets, smartphones corporativos, MDM", "urgencia": "media", "es_core_srs": False, "keywords": ["móviles", "tablets", "smartphones", "MDM", "dispositivos"]},
+    {"tipo": "infraestructura", "subtipo": "puesto", "nombre": "Impresoras y periféricos", "descripcion": "Gestión parque impresoras, multifuncionales, escáneres, plotters", "urgencia": "baja", "es_core_srs": False, "keywords": ["impresoras", "multifuncionales", "escáneres", "plotters", "periféricos"]},
+    {"tipo": "infraestructura", "subtipo": "puesto", "nombre": "Estaciones de trabajo alto rendimiento", "descripcion": "Workstations para procesamiento cartográfico, LiDAR, renderizado 3D, IA", "urgencia": "alta", "es_core_srs": False, "keywords": ["workstation", "alto rendimiento", "CAD", "renderizado", "LiDAR"]},
+    {"tipo": "infraestructura", "subtipo": "puesto", "nombre": "GPUs / Aceleración gráfica", "descripcion": "Tarjetas gráficas profesionales para procesamiento imágenes, LiDAR, IA (NVIDIA Quadro/Tesla)", "urgencia": "alta", "es_core_srs": False, "keywords": ["GPU", "NVIDIA", "Quadro", "Tesla", "aceleración", "gráfica"]},
+    {"tipo": "infraestructura", "subtipo": "almacenamiento", "nombre": "Almacenamiento masivo datos geoespaciales", "descripcion": "Storage de alta capacidad para ortofotos, nubes de puntos LiDAR, modelos 3D", "urgencia": "alta", "es_core_srs": False, "keywords": ["geoespacial", "ortofotos", "LiDAR", "almacenamiento masivo"]},
+    {"tipo": "infraestructura", "subtipo": "edge", "nombre": "Edge Computing", "descripcion": "Procesamiento en el borde, IoT gateways, mini CPDs, computación distribuida", "urgencia": "media", "es_core_srs": False, "keywords": ["edge", "borde", "IoT", "gateway", "distribuido", "micro CPD"]},
+    {"tipo": "infraestructura", "subtipo": "edge", "nombre": "IoT / Sensórica", "descripcion": "Dispositivos conectados, sensores, plataformas IoT, telemetría", "urgencia": "media", "es_core_srs": False, "keywords": ["IoT", "sensores", "telemetría", "dispositivos conectados", "M2M"]},
+    {"tipo": "infraestructura", "subtipo": "seguridad_fisica", "nombre": "Control de acceso físico", "descripcion": "Tornos, lectores biométricos, tarjetas proximidad, control puertas", "urgencia": "media", "es_core_srs": False, "keywords": ["control acceso", "biométrico", "tarjetas", "tornos", "proximidad"]},
+    {"tipo": "infraestructura", "subtipo": "seguridad_fisica", "nombre": "CCTV / Videovigilancia IP", "descripcion": "Cámaras IP, grabadores NVR, analítica de video, integración con control acceso", "urgencia": "media", "es_core_srs": False, "keywords": ["CCTV", "videovigilancia", "cámaras", "NVR", "grabación", "IP"]},
+    {"tipo": "infraestructura", "subtipo": "seguridad_fisica", "nombre": "Sistemas de intrusión", "descripcion": "Alarmas, detectores de movimiento, centrales de alarma, monitorización", "urgencia": "media", "es_core_srs": False, "keywords": ["intrusión", "alarmas", "detectores", "central alarma"]},
+    {"tipo": "infraestructura", "subtipo": "seguridad_fisica", "nombre": "Control de presencia", "descripcion": "Fichaje, gestión horaria, terminales de control, integración RRHH", "urgencia": "baja", "es_core_srs": False, "keywords": ["presencia", "fichaje", "control horario", "RRHH"]},
+    {"tipo": "infraestructura", "subtipo": "audiovisual", "nombre": "Digital signage", "descripcion": "Cartelería digital, pantallas informativas, gestión de contenidos", "urgencia": "baja", "es_core_srs": False, "keywords": ["digital signage", "cartelería", "pantallas", "contenidos"]},
+    {"tipo": "infraestructura", "subtipo": "audiovisual", "nombre": "Kioscos interactivos", "descripcion": "Puntos de atención automatizados, terminales autoservicio", "urgencia": "baja", "es_core_srs": False, "keywords": ["kiosco", "interactivo", "autoservicio", "terminal"]},
+    {"tipo": "infraestructura", "subtipo": "audiovisual", "nombre": "Sistemas de cola / Turnos", "descripcion": "Gestión de espera, dispensadores de turno, pantallas de llamada", "urgencia": "baja", "es_core_srs": False, "keywords": ["turnos", "cola", "espera", "dispensador"]},
 
     # ═══════════════════════════════════════════════════════════════════════════
-    # COMUNICACIONES
+    # COMUNICACIONES (24)
     # ═══════════════════════════════════════════════════════════════════════════
-    {"tipo": "comunicaciones", "nombre": "Redes LAN - Switches", "descripcion": "Diseño, instalación y gestión switches capa 2/3, VLANs, QoS", "urgencia": "critica"},
-    {"tipo": "comunicaciones", "nombre": "Redes WiFi - Access Points", "descripcion": "Diseño cobertura, instalación APs, controladores wireless, site surveys", "urgencia": "alta"},
-    {"tipo": "comunicaciones", "nombre": "Redes WAN - Routers", "descripcion": "Configuración y gestión routers, enrutamiento, BGP, OSPF", "urgencia": "critica"},
-    {"tipo": "comunicaciones", "nombre": "Firewalls perimetrales", "descripcion": "Implementación y gestión firewalls (Fortinet, Palo Alto, Cisco, Sophos)", "urgencia": "critica"},
-    {"tipo": "comunicaciones", "nombre": "VPN Site-to-Site", "descripcion": "Túneles seguros entre sedes, IPSec, configuración redundancia", "urgencia": "alta"},
-    {"tipo": "comunicaciones", "nombre": "VPN Client / Acceso remoto", "descripcion": "Conexiones seguras usuarios remotos, SSL VPN, always-on VPN", "urgencia": "alta"},
-    {"tipo": "comunicaciones", "nombre": "SD-WAN", "descripcion": "Redes definidas por software, optimización tráfico, failover automático", "urgencia": "media"},
-    {"tipo": "comunicaciones", "nombre": "MPLS", "descripcion": "Gestión circuitos MPLS operador, QoS, SLAs", "urgencia": "media"},
-    {"tipo": "comunicaciones", "nombre": "Internet dedicado", "descripcion": "Gestión líneas dedicadas, fibra, redundancia, balanceo", "urgencia": "alta"},
-    {"tipo": "comunicaciones", "nombre": "Backup 4G/5G", "descripcion": "Líneas móviles de respaldo, routers LTE, failover automático", "urgencia": "media"},
-    {"tipo": "comunicaciones", "nombre": "Radioenlaces", "descripcion": "Enlaces punto a punto microondas, conexión sedes sin fibra", "urgencia": "baja"},
-    {"tipo": "comunicaciones", "nombre": "Telefonía IP / VoIP", "descripcion": "Centralitas virtuales, SIP trunks, gestión numeración", "urgencia": "media"},
-    {"tipo": "comunicaciones", "nombre": "Comunicaciones unificadas", "descripcion": "Integración voz, video, chat, presencia en plataforma única", "urgencia": "media"},
-    {"tipo": "comunicaciones", "nombre": "Microsoft Teams - Administración", "descripcion": "Gestión Teams: usuarios, políticas, telefonía, salas, integraciones", "urgencia": "alta"},
-    {"tipo": "comunicaciones", "nombre": "Videoconferencia / Salas", "descripcion": "Equipamiento salas reuniones, integración Teams/Zoom, gestión reservas", "urgencia": "media"},
+    {"tipo": "comunicaciones", "subtipo": "red_local", "nombre": "Redes LAN - Switches", "descripcion": "Diseño, instalación y gestión switches capa 2/3, VLANs, QoS, stacking", "urgencia": "critica", "es_core_srs": True, "keywords": ["switch", "LAN", "VLAN", "QoS", "Cisco", "HPE", "Aruba", "capa 2", "capa 3"]},
+    {"tipo": "comunicaciones", "subtipo": "red_local", "nombre": "Redes WiFi - Access Points", "descripcion": "Diseño cobertura, instalación APs, controladores wireless, site surveys", "urgencia": "alta", "es_core_srs": True, "keywords": ["WiFi", "wireless", "AP", "access point", "controlador", "site survey"]},
+    {"tipo": "comunicaciones", "subtipo": "red_wan", "nombre": "Redes WAN - Routers", "descripcion": "Configuración y gestión routers, enrutamiento, BGP, OSPF, EIGRP", "urgencia": "critica", "es_core_srs": True, "keywords": ["WAN", "router", "BGP", "OSPF", "enrutamiento", "Cisco"]},
+    {"tipo": "comunicaciones", "subtipo": "seguridad_red", "nombre": "Firewalls perimetrales", "descripcion": "Implementación y gestión firewalls (Fortinet, Palo Alto, Cisco, Sophos, Check Point)", "urgencia": "critica", "es_core_srs": True, "keywords": ["firewall", "Fortinet", "Palo Alto", "Cisco ASA", "Sophos", "Check Point"]},
+    {"tipo": "comunicaciones", "subtipo": "seguridad_red", "nombre": "NAC - Network Access Control", "descripcion": "Control de acceso a red, 802.1X, posturing, segmentación por identidad", "urgencia": "alta", "es_core_srs": False, "keywords": ["NAC", "802.1X", "control acceso red", "posturing", "Cisco ISE", "Aruba ClearPass"]},
+    {"tipo": "comunicaciones", "subtipo": "seguridad_red", "nombre": "Segmentación de red", "descripcion": "Microsegmentación, zonas DMZ, separación de entornos, zero trust network", "urgencia": "alta", "es_core_srs": False, "keywords": ["segmentación", "DMZ", "microsegmentación", "zonas", "zero trust"]},
+    {"tipo": "comunicaciones", "subtipo": "vpn", "nombre": "VPN Site-to-Site", "descripcion": "Túneles seguros entre sedes, IPSec, configuración redundancia", "urgencia": "alta", "es_core_srs": True, "keywords": ["VPN", "site-to-site", "IPSec", "túnel", "sede a sede"]},
+    {"tipo": "comunicaciones", "subtipo": "vpn", "nombre": "VPN Client / Acceso remoto", "descripcion": "Conexiones seguras usuarios remotos, SSL VPN, always-on VPN, GlobalProtect", "urgencia": "alta", "es_core_srs": True, "keywords": ["VPN", "remoto", "SSL VPN", "GlobalProtect", "AnyConnect", "acceso remoto"]},
+    {"tipo": "comunicaciones", "subtipo": "wan", "nombre": "SD-WAN", "descripcion": "Redes definidas por software, optimización tráfico, failover automático", "urgencia": "media", "es_core_srs": False, "keywords": ["SD-WAN", "software defined", "optimización", "failover", "Meraki", "Viptela"]},
+    {"tipo": "comunicaciones", "subtipo": "wan", "nombre": "MPLS", "descripcion": "Gestión circuitos MPLS operador, QoS, SLAs, troubleshooting", "urgencia": "media", "es_core_srs": False, "keywords": ["MPLS", "circuito", "operador", "QoS", "VPN MPLS"]},
+    {"tipo": "comunicaciones", "subtipo": "wan", "nombre": "Internet dedicado", "descripcion": "Gestión líneas dedicadas, fibra, redundancia, balanceo, failover", "urgencia": "alta", "es_core_srs": False, "keywords": ["internet", "dedicado", "fibra", "redundancia", "balanceo"]},
+    {"tipo": "comunicaciones", "subtipo": "wan", "nombre": "Backup 4G/5G", "descripcion": "Líneas móviles de respaldo, routers LTE/5G, failover automático", "urgencia": "media", "es_core_srs": False, "keywords": ["4G", "5G", "LTE", "backup", "respaldo", "móvil"]},
+    {"tipo": "comunicaciones", "subtipo": "wan", "nombre": "Comunicaciones satelitales", "descripcion": "Enlace satélite para zonas remotas, VSAT, Starlink", "urgencia": "media", "es_core_srs": False, "keywords": ["satélite", "VSAT", "Starlink", "remoto", "comunicaciones"]},
+    {"tipo": "comunicaciones", "subtipo": "wan", "nombre": "Radioenlaces", "descripcion": "Enlaces punto a punto microondas, conexión sedes sin fibra", "urgencia": "baja", "es_core_srs": False, "keywords": ["radioenlace", "microondas", "punto a punto", "wireless bridge"]},
+    {"tipo": "comunicaciones", "subtipo": "balanceo", "nombre": "Balanceadores de carga", "descripcion": "Distribución tráfico, alta disponibilidad aplicaciones, F5, HAProxy, Citrix ADC", "urgencia": "alta", "es_core_srs": False, "keywords": ["balanceador", "F5", "HAProxy", "Citrix ADC", "load balancer", "ADC"]},
+    {"tipo": "comunicaciones", "subtipo": "proxy", "nombre": "Proxy / Filtrado web", "descripcion": "Control navegación, caché, reporting, categorización, Zscaler, Bluecoat", "urgencia": "media", "es_core_srs": False, "keywords": ["proxy", "filtrado", "navegación", "Zscaler", "Bluecoat", "web filter"]},
+    {"tipo": "comunicaciones", "subtipo": "dns", "nombre": "DNS/DHCP avanzado (DDI)", "descripcion": "DDI enterprise, IPAM, gestión direccionamiento, Infoblox, BlueCat", "urgencia": "media", "es_core_srs": False, "keywords": ["DDI", "IPAM", "Infoblox", "BlueCat", "DNS", "DHCP", "direccionamiento"]},
+    {"tipo": "comunicaciones", "subtipo": "qos", "nombre": "Gestión de ancho de banda", "descripcion": "Traffic shaping, QoS avanzado, priorización tráfico, NetFlow", "urgencia": "media", "es_core_srs": False, "keywords": ["QoS", "traffic shaping", "ancho de banda", "priorización", "NetFlow"]},
+    {"tipo": "comunicaciones", "subtipo": "telefonia", "nombre": "Telefonía IP / VoIP", "descripcion": "Centralitas virtuales, SIP trunks, gestión numeración, Cisco CUCM, Avaya", "urgencia": "media", "es_core_srs": False, "keywords": ["VoIP", "telefonía IP", "SIP", "centralita", "CUCM", "Avaya"]},
+    {"tipo": "comunicaciones", "subtipo": "telefonia", "nombre": "Contact Center", "descripcion": "Plataformas ACD, IVR, grabación llamadas, omnicanal, Genesys, Five9", "urgencia": "media", "es_core_srs": False, "keywords": ["contact center", "call center", "ACD", "IVR", "Genesys", "omnicanal"]},
+    {"tipo": "comunicaciones", "subtipo": "colaboracion", "nombre": "Comunicaciones unificadas", "descripcion": "Integración voz, video, chat, presencia en plataforma única", "urgencia": "media", "es_core_srs": False, "keywords": ["UC", "comunicaciones unificadas", "colaboración", "presencia"]},
+    {"tipo": "comunicaciones", "subtipo": "colaboracion", "nombre": "Microsoft Teams - Administración", "descripcion": "Gestión Teams: usuarios, políticas, telefonía, salas, integraciones, Teams Rooms", "urgencia": "alta", "es_core_srs": True, "keywords": ["Teams", "Microsoft Teams", "colaboración", "telefonía Teams", "Teams Rooms"]},
+    {"tipo": "comunicaciones", "subtipo": "colaboracion", "nombre": "Videoconferencia / Salas", "descripcion": "Equipamiento salas reuniones, integración Teams/Zoom/Webex, gestión reservas", "urgencia": "media", "es_core_srs": False, "keywords": ["videoconferencia", "salas", "Zoom", "Webex", "Poly", "Logitech"]},
+    {"tipo": "comunicaciones", "subtipo": "especializado", "nombre": "Transmisión datos drones en tiempo real", "descripcion": "Streaming video/telemetría desde drones, enlaces dedicados, latencia mínima", "urgencia": "alta", "es_core_srs": False, "keywords": ["drones", "streaming", "telemetría", "tiempo real", "video"]},
 
     # ═══════════════════════════════════════════════════════════════════════════
-    # SOFTWARE
+    # SOFTWARE (52)
     # ═══════════════════════════════════════════════════════════════════════════
-    {"tipo": "software", "nombre": "Windows Server", "descripcion": "Instalación, configuración y administración Windows Server 2016/2019/2022", "urgencia": "critica"},
-    {"tipo": "software", "nombre": "Linux Server", "descripcion": "Administración servidores Linux (RHEL, Ubuntu, CentOS, Debian)", "urgencia": "alta"},
-    {"tipo": "software", "nombre": "Active Directory", "descripcion": "Diseño, implementación y gestión AD DS, GPOs, estructura OUs", "urgencia": "critica"},
-    {"tipo": "software", "nombre": "Azure AD / Entra ID", "descripcion": "Identidad cloud, sincronización híbrida, conditional access", "urgencia": "alta"},
-    {"tipo": "software", "nombre": "DNS", "descripcion": "Servicios resolución nombres, zonas internas/externas, split DNS", "urgencia": "critica"},
-    {"tipo": "software", "nombre": "DHCP", "descripcion": "Asignación dinámica IPs, reservas, scopes, failover", "urgencia": "critica"},
-    {"tipo": "software", "nombre": "Microsoft 365", "descripcion": "Administración tenant M365: Exchange Online, SharePoint, OneDrive, licencias", "urgencia": "critica"},
-    {"tipo": "software", "nombre": "Google Workspace", "descripcion": "Gestión entorno Google: Gmail, Drive, Calendar, Admin Console", "urgencia": "alta"},
-    {"tipo": "software", "nombre": "Exchange Server On-Premise", "descripcion": "Administración Exchange local, migraciones, coexistencia híbrida", "urgencia": "media"},
-    {"tipo": "software", "nombre": "Bases de datos SQL Server", "descripcion": "Administración SQL Server, backups, optimización, alta disponibilidad", "urgencia": "alta"},
-    {"tipo": "software", "nombre": "Bases de datos MySQL/PostgreSQL", "descripcion": "Gestión bases datos open source, replicación, tuning", "urgencia": "alta"},
-    {"tipo": "software", "nombre": "ITSM - ServiceNow", "descripcion": "Plataforma gestión servicios IT, tickets, CMDB, workflows", "urgencia": "media"},
-    {"tipo": "software", "nombre": "ITSM - Jira Service Management", "descripcion": "Gestión incidencias, peticiones, cambios, SLAs", "urgencia": "media"},
-    {"tipo": "software", "nombre": "ITSM - Freshservice/Freshdesk", "descripcion": "Helpdesk cloud, gestión tickets, base conocimiento", "urgencia": "media"},
-    {"tipo": "software", "nombre": "Monitorización - Zabbix", "descripcion": "Monitorización infraestructura open source, alertas, dashboards", "urgencia": "alta"},
-    {"tipo": "software", "nombre": "Monitorización - PRTG", "descripcion": "Monitorización red y sistemas, sensores, reporting", "urgencia": "alta"},
-    {"tipo": "software", "nombre": "Monitorización - Nagios", "descripcion": "Monitorización infraestructura, plugins, alertas", "urgencia": "media"},
-    {"tipo": "software", "nombre": "Monitorización - Datadog/New Relic", "descripcion": "Observabilidad cloud, APM, logs, métricas", "urgencia": "media"},
-    {"tipo": "software", "nombre": "RMM - Gestión remota endpoints", "descripcion": "Herramientas administración remota (ConnectWise, Datto, NinjaRMM)", "urgencia": "alta"},
-    {"tipo": "software", "nombre": "Backup - Veeam", "descripcion": "Backup y replicación VMs, recuperación granular, cloud connect", "urgencia": "critica"},
-    {"tipo": "software", "nombre": "Backup - Commvault", "descripcion": "Backup enterprise, deduplicación, archivado", "urgencia": "alta"},
-    {"tipo": "software", "nombre": "Backup - Acronis", "descripcion": "Backup endpoints y servidores, disaster recovery", "urgencia": "alta"},
-    {"tipo": "software", "nombre": "Backup cloud (M365, Google)", "descripcion": "Backup datos SaaS: correo, SharePoint, Drive, Teams", "urgencia": "alta"},
-    {"tipo": "software", "nombre": "DRaaS - Disaster Recovery as a Service", "descripcion": "Replicación offsite, failover automatizado, RTO/RPO definidos", "urgencia": "alta"},
-    {"tipo": "software", "nombre": "Automatización - Ansible", "descripcion": "Automatización configuración servidores, playbooks, IaC", "urgencia": "media"},
-    {"tipo": "software", "nombre": "Automatización - Terraform", "descripcion": "Infrastructure as Code, provisioning cloud, versionado", "urgencia": "media"},
-    {"tipo": "software", "nombre": "Automatización - Power Automate", "descripcion": "Flujos automatizados Microsoft, integración M365, conectores", "urgencia": "media"},
-    {"tipo": "software", "nombre": "Contenedores - Docker", "descripcion": "Containerización aplicaciones, imágenes, registries", "urgencia": "media"},
-    {"tipo": "software", "nombre": "Orquestación - Kubernetes", "descripcion": "Gestión clusters K8s, deployments, scaling, helm charts", "urgencia": "media"},
-    {"tipo": "software", "nombre": "CI/CD - Pipelines", "descripcion": "Integración y despliegue continuo (Azure DevOps, GitHub Actions, GitLab)", "urgencia": "media"},
+    {"tipo": "software", "subtipo": "sistemas_operativos", "nombre": "Windows Server", "descripcion": "Instalación, configuración y administración Windows Server 2016/2019/2022/2025", "urgencia": "critica", "es_core_srs": True, "keywords": ["Windows Server", "2019", "2022", "Microsoft", "servidor"]},
+    {"tipo": "software", "subtipo": "sistemas_operativos", "nombre": "Linux Server", "descripcion": "Administración servidores Linux (RHEL, Ubuntu, CentOS, Rocky, Debian, SUSE)", "urgencia": "alta", "es_core_srs": True, "keywords": ["Linux", "RHEL", "Ubuntu", "CentOS", "Rocky", "Debian", "SUSE"]},
+    {"tipo": "software", "subtipo": "directorio", "nombre": "Active Directory", "descripcion": "Diseño, implementación y gestión AD DS, GPOs, estructura OUs, Sites", "urgencia": "critica", "es_core_srs": True, "keywords": ["Active Directory", "AD", "GPO", "dominio", "LDAP", "directorio"]},
+    {"tipo": "software", "subtipo": "directorio", "nombre": "Azure AD / Entra ID", "descripcion": "Identidad cloud, sincronización híbrida, conditional access, PIM", "urgencia": "alta", "es_core_srs": True, "keywords": ["Azure AD", "Entra ID", "identidad", "cloud", "híbrido", "conditional access"]},
+    {"tipo": "software", "subtipo": "red", "nombre": "DNS", "descripcion": "Servicios resolución nombres, zonas internas/externas, split DNS, DNSSEC", "urgencia": "critica", "es_core_srs": True, "keywords": ["DNS", "resolución", "zonas", "DNSSEC"]},
+    {"tipo": "software", "subtipo": "red", "nombre": "DHCP", "descripcion": "Asignación dinámica IPs, reservas, scopes, failover, opciones DHCP", "urgencia": "critica", "es_core_srs": True, "keywords": ["DHCP", "IP", "direccionamiento", "scopes"]},
+    {"tipo": "software", "subtipo": "productividad", "nombre": "Microsoft 365", "descripcion": "Administración tenant M365: Exchange Online, SharePoint, OneDrive, Teams, licencias", "urgencia": "critica", "es_core_srs": True, "keywords": ["Microsoft 365", "M365", "Office 365", "O365", "Exchange Online", "SharePoint"]},
+    {"tipo": "software", "subtipo": "productividad", "nombre": "Google Workspace", "descripcion": "Gestión entorno Google: Gmail, Drive, Calendar, Admin Console, Vault", "urgencia": "alta", "es_core_srs": True, "keywords": ["Google Workspace", "Gmail", "Drive", "G Suite", "Google"]},
+    {"tipo": "software", "subtipo": "correo", "nombre": "Exchange Server On-Premise", "descripcion": "Administración Exchange local, migraciones, coexistencia híbrida, DAG", "urgencia": "media", "es_core_srs": False, "keywords": ["Exchange", "correo", "on-premise", "DAG", "híbrido"]},
+    {"tipo": "software", "subtipo": "bbdd", "nombre": "Bases de datos SQL Server", "descripcion": "Administración SQL Server, backups, optimización, Always On, replicación", "urgencia": "alta", "es_core_srs": True, "keywords": ["SQL Server", "MSSQL", "base de datos", "Always On", "Microsoft SQL"]},
+    {"tipo": "software", "subtipo": "bbdd", "nombre": "Bases de datos MySQL/PostgreSQL", "descripcion": "Gestión bases datos open source, replicación, tuning, alta disponibilidad", "urgencia": "alta", "es_core_srs": False, "keywords": ["MySQL", "PostgreSQL", "MariaDB", "base de datos", "open source"]},
+    {"tipo": "software", "subtipo": "bbdd", "nombre": "Bases de datos Oracle", "descripcion": "Administración Oracle Database, RAC, Data Guard, tuning", "urgencia": "alta", "es_core_srs": False, "keywords": ["Oracle", "RAC", "Data Guard", "base de datos"]},
+    {"tipo": "software", "subtipo": "bbdd", "nombre": "Bases de datos geoespaciales (PostGIS)", "descripcion": "Almacenamiento y consulta datos geográficos, integración GIS", "urgencia": "alta", "es_core_srs": False, "keywords": ["PostGIS", "geoespacial", "GIS", "PostgreSQL", "geográfico"]},
+    {"tipo": "software", "subtipo": "erp_crm", "nombre": "ERP (SAP, Oracle, Dynamics)", "descripcion": "Implementación, soporte y administración sistemas ERP enterprise", "urgencia": "alta", "es_core_srs": False, "keywords": ["ERP", "SAP", "Oracle ERP", "Dynamics 365", "gestión empresarial"]},
+    {"tipo": "software", "subtipo": "erp_crm", "nombre": "CRM (Salesforce, Dynamics)", "descripcion": "Plataformas gestión comercial y relación con clientes", "urgencia": "media", "es_core_srs": False, "keywords": ["CRM", "Salesforce", "Dynamics CRM", "HubSpot", "comercial"]},
+    {"tipo": "software", "subtipo": "desarrollo", "nombre": "Desarrollo a medida", "descripcion": "Aplicaciones custom, integraciones, APIs, desarrollo software", "urgencia": "media", "es_core_srs": False, "keywords": ["desarrollo", "custom", "aplicaciones", "programación", "software"]},
+    {"tipo": "software", "subtipo": "desarrollo", "nombre": "Aplicaciones legacy", "descripcion": "Mantenimiento sistemas antiguos, COBOL, AS400, modernización", "urgencia": "media", "es_core_srs": False, "keywords": ["legacy", "COBOL", "AS400", "mainframe", "antiguo"]},
+    {"tipo": "software", "subtipo": "virtualizacion_apps", "nombre": "Virtualización de aplicaciones", "descripcion": "Citrix Virtual Apps, AVD, RemoteApp, publicación aplicaciones", "urgencia": "alta", "es_core_srs": False, "keywords": ["Citrix", "AVD", "RemoteApp", "virtualización", "VDI", "escritorio virtual"]},
+    {"tipo": "software", "subtipo": "gestion_documental", "nombre": "Gestión documental (ECM)", "descripcion": "Alfresco, SharePoint avanzado, workflows documentales, digitalización", "urgencia": "media", "es_core_srs": False, "keywords": ["ECM", "gestión documental", "Alfresco", "SharePoint", "documentos"]},
+    {"tipo": "software", "subtipo": "bi", "nombre": "Business Intelligence", "descripcion": "Power BI, Tableau, Qlik, reporting, dashboards, analítica", "urgencia": "media", "es_core_srs": False, "keywords": ["BI", "Power BI", "Tableau", "Qlik", "reporting", "analítica"]},
+    {"tipo": "software", "subtipo": "bi", "nombre": "ETL / Integración datos", "descripcion": "Talend, SSIS, Azure Data Factory, pipelines datos, datawarehouse", "urgencia": "media", "es_core_srs": False, "keywords": ["ETL", "Talend", "SSIS", "Data Factory", "integración", "datos"]},
+    {"tipo": "software", "subtipo": "automatizacion", "nombre": "RPA - Automatización robótica", "descripcion": "UiPath, Blue Prism, Power Automate Desktop, automatización procesos", "urgencia": "media", "es_core_srs": False, "keywords": ["RPA", "UiPath", "Blue Prism", "automatización", "robot"]},
+    {"tipo": "software", "subtipo": "automatizacion", "nombre": "Low-code / No-code", "descripcion": "Power Apps, OutSystems, Mendix, desarrollo ciudadano", "urgencia": "media", "es_core_srs": False, "keywords": ["low-code", "no-code", "Power Apps", "OutSystems", "Mendix"]},
+    {"tipo": "software", "subtipo": "firma", "nombre": "Firma electrónica", "descripcion": "Certificados digitales, firma avanzada/cualificada, validación, sello tiempo", "urgencia": "media", "es_core_srs": False, "keywords": ["firma electrónica", "certificado", "digital", "validación", "sello tiempo"]},
+    {"tipo": "software", "subtipo": "impresion", "nombre": "Gestión de impresión", "descripcion": "PrinterLogic, PaperCut, pull printing, control costes impresión", "urgencia": "baja", "es_core_srs": False, "keywords": ["impresión", "PrinterLogic", "PaperCut", "pull printing"]},
+    {"tipo": "software", "subtipo": "email_security", "nombre": "Antispam dedicado", "descripcion": "Proofpoint, Mimecast, Barracuda, protección correo avanzada", "urgencia": "alta", "es_core_srs": False, "keywords": ["antispam", "Proofpoint", "Mimecast", "Barracuda", "correo"]},
+    {"tipo": "software", "subtipo": "itsm", "nombre": "ITSM - ServiceNow", "descripcion": "Plataforma gestión servicios IT, tickets, CMDB, workflows, ITOM", "urgencia": "media", "es_core_srs": False, "keywords": ["ServiceNow", "ITSM", "tickets", "CMDB", "gestión servicios"]},
+    {"tipo": "software", "subtipo": "itsm", "nombre": "ITSM - Jira Service Management", "descripcion": "Gestión incidencias, peticiones, cambios, SLAs, Confluence", "urgencia": "media", "es_core_srs": False, "keywords": ["Jira", "Atlassian", "Service Management", "tickets", "Confluence"]},
+    {"tipo": "software", "subtipo": "itsm", "nombre": "ITSM - Freshservice/Freshdesk", "descripcion": "Helpdesk cloud, gestión tickets, base conocimiento, autoservicio", "urgencia": "media", "es_core_srs": False, "keywords": ["Freshservice", "Freshdesk", "helpdesk", "tickets", "cloud"]},
+    {"tipo": "software", "subtipo": "monitorizacion", "nombre": "Monitorización - Zabbix", "descripcion": "Monitorización infraestructura open source, alertas, dashboards, templates", "urgencia": "alta", "es_core_srs": True, "keywords": ["Zabbix", "monitorización", "alertas", "open source"]},
+    {"tipo": "software", "subtipo": "monitorizacion", "nombre": "Monitorización - PRTG", "descripcion": "Monitorización red y sistemas, sensores, reporting, mapas", "urgencia": "alta", "es_core_srs": True, "keywords": ["PRTG", "monitorización", "sensores", "Paessler"]},
+    {"tipo": "software", "subtipo": "monitorizacion", "nombre": "Monitorización - Nagios", "descripcion": "Monitorización infraestructura, plugins, alertas, Nagios XI", "urgencia": "media", "es_core_srs": False, "keywords": ["Nagios", "monitorización", "plugins", "alertas"]},
+    {"tipo": "software", "subtipo": "monitorizacion", "nombre": "Monitorización - Datadog/New Relic", "descripcion": "Observabilidad cloud, APM, logs, métricas, trazas", "urgencia": "media", "es_core_srs": False, "keywords": ["Datadog", "New Relic", "APM", "observabilidad", "cloud"]},
+    {"tipo": "software", "subtipo": "rmm", "nombre": "RMM - Gestión remota endpoints", "descripcion": "Herramientas administración remota (ConnectWise, Datto, NinjaRMM, N-able)", "urgencia": "alta", "es_core_srs": True, "keywords": ["RMM", "ConnectWise", "Datto", "NinjaRMM", "gestión remota"]},
+    {"tipo": "software", "subtipo": "backup", "nombre": "Backup - Veeam", "descripcion": "Backup y replicación VMs, recuperación granular, cloud connect, inmutabilidad", "urgencia": "critica", "es_core_srs": True, "keywords": ["Veeam", "backup", "replicación", "recuperación", "VMs"]},
+    {"tipo": "software", "subtipo": "backup", "nombre": "Backup - Commvault", "descripcion": "Backup enterprise, deduplicación, archivado, gestión datos", "urgencia": "alta", "es_core_srs": False, "keywords": ["Commvault", "backup", "enterprise", "archivado"]},
+    {"tipo": "software", "subtipo": "backup", "nombre": "Backup - Acronis", "descripcion": "Backup endpoints y servidores, disaster recovery, cyber protect", "urgencia": "alta", "es_core_srs": True, "keywords": ["Acronis", "backup", "disaster recovery", "cyber protect"]},
+    {"tipo": "software", "subtipo": "backup", "nombre": "Backup cloud (M365, Google)", "descripcion": "Backup datos SaaS: correo, SharePoint, Drive, Teams (Veeam, AvePoint, Spanning)", "urgencia": "alta", "es_core_srs": True, "keywords": ["backup SaaS", "M365 backup", "AvePoint", "Spanning", "cloud backup"]},
+    {"tipo": "software", "subtipo": "dr", "nombre": "DRaaS - Disaster Recovery as a Service", "descripcion": "Replicación offsite, failover automatizado, RTO/RPO definidos, Zerto, Azure Site Recovery", "urgencia": "alta", "es_core_srs": False, "keywords": ["DRaaS", "disaster recovery", "Zerto", "replicación", "failover"]},
+    {"tipo": "software", "subtipo": "automatizacion", "nombre": "Automatización - Ansible", "descripcion": "Automatización configuración servidores, playbooks, IaC, Red Hat", "urgencia": "media", "es_core_srs": False, "keywords": ["Ansible", "automatización", "playbooks", "IaC", "configuración"]},
+    {"tipo": "software", "subtipo": "automatizacion", "nombre": "Automatización - Terraform", "descripcion": "Infrastructure as Code, provisioning cloud, versionado, HashiCorp", "urgencia": "media", "es_core_srs": False, "keywords": ["Terraform", "IaC", "HashiCorp", "provisioning", "infraestructura"]},
+    {"tipo": "software", "subtipo": "automatizacion", "nombre": "Automatización - Power Automate", "descripcion": "Flujos automatizados Microsoft, integración M365, conectores, cloud flows", "urgencia": "media", "es_core_srs": False, "keywords": ["Power Automate", "Microsoft", "flujos", "automatización", "Flow"]},
+    {"tipo": "software", "subtipo": "automatizacion", "nombre": "Automatización - n8n/Make", "descripcion": "Automatización procesos, integración APIs, workflows, Zapier alternativo", "urgencia": "media", "es_core_srs": False, "keywords": ["n8n", "Make", "Integromat", "Zapier", "automatización", "workflows"]},
+    {"tipo": "software", "subtipo": "contenedores", "nombre": "Contenedores - Docker", "descripcion": "Containerización aplicaciones, imágenes, registries, Docker Compose", "urgencia": "media", "es_core_srs": False, "keywords": ["Docker", "contenedores", "imágenes", "registry", "containerización"]},
+    {"tipo": "software", "subtipo": "contenedores", "nombre": "Orquestación - Kubernetes", "descripcion": "Gestión clusters K8s, deployments, scaling, helm charts, AKS, EKS, GKE", "urgencia": "media", "es_core_srs": False, "keywords": ["Kubernetes", "K8s", "AKS", "EKS", "GKE", "orquestación", "helm"]},
+    {"tipo": "software", "subtipo": "devops", "nombre": "CI/CD - Pipelines", "descripcion": "Integración y despliegue continuo (Azure DevOps, GitHub Actions, GitLab CI, Jenkins)", "urgencia": "media", "es_core_srs": False, "keywords": ["CI/CD", "DevOps", "Azure DevOps", "GitHub Actions", "GitLab", "Jenkins"]},
+    {"tipo": "software", "subtipo": "drones", "nombre": "Software fotogrametría (Pix4D)", "descripcion": "Procesamiento imágenes drones, generación ortofotos, modelos 3D", "urgencia": "critica", "es_core_srs": True, "keywords": ["Pix4D", "fotogrametría", "ortofotos", "3D", "drones"]},
+    {"tipo": "software", "subtipo": "drones", "nombre": "Software fotogrametría (Agisoft Metashape)", "descripcion": "Procesamiento fotogramétrico, nubes de puntos, texturas", "urgencia": "alta", "es_core_srs": True, "keywords": ["Agisoft", "Metashape", "fotogrametría", "nubes de puntos"]},
+    {"tipo": "software", "subtipo": "drones", "nombre": "Software fotogrametría (DroneDeploy)", "descripcion": "Plataforma cloud para procesamiento y análisis datos drones", "urgencia": "alta", "es_core_srs": True, "keywords": ["DroneDeploy", "cloud", "drones", "análisis"]},
+    {"tipo": "software", "subtipo": "drones", "nombre": "APIs integración datos drones", "descripcion": "Desarrollo APIs REST para consumo datos cartográficos, ortofotos, modelos", "urgencia": "alta", "es_core_srs": True, "keywords": ["API", "drones", "integración", "cartográfico", "REST"]},
 
     # ═══════════════════════════════════════════════════════════════════════════
-    # SEGURIDAD
+    # DRONES, CARTOGRAFÍA Y SEGUIMIENTO DE OBRA (25) - LÍNEA ESTRATÉGICA
     # ═══════════════════════════════════════════════════════════════════════════
-    {"tipo": "seguridad", "nombre": "Firewall Next-Gen (NGFW)", "descripcion": "Firewalls con inspección profunda, IPS integrado, application control", "urgencia": "critica"},
-    {"tipo": "seguridad", "nombre": "IDS/IPS", "descripcion": "Sistemas detección y prevención intrusiones, análisis tráfico", "urgencia": "alta"},
-    {"tipo": "seguridad", "nombre": "WAF - Web Application Firewall", "descripcion": "Protección aplicaciones web, OWASP, reglas personalizadas", "urgencia": "alta"},
-    {"tipo": "seguridad", "nombre": "Antivirus / Antimalware", "descripcion": "Protección endpoints, consola centralizada, actualizaciones", "urgencia": "critica"},
-    {"tipo": "seguridad", "nombre": "EDR - Endpoint Detection & Response", "descripcion": "Detección avanzada amenazas endpoints, respuesta automatizada (CrowdStrike, SentinelOne, Defender)", "urgencia": "alta"},
-    {"tipo": "seguridad", "nombre": "XDR - Extended Detection & Response", "descripcion": "Correlación eventos múltiples fuentes, respuesta unificada", "urgencia": "media"},
-    {"tipo": "seguridad", "nombre": "SIEM", "descripcion": "Correlación eventos seguridad, análisis logs, alertas (Splunk, Sentinel, QRadar)", "urgencia": "alta"},
-    {"tipo": "seguridad", "nombre": "SOC - Centro Operaciones Seguridad", "descripcion": "Monitorización 24x7 seguridad, análisis alertas, respuesta incidentes", "urgencia": "alta"},
-    {"tipo": "seguridad", "nombre": "Gestión vulnerabilidades", "descripcion": "Escaneo periódico, priorización CVEs, seguimiento remediación (Qualys, Nessus)", "urgencia": "alta"},
-    {"tipo": "seguridad", "nombre": "Pentesting / Test intrusión", "descripcion": "Pruebas penetración infraestructura y aplicaciones, informes", "urgencia": "media"},
-    {"tipo": "seguridad", "nombre": "Hardening sistemas", "descripcion": "Bastionado servidores y endpoints según CIS benchmarks", "urgencia": "alta"},
-    {"tipo": "seguridad", "nombre": "Cifrado datos en reposo", "descripcion": "Encriptación discos, bases datos, almacenamiento (BitLocker, LUKS)", "urgencia": "alta"},
-    {"tipo": "seguridad", "nombre": "Cifrado datos en tránsito", "descripcion": "TLS/SSL, certificados, gestión PKI", "urgencia": "alta"},
-    {"tipo": "seguridad", "nombre": "DLP - Data Loss Prevention", "descripcion": "Prevención fuga datos, políticas clasificación, monitorización", "urgencia": "media"},
-    {"tipo": "seguridad", "nombre": "IAM - Identity & Access Management", "descripcion": "Gestión identidades, provisioning, lifecycle usuarios", "urgencia": "alta"},
-    {"tipo": "seguridad", "nombre": "PAM - Privileged Access Management", "descripcion": "Gestión accesos privilegiados, bóveda contraseñas, grabación sesiones (CyberArk, BeyondTrust)", "urgencia": "alta"},
-    {"tipo": "seguridad", "nombre": "MFA - Autenticación multifactor", "descripcion": "Segundo factor autenticación, tokens, apps authenticator", "urgencia": "critica"},
-    {"tipo": "seguridad", "nombre": "SSO - Single Sign-On", "descripcion": "Autenticación única, federación identidades, SAML/OAuth", "urgencia": "alta"},
-    {"tipo": "seguridad", "nombre": "Zero Trust Network Access", "descripcion": "Acceso basado en identidad, microsegmentación, verificación continua", "urgencia": "media"},
-    {"tipo": "seguridad", "nombre": "Email Security", "descripcion": "Protección correo: antispam, antiphishing, sandboxing adjuntos", "urgencia": "alta"},
-    {"tipo": "seguridad", "nombre": "Concienciación seguridad / Awareness", "descripcion": "Formación usuarios, simulaciones phishing, campañas", "urgencia": "media"},
-    {"tipo": "seguridad", "nombre": "Backup inmutable / Air-gapped", "descripcion": "Copias seguridad protegidas contra ransomware, WORM", "urgencia": "alta"},
-    {"tipo": "seguridad", "nombre": "Plan continuidad negocio (BCP)", "descripcion": "Documentación, procedimientos, pruebas recuperación", "urgencia": "alta"},
-    {"tipo": "seguridad", "nombre": "Plan recuperación desastres (DRP)", "descripcion": "Procedimientos recuperación IT, RTO/RPO, pruebas periódicas", "urgencia": "alta"},
-    {"tipo": "seguridad", "nombre": "Cumplimiento ENS", "descripcion": "Adecuación Esquema Nacional Seguridad niveles Bajo/Medio/Alto", "urgencia": "critica"},
-    {"tipo": "seguridad", "nombre": "Cumplimiento ISO 27001", "descripcion": "Sistema gestión seguridad información, auditorías, certificación", "urgencia": "alta"},
-    {"tipo": "seguridad", "nombre": "Cumplimiento GDPR/LOPD", "descripcion": "Protección datos personales, DPO, registros tratamiento", "urgencia": "alta"},
+    # --- Servicios de vuelo ---
+    {"tipo": "drones_cartografia", "subtipo": "vuelos", "nombre": "Vuelos fotogramétricos RGB", "descripcion": "Captura aérea con drones para generación de ortofoto y modelo 3D, planificación de vuelo, GSD configurable", "urgencia": "critica", "es_core_srs": True, "keywords": ["fotogrametría", "vuelo", "drones", "RPAS", "UAV", "ortofoto", "RGB", "captura aérea", "GSD"]},
+    {"tipo": "drones_cartografia", "subtipo": "vuelos", "nombre": "Vuelos LiDAR aéreo", "descripcion": "Captura de nube de puntos de alta densidad con sensor LiDAR, penetración vegetación, precisión centimétrica", "urgencia": "critica", "es_core_srs": True, "keywords": ["LiDAR", "nube de puntos", "láser", "drones", "RPAS", "UAV", "escáner", "alta densidad", "topografía aérea"]},
+    {"tipo": "drones_cartografia", "subtipo": "vuelos", "nombre": "Termografía aérea", "descripcion": "Inspección térmica con cámara infrarroja: paneles solares, líneas eléctricas, cubiertas industriales, detección de anomalías", "urgencia": "alta", "es_core_srs": True, "keywords": ["termografía", "infrarrojo", "térmico", "hotspot", "paneles solares", "fotovoltaica", "líneas eléctricas", "anomalías térmicas"]},
+    {"tipo": "drones_cartografia", "subtipo": "vuelos", "nombre": "Inspección visual aérea de infraestructuras", "descripcion": "Inspección detallada de torres, puentes, fachadas, aerogeneradores, estructuras de difícil acceso", "urgencia": "alta", "es_core_srs": True, "keywords": ["inspección", "visual", "torres", "puentes", "fachadas", "aerogeneradores", "palas", "estructuras", "infraestructuras"]},
+    {"tipo": "drones_cartografia", "subtipo": "vuelos", "nombre": "Vuelos multiespectrales (agricultura)", "descripcion": "Captura con sensores multiespectrales para índices vegetativos NDVI, NDRE, análisis de cultivos", "urgencia": "media", "es_core_srs": False, "keywords": ["multiespectral", "NDVI", "NDRE", "agricultura", "cultivos", "vegetación", "índices"]},
+
+    # --- Procesamiento y productos cartográficos ---
+    {"tipo": "drones_cartografia", "subtipo": "procesamiento", "nombre": "Ortofotos georreferenciadas", "descripcion": "Generación de ortofotografías de alta resolución con georreferenciación precisa, mosaicos, exportación GeoTIFF", "urgencia": "critica", "es_core_srs": True, "keywords": ["ortofoto", "georreferenciación", "mosaico", "GeoTIFF", "cartografía", "alta resolución", "ortomosaico"]},
+    {"tipo": "drones_cartografia", "subtipo": "procesamiento", "nombre": "Modelos digitales MDS/MDT", "descripcion": "Generación de Modelo Digital de Superficie y Modelo Digital de Terreno, curvas de nivel, perfiles", "urgencia": "critica", "es_core_srs": True, "keywords": ["MDS", "MDT", "MDE", "modelo digital", "elevación", "superficie", "terreno", "curvas de nivel", "DEM", "DSM", "DTM"]},
+    {"tipo": "drones_cartografia", "subtipo": "procesamiento", "nombre": "Nubes de puntos clasificadas", "descripcion": "Procesamiento y clasificación automática de nubes de puntos: suelo, vegetación, edificaciones, infraestructuras", "urgencia": "alta", "es_core_srs": True, "keywords": ["nube de puntos", "clasificación", "LAS", "LAZ", "suelo", "vegetación", "edificaciones", "point cloud"]},
+    {"tipo": "drones_cartografia", "subtipo": "procesamiento", "nombre": "Modelos 3D texturizados", "descripcion": "Generación de modelos tridimensionales con textura fotorrealista, mallado, exportación múltiples formatos", "urgencia": "alta", "es_core_srs": True, "keywords": ["modelo 3D", "mesh", "textura", "fotorrealista", "mallado", "OBJ", "FBX", "tridimensional"]},
+    {"tipo": "drones_cartografia", "subtipo": "procesamiento", "nombre": "Gemelos digitales", "descripcion": "Creación de réplicas digitales de instalaciones y obras para visualización, análisis y simulación", "urgencia": "alta", "es_core_srs": True, "keywords": ["gemelo digital", "digital twin", "réplica", "BIM", "visualización", "simulación", "instalaciones"]},
+    {"tipo": "drones_cartografia", "subtipo": "procesamiento", "nombre": "Cálculo de volumetrías", "descripcion": "Medición precisa de volúmenes: excavaciones, acopios, stockpiles, movimiento de tierras, comparativas temporales", "urgencia": "critica", "es_core_srs": True, "keywords": ["volumetría", "volumen", "excavación", "acopio", "stockpile", "movimiento de tierras", "cubicación", "medición"]},
+
+    # --- Seguimiento de obra ---
+    {"tipo": "drones_cartografia", "subtipo": "seguimiento_obra", "nombre": "Seguimiento periódico de obra", "descripcion": "Reportes de avance semanal/quincenal con vuelos programados, documentación fotográfica y videográfica georeferenciada", "urgencia": "critica", "es_core_srs": True, "keywords": ["seguimiento de obra", "avance de obra", "control de avance", "reportes", "periódico", "semanal", "quincenal", "construcción"]},
+    {"tipo": "drones_cartografia", "subtipo": "seguimiento_obra", "nombre": "Comparativa con proyecto/BIM", "descripcion": "Análisis de desviaciones entre ejecución real y proyecto original, integración con modelos BIM, detección de discrepancias", "urgencia": "alta", "es_core_srs": True, "keywords": ["BIM", "comparativa", "desviaciones", "as-built", "proyecto", "IFC", "Revit", "discrepancias"]},
+    {"tipo": "drones_cartografia", "subtipo": "seguimiento_obra", "nombre": "Mediciones para certificaciones", "descripcion": "Cálculo de volúmenes y superficies para certificaciones de obra, documentación técnica para pagos", "urgencia": "alta", "es_core_srs": True, "keywords": ["certificación", "mediciones", "certificación de obra", "pagos", "volúmenes", "superficies"]},
+    {"tipo": "drones_cartografia", "subtipo": "seguimiento_obra", "nombre": "Histórico temporal de obra", "descripcion": "Archivo cronológico de vuelos y datos para análisis de evolución, time-lapse, documentación legal", "urgencia": "media", "es_core_srs": True, "keywords": ["histórico", "temporal", "evolución", "time-lapse", "archivo", "cronológico"]},
+
+    # --- Aplicaciones sectoriales ---
+    {"tipo": "drones_cartografia", "subtipo": "energia_solar", "nombre": "O&M plantas fotovoltaicas", "descripcion": "Operación y mantenimiento con drones: termografía de paneles, detección hotspots, informes de estado, limpieza", "urgencia": "critica", "es_core_srs": True, "keywords": ["fotovoltaica", "solar", "O&M", "paneles", "hotspot", "termografía", "planta solar", "mantenimiento", "PV"]},
+    {"tipo": "drones_cartografia", "subtipo": "energia_solar", "nombre": "Limpieza de paneles solares con drones", "descripcion": "Servicio de limpieza automatizada de instalaciones fotovoltaicas mediante drones especializados", "urgencia": "alta", "es_core_srs": True, "keywords": ["limpieza", "paneles", "fotovoltaica", "solar", "drones", "mantenimiento"]},
+    {"tipo": "drones_cartografia", "subtipo": "energia_eolica", "nombre": "Inspección de aerogeneradores", "descripcion": "Inspección visual detallada de palas, góndola y torre de aerogeneradores, detección de daños y erosión", "urgencia": "alta", "es_core_srs": True, "keywords": ["aerogenerador", "eólico", "palas", "góndola", "torre", "inspección", "molinos", "parque eólico"]},
+    {"tipo": "drones_cartografia", "subtipo": "energia_eolica", "nombre": "Limpieza de aerogeneradores", "descripcion": "Servicio de limpieza de palas de aerogeneradores con drones especializados, mejora de rendimiento", "urgencia": "media", "es_core_srs": True, "keywords": ["limpieza", "aerogenerador", "palas", "eólico", "drones"]},
+    {"tipo": "drones_cartografia", "subtipo": "mineria", "nombre": "Topografía y volumetría minera", "descripcion": "Levantamientos topográficos de canteras y explotaciones, cálculo de reservas, planificación de extracción", "urgencia": "alta", "es_core_srs": True, "keywords": ["minería", "cantera", "topografía", "volumetría", "reservas", "extracción", "explotación"]},
+    {"tipo": "drones_cartografia", "subtipo": "obra_civil", "nombre": "Control de obra civil", "descripcion": "Seguimiento de carreteras, túneles, urbanizaciones, infraestructuras lineales, replanteos", "urgencia": "alta", "es_core_srs": True, "keywords": ["obra civil", "carreteras", "túneles", "urbanización", "infraestructuras", "lineal", "replanteo"]},
+    {"tipo": "drones_cartografia", "subtipo": "agricultura", "nombre": "Agricultura de precisión (partner)", "descripcion": "Aplicación de fitosanitarios con drones, mapas de prescripción, análisis de cultivos (servicio vía partner)", "urgencia": "media", "es_core_srs": False, "keywords": ["agricultura", "fitosanitarios", "precisión", "cultivos", "fumigación", "agro", "prescripción"]},
+    {"tipo": "drones_cartografia", "subtipo": "infraestructuras", "nombre": "Inspección líneas eléctricas", "descripcion": "Revisión de líneas de alta/media tensión, torres, aisladores, detección de anomalías, termografía", "urgencia": "alta", "es_core_srs": True, "keywords": ["líneas eléctricas", "alta tensión", "torres", "aisladores", "red eléctrica", "tendido"]},
+    {"tipo": "drones_cartografia", "subtipo": "infraestructuras", "nombre": "Inspección de subestaciones", "descripcion": "Revisión termográfica y visual de subestaciones eléctricas, transformadores, conexiones", "urgencia": "alta", "es_core_srs": True, "keywords": ["subestación", "transformador", "eléctrica", "termografía", "conexiones"]},
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # SEGURIDAD (41)
+    # ═══════════════════════════════════════════════════════════════════════════
+    {"tipo": "seguridad", "subtipo": "perimetral", "nombre": "Firewall Next-Gen (NGFW)", "descripcion": "Firewalls con inspección profunda, IPS integrado, application control, SSL inspection", "urgencia": "critica", "es_core_srs": True, "keywords": ["NGFW", "firewall", "next-gen", "IPS", "Fortinet", "Palo Alto"]},
+    {"tipo": "seguridad", "subtipo": "perimetral", "nombre": "IDS/IPS", "descripcion": "Sistemas detección y prevención intrusiones, análisis tráfico, Snort, Suricata", "urgencia": "alta", "es_core_srs": False, "keywords": ["IDS", "IPS", "intrusiones", "detección", "Snort", "Suricata"]},
+    {"tipo": "seguridad", "subtipo": "perimetral", "nombre": "WAF - Web Application Firewall", "descripcion": "Protección aplicaciones web, OWASP, reglas personalizadas, Cloudflare, Imperva", "urgencia": "alta", "es_core_srs": False, "keywords": ["WAF", "web application firewall", "OWASP", "Cloudflare", "Imperva"]},
+    {"tipo": "seguridad", "subtipo": "endpoint", "nombre": "Antivirus / Antimalware", "descripcion": "Protección endpoints, consola centralizada, actualizaciones, cuarentena", "urgencia": "critica", "es_core_srs": True, "keywords": ["antivirus", "antimalware", "endpoint", "protección", "Kaspersky", "ESET"]},
+    {"tipo": "seguridad", "subtipo": "endpoint", "nombre": "EDR - Endpoint Detection & Response", "descripcion": "Detección avanzada amenazas endpoints, respuesta automatizada (CrowdStrike, SentinelOne, Defender)", "urgencia": "alta", "es_core_srs": True, "keywords": ["EDR", "CrowdStrike", "SentinelOne", "Defender", "endpoint", "detección"]},
+    {"tipo": "seguridad", "subtipo": "endpoint", "nombre": "XDR - Extended Detection & Response", "descripcion": "Correlación eventos múltiples fuentes, respuesta unificada, Palo Alto Cortex, Microsoft Sentinel", "urgencia": "media", "es_core_srs": False, "keywords": ["XDR", "Cortex", "detección extendida", "correlación"]},
+    {"tipo": "seguridad", "subtipo": "soc", "nombre": "SIEM", "descripcion": "Correlación eventos seguridad, análisis logs, alertas (Splunk, Sentinel, QRadar, Elastic)", "urgencia": "alta", "es_core_srs": False, "keywords": ["SIEM", "Splunk", "Sentinel", "QRadar", "logs", "correlación"]},
+    {"tipo": "seguridad", "subtipo": "soc", "nombre": "SOC - Centro Operaciones Seguridad", "descripcion": "Monitorización 24x7 seguridad, análisis alertas, respuesta incidentes, threat hunting", "urgencia": "alta", "es_core_srs": False, "keywords": ["SOC", "centro operaciones", "seguridad", "24x7", "monitorización"]},
+    {"tipo": "seguridad", "subtipo": "soc", "nombre": "Respuesta a incidentes (IR)", "descripcion": "Equipo respuesta, contención, erradicación, recuperación, lecciones aprendidas", "urgencia": "alta", "es_core_srs": False, "keywords": ["incident response", "IR", "respuesta", "incidentes", "contención"]},
+    {"tipo": "seguridad", "subtipo": "soc", "nombre": "Análisis forense", "descripcion": "Investigación post-incidente, preservación evidencias, cadena de custodia, informes periciales", "urgencia": "media", "es_core_srs": False, "keywords": ["forense", "forensic", "investigación", "evidencias", "pericial"]},
+    {"tipo": "seguridad", "subtipo": "soc", "nombre": "Threat Intelligence", "descripcion": "Feeds de amenazas, IOCs, análisis proactivo, MITRE ATT&CK", "urgencia": "media", "es_core_srs": False, "keywords": ["threat intelligence", "IOC", "amenazas", "MITRE", "inteligencia"]},
+    {"tipo": "seguridad", "subtipo": "ofensivo", "nombre": "Red Team / Blue Team", "descripcion": "Simulación ataques, defensa activa, ejercicios purple team", "urgencia": "media", "es_core_srs": False, "keywords": ["red team", "blue team", "purple team", "simulación", "ataque"]},
+    {"tipo": "seguridad", "subtipo": "vulnerabilidades", "nombre": "Gestión vulnerabilidades", "descripcion": "Escaneo periódico, priorización CVEs, seguimiento remediación (Qualys, Nessus, Rapid7)", "urgencia": "alta", "es_core_srs": False, "keywords": ["vulnerabilidades", "Qualys", "Nessus", "Rapid7", "CVE", "escaneo"]},
+    {"tipo": "seguridad", "subtipo": "vulnerabilidades", "nombre": "Pentesting / Test intrusión", "descripcion": "Pruebas penetración infraestructura y aplicaciones, informes, OWASP", "urgencia": "media", "es_core_srs": False, "keywords": ["pentesting", "penetration test", "intrusión", "ethical hacking"]},
+    {"tipo": "seguridad", "subtipo": "vulnerabilidades", "nombre": "Gestión de parches", "descripcion": "Patch management, WSUS, SCCM, Intune, automatización actualizaciones", "urgencia": "alta", "es_core_srs": True, "keywords": ["parches", "patch management", "WSUS", "SCCM", "Intune", "actualizaciones"]},
+    {"tipo": "seguridad", "subtipo": "hardening", "nombre": "Hardening sistemas", "descripcion": "Bastionado servidores y endpoints según CIS benchmarks, GPOs seguridad", "urgencia": "alta", "es_core_srs": True, "keywords": ["hardening", "bastionado", "CIS", "benchmarks", "seguridad"]},
+    {"tipo": "seguridad", "subtipo": "cifrado", "nombre": "Cifrado datos en reposo", "descripcion": "Encriptación discos, bases datos, almacenamiento (BitLocker, LUKS, TDE)", "urgencia": "alta", "es_core_srs": False, "keywords": ["cifrado", "encriptación", "BitLocker", "LUKS", "TDE", "reposo"]},
+    {"tipo": "seguridad", "subtipo": "cifrado", "nombre": "Cifrado datos en tránsito", "descripcion": "TLS/SSL, certificados, gestión PKI, Let's Encrypt, certificados internos", "urgencia": "alta", "es_core_srs": False, "keywords": ["TLS", "SSL", "certificados", "PKI", "cifrado", "tránsito"]},
+    {"tipo": "seguridad", "subtipo": "cifrado", "nombre": "Certificados y PKI", "descripcion": "Gestión certificados SSL/TLS, CA interna, renovaciones, HSM", "urgencia": "media", "es_core_srs": False, "keywords": ["PKI", "certificados", "CA", "HSM", "SSL", "renovación"]},
+    {"tipo": "seguridad", "subtipo": "datos", "nombre": "DLP - Data Loss Prevention", "descripcion": "Prevención fuga datos, políticas clasificación, monitorización, Microsoft Purview", "urgencia": "media", "es_core_srs": False, "keywords": ["DLP", "data loss prevention", "fuga datos", "Purview", "clasificación"]},
+    {"tipo": "seguridad", "subtipo": "datos", "nombre": "Clasificación de información", "descripcion": "Etiquetado datos, políticas sensibilidad, Microsoft AIP, Titus", "urgencia": "media", "es_core_srs": False, "keywords": ["clasificación", "etiquetado", "AIP", "sensibilidad", "información"]},
+    {"tipo": "seguridad", "subtipo": "datos", "nombre": "Borrado seguro", "descripcion": "Destrucción datos, certificación, RAEE, desmagnetización, sobreescritura", "urgencia": "media", "es_core_srs": False, "keywords": ["borrado seguro", "destrucción", "RAEE", "certificación", "datos"]},
+    {"tipo": "seguridad", "subtipo": "identidad", "nombre": "IAM - Identity & Access Management", "descripcion": "Gestión identidades, provisioning, lifecycle usuarios, gobernanza", "urgencia": "alta", "es_core_srs": False, "keywords": ["IAM", "identidad", "acceso", "provisioning", "gobernanza"]},
+    {"tipo": "seguridad", "subtipo": "identidad", "nombre": "PAM - Privileged Access Management", "descripcion": "Gestión accesos privilegiados, bóveda contraseñas, grabación sesiones (CyberArk, BeyondTrust, Delinea)", "urgencia": "alta", "es_core_srs": False, "keywords": ["PAM", "privilegiado", "CyberArk", "BeyondTrust", "bóveda", "contraseñas"]},
+    {"tipo": "seguridad", "subtipo": "identidad", "nombre": "MFA - Autenticación multifactor", "descripcion": "Segundo factor autenticación, tokens, apps authenticator, passwordless", "urgencia": "critica", "es_core_srs": True, "keywords": ["MFA", "2FA", "multifactor", "autenticación", "token", "authenticator"]},
+    {"tipo": "seguridad", "subtipo": "identidad", "nombre": "SSO - Single Sign-On", "descripcion": "Autenticación única, federación identidades, SAML, OAuth, OIDC", "urgencia": "alta", "es_core_srs": False, "keywords": ["SSO", "single sign-on", "SAML", "OAuth", "federación", "OIDC"]},
+    {"tipo": "seguridad", "subtipo": "zero_trust", "nombre": "Zero Trust Network Access", "descripcion": "Acceso basado en identidad, microsegmentación, verificación continua, ZTNA", "urgencia": "media", "es_core_srs": False, "keywords": ["zero trust", "ZTNA", "microsegmentación", "acceso", "identidad"]},
+    {"tipo": "seguridad", "subtipo": "cloud", "nombre": "CASB - Cloud Access Security Broker", "descripcion": "Seguridad acceso cloud, shadow IT, DLP cloud, Microsoft Defender for Cloud Apps", "urgencia": "media", "es_core_srs": False, "keywords": ["CASB", "cloud security", "shadow IT", "Defender Cloud Apps"]},
+    {"tipo": "seguridad", "subtipo": "email", "nombre": "Email Security", "descripcion": "Protección correo: antispam, antiphishing, sandboxing adjuntos, DMARC, SPF, DKIM", "urgencia": "alta", "es_core_srs": True, "keywords": ["email security", "antiphishing", "DMARC", "SPF", "DKIM", "correo"]},
+    {"tipo": "seguridad", "subtipo": "awareness", "nombre": "Concienciación seguridad / Awareness", "descripcion": "Formación usuarios, simulaciones phishing, campañas, KnowBe4", "urgencia": "media", "es_core_srs": False, "keywords": ["awareness", "concienciación", "phishing", "formación", "KnowBe4"]},
+    {"tipo": "seguridad", "subtipo": "backup", "nombre": "Backup inmutable / Air-gapped", "descripcion": "Copias seguridad protegidas contra ransomware, WORM, aislamiento", "urgencia": "alta", "es_core_srs": True, "keywords": ["inmutable", "air-gapped", "ransomware", "WORM", "backup"]},
+    {"tipo": "seguridad", "subtipo": "continuidad", "nombre": "Plan continuidad negocio (BCP)", "descripcion": "Documentación, procedimientos, pruebas recuperación, análisis impacto", "urgencia": "alta", "es_core_srs": False, "keywords": ["BCP", "continuidad", "negocio", "BIA", "procedimientos"]},
+    {"tipo": "seguridad", "subtipo": "continuidad", "nombre": "Plan recuperación desastres (DRP)", "descripcion": "Procedimientos recuperación IT, RTO/RPO, pruebas periódicas, failover", "urgencia": "alta", "es_core_srs": False, "keywords": ["DRP", "disaster recovery", "RTO", "RPO", "recuperación"]},
+    {"tipo": "seguridad", "subtipo": "cumplimiento", "nombre": "Cumplimiento ENS", "descripcion": "Adecuación Esquema Nacional Seguridad niveles Bajo/Medio/Alto, auditoría, certificación", "urgencia": "critica", "es_core_srs": True, "keywords": ["ENS", "Esquema Nacional Seguridad", "cumplimiento", "certificación", "público"]},
+    {"tipo": "seguridad", "subtipo": "cumplimiento", "nombre": "Cumplimiento ISO 27001", "descripcion": "Sistema gestión seguridad información, auditorías, certificación, controles", "urgencia": "alta", "es_core_srs": False, "keywords": ["ISO 27001", "SGSI", "certificación", "auditoría", "controles"]},
+    {"tipo": "seguridad", "subtipo": "cumplimiento", "nombre": "Cumplimiento GDPR/LOPD", "descripcion": "Protección datos personales, DPO, registros tratamiento, evaluaciones impacto", "urgencia": "alta", "es_core_srs": False, "keywords": ["GDPR", "LOPD", "RGPD", "datos personales", "DPO", "privacidad"]},
+    {"tipo": "seguridad", "subtipo": "cumplimiento", "nombre": "Auditoría de cumplimiento", "descripcion": "NIS2, DORA, PCI-DSS, SOX, auditorías regulatorias, gap analysis", "urgencia": "alta", "es_core_srs": False, "keywords": ["NIS2", "DORA", "PCI-DSS", "SOX", "auditoría", "cumplimiento"]},
+    {"tipo": "seguridad", "subtipo": "cumplimiento", "nombre": "Gestión de riesgos IT", "descripcion": "Análisis riesgos, frameworks (NIST, ISO 31000), reporting, mitigación", "urgencia": "media", "es_core_srs": False, "keywords": ["riesgos", "NIST", "ISO 31000", "análisis", "mitigación"]},
+    {"tipo": "seguridad", "subtipo": "ot", "nombre": "Seguridad OT/ICS", "descripcion": "Sistemas industriales, SCADA, PLCs, redes OT, Purdue model", "urgencia": "alta", "es_core_srs": False, "keywords": ["OT", "ICS", "SCADA", "industrial", "PLC", "Purdue"]},
+    {"tipo": "seguridad", "subtipo": "ot", "nombre": "Seguridad IoT", "descripcion": "Dispositivos conectados, protocolos IoT, segmentación, firmware", "urgencia": "media", "es_core_srs": False, "keywords": ["IoT", "dispositivos", "conectados", "seguridad", "firmware"]},
+    {"tipo": "seguridad", "subtipo": "desarrollo", "nombre": "Seguridad en desarrollo (DevSecOps)", "descripcion": "SAST, DAST, análisis código, seguridad pipeline, shift left", "urgencia": "media", "es_core_srs": False, "keywords": ["DevSecOps", "SAST", "DAST", "código", "desarrollo", "shift left"]},
 ]
 
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# FUNCIONES DE UTILIDAD
+# ═══════════════════════════════════════════════════════════════════════════════
 
 def generar_lista_servicios_para_prompt() -> str:
     """
@@ -294,13 +410,57 @@ def generar_lista_servicios_para_prompt() -> str:
         servicios_por_tipo[tipo].append(item)
 
     resultado = []
-    for tipo in ["servicios", "infraestructura", "comunicaciones", "software", "seguridad"]:
+    for tipo in ["drones_cartografia", "servicios", "infraestructura", "comunicaciones", "software", "seguridad"]:
         if tipo in servicios_por_tipo:
             resultado.append(f"\n{tipo.upper()}:")
             for s in servicios_por_tipo[tipo]:
-                resultado.append(f"  • {s['nombre']}: {s['descripcion'][:80]}...")
+                core = " [CORE]" if s.get("es_core_srs") else ""
+                resultado.append(f"  • {s['nombre']}{core}: {s['descripcion'][:80]}...")
 
     return "\n".join(resultado)
+
+
+def get_servicios_core() -> List[Dict]:
+    """Retorna solo los servicios marcados como core de SRS"""
+    return [s for s in CATALOGO_SRS if s.get("es_core_srs", False)]
+
+
+def get_servicios_por_tipo(tipo: str) -> List[Dict]:
+    """Retorna servicios filtrados por tipo"""
+    return [s for s in CATALOGO_SRS if s["tipo"] == tipo]
+
+
+def get_servicios_por_subtipo(subtipo: str) -> List[Dict]:
+    """Retorna servicios filtrados por subtipo"""
+    return [s for s in CATALOGO_SRS if s.get("subtipo") == subtipo]
+
+
+def buscar_servicios_por_keyword(keyword: str) -> List[Dict]:
+    """
+    Busca servicios que contengan la keyword en su nombre, descripción o keywords.
+    Case-insensitive.
+    """
+    keyword_lower = keyword.lower()
+    resultados = []
+
+    for servicio in CATALOGO_SRS:
+        # Buscar en nombre
+        if keyword_lower in servicio["nombre"].lower():
+            resultados.append(servicio)
+            continue
+
+        # Buscar en descripción
+        if keyword_lower in servicio["descripcion"].lower():
+            resultados.append(servicio)
+            continue
+
+        # Buscar en keywords
+        for kw in servicio.get("keywords", []):
+            if keyword_lower in kw.lower():
+                resultados.append(servicio)
+                break
+
+    return resultados
 
 
 def generar_keywords_deteccion() -> dict:
@@ -310,160 +470,150 @@ def generar_keywords_deteccion() -> dict:
     """
     keywords = {}
 
-    # Keywords por servicio
-    mappings = {
-        # Servicios
-        "soporte": ["Soporte técnico Nivel 1", "Soporte técnico Nivel 2"],
-        "helpdesk": ["Helpdesk 24x7", "Soporte técnico Nivel 1"],
-        "24x7": ["Helpdesk 24x7", "Monitorización 24x7", "SOC - Centro Operaciones Seguridad"],
-        "incidencias": ["Gestión de incidencias (ITIL)", "Soporte técnico Nivel 1"],
-        "mantenimiento": ["Mantenimiento preventivo", "Mantenimiento correctivo"],
-        "smart hands": ["Smart Hands / Manos Remotas"],
-        "manos remotas": ["Smart Hands / Manos Remotas"],
-        "onsite": ["Field Services / Soporte Onsite"],
-        "presencial": ["Field Services / Soporte Onsite"],
-        "itil": ["Gestión de incidencias (ITIL)", "Gestión de cambios", "Gestión de problemas"],
-        "monitorización": ["Monitorización 24x7"],
-        "roll-out": ["Roll-out / Despliegue masivo"],
-        "despliegue": ["Roll-out / Despliegue masivo"],
-        "imac": ["IMAC (Install, Move, Add, Change)"],
+    for servicio in CATALOGO_SRS:
+        nombre = servicio["nombre"]
+        for kw in servicio.get("keywords", []):
+            kw_lower = kw.lower()
+            if kw_lower not in keywords:
+                keywords[kw_lower] = []
+            if nombre not in keywords[kw_lower]:
+                keywords[kw_lower].append(nombre)
 
-        # Infraestructura
-        "servidor": ["Servidores físicos", "Windows Server", "Linux Server"],
-        "vmware": ["Virtualización VMware"],
-        "hyper-v": ["Virtualización Hyper-V"],
-        "virtualización": ["Virtualización VMware", "Virtualización Hyper-V"],
-        "san": ["Almacenamiento SAN/NAS"],
-        "nas": ["Almacenamiento SAN/NAS"],
-        "aws": ["Infraestructura Cloud AWS"],
-        "azure": ["Infraestructura Cloud Azure"],
-        "cloud": ["Infraestructura Cloud AWS", "Infraestructura Cloud Azure", "Migración a cloud"],
-        "cableado": ["Cableado estructurado cobre", "Cableado estructurado fibra óptica"],
-        "fibra": ["Cableado estructurado fibra óptica", "Fusión de fibra óptica"],
-        "cat6": ["Cableado estructurado cobre"],
-        "rack": ["Armarios rack y distribuidores", "Racks y PDUs"],
-        "sai": ["SAI/UPS"],
-        "ups": ["SAI/UPS"],
-        "cpd": ["Data Center - Diseño y construcción", "Climatización CPD"],
-        "data center": ["Data Center - Diseño y construcción"],
-        "puesto de trabajo": ["Puestos de trabajo / Endpoints"],
-        "endpoint": ["Puestos de trabajo / Endpoints"],
+    return keywords
 
-        # Comunicaciones
-        "switch": ["Redes LAN - Switches"],
-        "lan": ["Redes LAN - Switches"],
-        "wifi": ["Redes WiFi - Access Points"],
-        "wireless": ["Redes WiFi - Access Points"],
-        "router": ["Redes WAN - Routers"],
-        "wan": ["Redes WAN - Routers"],
-        "firewall": ["Firewalls perimetrales", "Firewall Next-Gen (NGFW)"],
-        "vpn": ["VPN Site-to-Site", "VPN Client / Acceso remoto"],
-        "sd-wan": ["SD-WAN"],
-        "voip": ["Telefonía IP / VoIP"],
-        "telefonía": ["Telefonía IP / VoIP"],
-        "teams": ["Microsoft Teams - Administración"],
 
-        # Software
-        "windows server": ["Windows Server"],
-        "linux": ["Linux Server"],
-        "active directory": ["Active Directory"],
-        "directorio activo": ["Active Directory"],
-        "microsoft 365": ["Microsoft 365"],
-        "m365": ["Microsoft 365"],
-        "office 365": ["Microsoft 365"],
-        "exchange": ["Microsoft 365", "Exchange Server On-Premise"],
-        "sharepoint": ["Microsoft 365"],
-        "sql server": ["Bases de datos SQL Server"],
-        "base de datos": ["Bases de datos SQL Server", "Bases de datos MySQL/PostgreSQL"],
-        "backup": ["Backup - Veeam", "Backup - Acronis", "Backup cloud (M365, Google)"],
-        "veeam": ["Backup - Veeam"],
-        "zabbix": ["Monitorización - Zabbix"],
-        "prtg": ["Monitorización - PRTG"],
+def get_estadisticas_catalogo() -> Dict:
+    """Retorna estadísticas del catálogo"""
+    total = len(CATALOGO_SRS)
+    por_tipo = {}
+    core_count = 0
 
-        # Seguridad
-        "antivirus": ["Antivirus / Antimalware"],
-        "edr": ["EDR - Endpoint Detection & Response"],
-        "siem": ["SIEM"],
-        "soc": ["SOC - Centro Operaciones Seguridad"],
-        "vulnerabilidades": ["Gestión vulnerabilidades"],
-        "pentesting": ["Pentesting / Test intrusión"],
-        "hardening": ["Hardening sistemas"],
-        "cifrado": ["Cifrado datos en reposo", "Cifrado datos en tránsito"],
-        "mfa": ["MFA - Autenticación multifactor"],
-        "doble factor": ["MFA - Autenticación multifactor"],
-        "sso": ["SSO - Single Sign-On"],
-        "ens": ["Cumplimiento ENS"],
-        "esquema nacional": ["Cumplimiento ENS"],
-        "iso 27001": ["Cumplimiento ISO 27001"],
-        "lopd": ["Cumplimiento GDPR/LOPD"],
-        "rgpd": ["Cumplimiento GDPR/LOPD"],
-        "gdpr": ["Cumplimiento GDPR/LOPD"],
-        "drp": ["Plan recuperación desastres (DRP)"],
-        "bcp": ["Plan continuidad negocio (BCP)"],
-        "continuidad": ["Plan continuidad negocio (BCP)"],
-        "disaster recovery": ["Plan recuperación desastres (DRP)", "DRaaS - Disaster Recovery as a Service"],
+    for s in CATALOGO_SRS:
+        tipo = s["tipo"]
+        por_tipo[tipo] = por_tipo.get(tipo, 0) + 1
+        if s.get("es_core_srs"):
+            core_count += 1
+
+    return {
+        "version": "2.0.0",
+        "total_servicios": total,
+        "servicios_core": core_count,
+        "por_tipo": por_tipo
     }
-
-    return mappings
 
 
 # Lista resumida para el prompt (más compacta)
 SERVICIOS_RESUMEN_PROMPT = """
 CATÁLOGO DE SERVICIOS SRS (detecta estos en el pliego):
 
-SERVICIOS GESTIONADOS:
-- Soporte técnico N1/N2/N3 (helpdesk, incidencias, troubleshooting)
-- Helpdesk 24x7 (multicanal, cobertura completa)
-- Smart Hands / Manos remotas (data centers)
-- Field Services / Soporte onsite (presencial)
-- Mantenimiento preventivo y correctivo
+★★★ DRONES, CARTOGRAFÍA Y SEGUIMIENTO DE OBRA [LÍNEA ESTRATÉGICA] ★★★
+Servicios de vuelo:
+- Vuelos fotogramétricos RGB (ortofoto, modelo 3D, RPAS, UAV) [CORE]
+- Vuelos LiDAR aéreo (nube de puntos, topografía aérea, precisión centimétrica) [CORE]
+- Termografía aérea (paneles solares, líneas eléctricas, hotspots) [CORE]
+- Inspección visual de infraestructuras (torres, puentes, aerogeneradores, fachadas) [CORE]
+
+Procesamiento cartográfico:
+- Ortofotos georreferenciadas (alta resolución, GeoTIFF, mosaico) [CORE]
+- Modelos digitales MDS/MDT/MDE (elevación, curvas de nivel, DEM, DSM) [CORE]
+- Nubes de puntos clasificadas (LAS, LAZ, suelo, vegetación, edificaciones) [CORE]
+- Modelos 3D texturizados (mesh, fotorrealista) [CORE]
+- Gemelos digitales (digital twin, BIM, visualización) [CORE]
+- Cálculo de volumetrías (excavación, acopio, stockpile, movimiento tierras) [CORE]
+
+Seguimiento de obra:
+- Seguimiento periódico de obra (avance, reportes, control de avance) [CORE]
+- Comparativa con proyecto/BIM (desviaciones, as-built, IFC, Revit) [CORE]
+- Mediciones para certificaciones de obra [CORE]
+- Histórico temporal y time-lapse [CORE]
+
+Aplicaciones sectoriales:
+- O&M plantas fotovoltaicas (termografía paneles, hotspots, PV) [CORE]
+- Limpieza paneles solares con drones [CORE]
+- Inspección aerogeneradores/eólicos (palas, góndola, torre, parque eólico) [CORE]
+- Limpieza de aerogeneradores [CORE]
+- Topografía y volumetría minera (canteras, reservas) [CORE]
+- Control de obra civil (carreteras, túneles, urbanización) [CORE]
+- Inspección líneas eléctricas y subestaciones [CORE]
+- Agricultura de precisión (partner: fitosanitarios, NDVI)
+
+KEYWORDS CLAVE para detección: fotogrametría, LiDAR, ortofoto, topografía aérea, drones,
+RPAS, UAV, seguimiento de obra, control de avance, gemelo digital, termografía, inspección
+aérea, volumetría, cartografía, modelo 3D, nube de puntos, BIM, as-built, O&M fotovoltaica,
+inspección aerogeneradores, eólico, solar, planta fotovoltaica, EPC, constructora, obra civil
+
+SERVICIOS GESTIONADOS IT:
+- Soporte técnico N1/N2/N3 (helpdesk, incidencias, troubleshooting) [CORE]
+- Helpdesk 24x7 (multicanal, cobertura completa) [CORE]
+- Service Desk dedicado (SPOC, ITSM) [CORE]
+- Smart Hands / Manos remotas (data centers) [CORE]
+- Field Services / Soporte onsite (presencial) [CORE]
+- Servicio de guardia / On-call [CORE]
+- Mantenimiento preventivo y correctivo [CORE]
 - Gestión ITIL (incidencias, cambios, problemas)
-- Monitorización 24x7 (proactiva, alertas)
-- Administración remota de sistemas
-- Staff Augmentation (refuerzo equipos)
-- Roll-out / Despliegue masivo
-- IMAC (Install, Move, Add, Change)
+- NOC - Centro de Operaciones de Red [CORE]
+- Monitorización 24x7 (proactiva, alertas) [CORE]
+- Administración remota de sistemas [CORE]
+- Staff Augmentation (refuerzo equipos) [CORE]
+- Roll-out / Despliegue masivo [CORE]
+- IMAC (Install, Move, Add, Change) [CORE]
+- Tech Refresh / Renovación tecnológica [CORE]
 
 INFRAESTRUCTURA:
-- Servidores físicos (Dell, HPE, Lenovo)
-- Virtualización (VMware, Hyper-V, Proxmox)
-- Almacenamiento SAN/NAS/HCI
-- Cloud (AWS, Azure, GCP, híbrido)
-- Cableado estructurado (cobre Cat6/7, fibra óptica)
-- Fusión fibra, certificación, patch panels
+- Servidores físicos (Dell, HPE, Lenovo) [CORE]
+- Virtualización (VMware, Hyper-V, Proxmox) [CORE]
+- Almacenamiento SAN/NAS/HCI [CORE]
+- Cloud (AWS, Azure, GCP, híbrido) [CORE]
+- Cableado estructurado (cobre Cat6/7, fibra óptica) [CORE]
+- Fusión fibra, certificación Fluke, patch panels [CORE]
 - CPD (diseño, climatización, SAI/UPS)
-- Racks, PDUs, canalizaciones
-- Puestos de trabajo / Endpoints
+- Racks, PDUs, canalizaciones [CORE]
+- Puestos de trabajo / Endpoints [CORE]
+- Edge Computing, IoT/Sensórica
+- Seguridad física (control acceso, CCTV)
 
 COMUNICACIONES:
-- Redes LAN (switches, VLANs)
-- Redes WiFi (APs, controladores)
-- Redes WAN (routers, MPLS, SD-WAN)
-- Firewalls perimetrales
-- VPN (site-to-site, acceso remoto)
-- Telefonía IP / VoIP
-- Comunicaciones unificadas / Teams
+- Redes LAN (switches, VLANs, QoS) [CORE]
+- Redes WiFi (APs, controladores, site surveys) [CORE]
+- Redes WAN (routers, BGP, OSPF) [CORE]
+- Firewalls perimetrales (Fortinet, Palo Alto, Cisco) [CORE]
+- VPN (site-to-site, acceso remoto) [CORE]
+- SD-WAN, MPLS, backup 4G/5G
+- NAC, segmentación de red
+- Telefonía IP / VoIP, Contact Center
+- Comunicaciones unificadas / Teams [CORE]
+- Balanceadores, proxy, DDI
 
 SOFTWARE:
-- Windows Server / Linux
-- Active Directory / Azure AD
-- Microsoft 365 / Google Workspace
-- Bases de datos (SQL Server, MySQL, PostgreSQL)
-- Backup (Veeam, Acronis, cloud)
-- Monitorización (Zabbix, PRTG, Nagios)
+- Windows Server / Linux [CORE]
+- Active Directory / Azure AD (Entra ID) [CORE]
+- Microsoft 365 / Google Workspace [CORE]
+- DNS, DHCP [CORE]
+- Bases de datos (SQL Server, MySQL, PostgreSQL, Oracle) [CORE]
+- Backup (Veeam, Acronis, cloud M365/Google) [CORE]
+- Monitorización (Zabbix, PRTG, Nagios) [CORE]
+- RMM gestión remota endpoints [CORE]
+- Fotogrametría (Pix4D, Agisoft Metashape, DroneDeploy) [CORE]
 - ITSM (ServiceNow, Jira, Freshservice)
-- Automatización (Ansible, Terraform)
+- Automatización (Ansible, Terraform, Power Automate)
 - Contenedores (Docker, Kubernetes)
 
 SEGURIDAD:
-- Firewall NGFW, IDS/IPS, WAF
-- Antivirus / EDR / XDR
+- Firewall NGFW, IDS/IPS, WAF [CORE]
+- Antivirus / EDR / XDR [CORE]
 - SIEM, SOC 24x7
 - Gestión vulnerabilidades, pentesting
-- Cifrado (reposo, tránsito)
-- IAM, PAM, MFA, SSO
-- Cumplimiento (ENS, ISO 27001, GDPR)
-- BCP/DRP, backup inmutable
+- Gestión de parches [CORE]
+- Hardening sistemas [CORE]
+- Cifrado (reposo, tránsito), PKI
+- IAM, PAM, MFA [CORE], SSO
+- DLP, clasificación información
+- Email Security [CORE]
+- Backup inmutable [CORE]
+- Cumplimiento (ENS [CORE], ISO 27001, GDPR, NIS2, DORA)
+- BCP/DRP
+- Seguridad OT/ICS, IoT
+- DevSecOps
 
 ZONAS DE COBERTURA SRS (evalúa ubicación):
 - ZONA BASE (respuesta mismo día, sin coste desplazamiento):
@@ -472,4 +622,12 @@ ZONAS DE COBERTURA SRS (evalúa ubicación):
   Toledo, Ciudad Real, Guadalajara, Cuenca, Albacete, Badajoz, Cáceres, Ávila, Segovia, Murcia
 - ZONA EXPANSIÓN (respuesta 48-72h, coste estándar):
   Resto de España (Cataluña, Valencia, País Vasco, Galicia, etc.)
+
+SECTORES TARGET para drones/cartografía:
+- Constructoras y EPC (obra civil, edificación)
+- Plantas fotovoltaicas (construcción y O&M)
+- Parques eólicos (inspección y mantenimiento)
+- Minería y canteras
+- Infraestructuras energéticas (líneas, subestaciones)
+- Administraciones públicas (topografía, urbanismo)
 """
