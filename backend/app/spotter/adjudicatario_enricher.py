@@ -1388,26 +1388,56 @@ class AdjudicatarioEnricher:
                 texto_completo = response.text.lower()
                 texto_raw = response.text
 
+                # === MÉTODO 0: Buscar patrón directo "Adjudicatario → NOMBRE" con flecha Unicode ===
+                # La estructura real de PLACSP es: "Adjudicatario\n→ NOMBRE\n→ NIF..."
+                # Primero intentar con empresas que terminan en S.L./S.A./etc
+                adj_nombre_match = re.search(
+                    r'Adjudicatario\s*(?:</h\d>)?\s*[→\-:]\s*([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñÁÉÍÓÚÑ\s\.,&]+(?:S\.?L\.?U?\.?|S\.?A\.?U?\.?|S\.?L\.?|S\.?A\.?))',
+                    texto_raw, re.I
+                )
+                if adj_nombre_match:
+                    nombre = adj_nombre_match.group(1).strip()
+                    nombre = re.sub(r'\s+', ' ', nombre)
+                    if nombre and len(nombre) > 3:
+                        datos['nombre_comercial'] = nombre
+                        logger.info(f"✓ Nombre adjudicatario (método 0a): {nombre}")
+
+                # Si no encontramos con forma jurídica, buscar nombre genérico antes de NIF
+                if not datos.get('nombre_comercial'):
+                    adj_nombre_match2 = re.search(
+                        r'Adjudicatario\s*(?:</h\d>)?\s*[→\-:]\s*([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñÁÉÍÓÚÑ\s\.,&\-]+?)(?=\s*[→\-:]\s*NIF|\s*NIF\s|$)',
+                        texto_raw, re.I
+                    )
+                    if adj_nombre_match2:
+                        nombre = adj_nombre_match2.group(1).strip()
+                        nombre = re.sub(r'\s+', ' ', nombre)
+                        # Validar que no sea una localidad (menos de 3 palabras y sin forma jurídica)
+                        palabras = nombre.split()
+                        if nombre and len(nombre) > 5 and len(palabras) >= 2:
+                            datos['nombre_comercial'] = nombre
+                            logger.info(f"✓ Nombre adjudicatario (método 0b): {nombre}")
+
                 # === MÉTODO 1: Buscar <strong> después de <h5> (estructura típica PLACSP) ===
-                for h5 in soup.find_all('h5'):
-                    h5_text = h5.get_text(strip=True).lower()
+                if not datos.get('nombre_comercial'):
+                    for h5 in soup.find_all('h5'):
+                        h5_text = h5.get_text(strip=True).lower()
 
-                    # Buscar el siguiente <strong> que contenga el valor
-                    next_strong = h5.find_next('strong')
-                    if next_strong:
-                        valor = next_strong.get_text(strip=True)
+                        # Buscar el siguiente <strong> que contenga el valor
+                        next_strong = h5.find_next('strong')
+                        if next_strong:
+                            valor = next_strong.get_text(strip=True)
 
-                        # Adjudicatario
-                        if 'adjudicatario' in h5_text and 'entidad' not in h5_text:
-                            if valor and len(valor) > 3:
-                                datos['nombre_comercial'] = valor
-                                logger.debug(f"H5: nombre_comercial = {valor}")
+                            # Adjudicatario
+                            if 'adjudicatario' in h5_text and 'entidad' not in h5_text:
+                                if valor and len(valor) > 3:
+                                    datos['nombre_comercial'] = valor
+                                    logger.info(f"✓ Nombre adjudicatario (método 1 H5): {valor}")
 
-                        # Órgano/Entidad adjudicadora
-                        elif 'entidad adjudicadora' in h5_text or 'órgano' in h5_text:
-                            if valor and len(valor) > 3:
-                                datos['organo_contratacion'] = valor
-                                logger.debug(f"H5: organo_contratacion = {valor}")
+                            # Órgano/Entidad adjudicadora
+                            elif 'entidad adjudicadora' in h5_text or 'órgano' in h5_text:
+                                if valor and len(valor) > 3:
+                                    datos['organo_contratacion'] = valor
+                                    logger.debug(f"H5: organo_contratacion = {valor}")
 
                 # === MÉTODO 2: Buscar patrones "Label: Valor" en el texto ===
 
@@ -1474,13 +1504,20 @@ class AdjudicatarioEnricher:
 
                     # Email del adjudicatario (en subsección Contacto)
                     # IMPORTANTE: Buscar específicamente después de "Correo Electrónico"
+                    # Primero buscar en la subsección Contacto del adjudicatario
+                    contacto_section = re.search(
+                        r'Contacto.*?(?=Direcci[óo]n|Importes|Motivaci|Entidad|$)',
+                        adj_text, re.I | re.DOTALL
+                    )
+                    email_search_text = contacto_section.group(0) if contacto_section else adj_text
+
                     email_match = re.search(
                         r'Correo\s*Electr[óo]nico[:\s→]*([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})',
-                        adj_text, re.I
+                        email_search_text, re.I
                     )
                     if email_match:
                         email = email_match.group(1)
-                        if not any(x in email.lower() for x in ['noreply', 'no-reply', 'example']):
+                        if not any(x in email.lower() for x in ['noreply', 'no-reply', 'example', 'contratacion', 'hacienda']):
                             datos['email'] = email
                             logger.info(f"✓ Email adjudicatario: {email}")
 

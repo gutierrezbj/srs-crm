@@ -2560,19 +2560,25 @@ async def analisis_rapido_endpoint(
             logger.warning(f"⚠️ No se encontró html_adjudicacion_url - los datos del adjudicatario pueden ser incompletos")
 
         # Extraer competidores del PDF del Acta de Resolución (fuente principal)
+        logger.info(f"PDF Acta URL: {pdf_acta_url[:80] if pdf_acta_url else 'NO ENCONTRADO'}")
         if pdf_acta_url:
             logger.info(f"Extrayendo competidores del PDF del Acta: {pdf_acta_url[:80]}...")
             empresas_competidoras = await enricher._extract_competidores_from_pdf(
                 pdf_acta_url,
                 nif
             )
+            logger.info(f"Competidores extraídos del PDF: {len(empresas_competidoras) if empresas_competidoras else 0}")
+        else:
+            logger.warning("⚠️ No se encontró PDF del Acta de Resolución - no se pueden extraer competidores")
 
         # Fallback: intentar extraer del HTML de adjudicación directamente
         if not empresas_competidoras and datos_placsp.get("html_adjudicacion_url"):
+            logger.info("Intentando extraer competidores del HTML de adjudicación...")
             empresas_competidoras = await enricher._extract_competidores_from_html(
                 datos_placsp["html_adjudicacion_url"],
                 nif
             )
+            logger.info(f"Competidores extraídos del HTML: {len(empresas_competidoras) if empresas_competidoras else 0}")
 
         # Detectar si hay componente IT (básico, sin IA)
         tiene_it = False
