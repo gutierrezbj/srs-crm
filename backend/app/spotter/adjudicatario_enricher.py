@@ -1902,8 +1902,25 @@ class AdjudicatarioEnricher:
                                     # Captura cualquier texto antes del NIF entre paréntesis
                                     empresa_nif_pattern_generic = r'([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ0-9\s,.\-&]+?)\s*\(([A-Z]\d{8}|\d{8}[A-Z])\)'
 
+                                    # Función para limpiar nombre de empresa
+                                    def limpiar_nombre_empresa(nombre_raw):
+                                        """Elimina prefijos comunes que no son parte del nombre"""
+                                        nombre = nombre_raw.strip()
+                                        # Prefijos a eliminar (texto legal/administrativo antes del nombre real)
+                                        prefijos = [
+                                            r'^excluir\s+a\s+la\s+mercantil\s+',
+                                            r'^adjudicar\s+a\s+',
+                                            r'^a\s+la\s+mercantil\s+',
+                                            r'^la\s+mercantil\s+',
+                                            r'^empresa\s+',
+                                            r'^licitador[a]?\s+',
+                                        ]
+                                        for prefijo in prefijos:
+                                            nombre = re.sub(prefijo, '', nombre, flags=re.I)
+                                        return nombre.strip()
+
                                     for match in re.finditer(empresa_nif_pattern, text, re.I):
-                                        nombre = match.group(1).strip().rstrip(',').strip()
+                                        nombre = limpiar_nombre_empresa(match.group(1))
                                         nif = match.group(2).upper()
 
                                         if nif == nif_ganador_upper:
@@ -1929,7 +1946,7 @@ class AdjudicatarioEnricher:
                                     if not competidores:
                                         # Usar patrón genérico - captura todo antes del NIF entre paréntesis
                                         for match in re.finditer(empresa_nif_pattern_generic, text, re.I):
-                                            nombre = match.group(1).strip().rstrip(',').strip()
+                                            nombre = limpiar_nombre_empresa(match.group(1))
                                             nif = match.group(2).upper()
 
                                             if nif == nif_ganador_upper:
