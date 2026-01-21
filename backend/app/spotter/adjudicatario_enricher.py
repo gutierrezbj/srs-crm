@@ -1388,36 +1388,40 @@ class AdjudicatarioEnricher:
                 texto_completo = response.text.lower()
                 texto_raw = response.text
 
-                # === MÉTODO 0: Buscar patrón directo "Adjudicatario → NOMBRE" con flecha Unicode ===
-                # La estructura real de PLACSP es: "Adjudicatario\n→ NOMBRE\n→ NIF..."
-                # Primero intentar con empresas que terminan en S.L./S.A./etc
-                adj_nombre_match = re.search(
-                    r'Adjudicatario\s*(?:</h\d>)?\s*[→\-:]\s*([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñÁÉÍÓÚÑ\s\.,&]+(?:S\.?L\.?U?\.?|S\.?A\.?U?\.?|S\.?L\.?|S\.?A\.?))',
-                    texto_raw, re.I
-                )
-                if adj_nombre_match:
-                    nombre = adj_nombre_match.group(1).strip()
-                    nombre = re.sub(r'\s+', ' ', nombre)
-                    if nombre and len(nombre) > 3:
-                        datos['nombre_comercial'] = nombre
-                        logger.info(f"✓ Nombre adjudicatario (método 0a): {nombre}")
+                # === MÉTODO 0: BeautifulSoup - Buscar <h4>Adjudicatario</h4> seguido de <strong> ===
+                # La estructura real de PLACSP es:
+                # <h4>Adjudicatario</h4>
+                # <ul><li><div class="noremarca"><strong>NOMBRE EMPRESA S.L.</strong></div></li>...
 
-                # Si no encontramos con forma jurídica, buscar nombre genérico antes de NIF
-                if not datos.get('nombre_comercial'):
-                    adj_nombre_match2 = re.search(
-                        r'Adjudicatario\s*(?:</h\d>)?\s*[→\-:]\s*([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñÁÉÍÓÚÑ\s\.,&\-]+?)(?=\s*[→\-:]\s*NIF|\s*NIF\s|$)',
-                        texto_raw, re.I
-                    )
-                    if adj_nombre_match2:
-                        nombre = adj_nombre_match2.group(1).strip()
-                        nombre = re.sub(r'\s+', ' ', nombre)
-                        # Validar que no sea una localidad (menos de 3 palabras y sin forma jurídica)
-                        palabras = nombre.split()
-                        if nombre and len(nombre) > 5 and len(palabras) >= 2:
-                            datos['nombre_comercial'] = nombre
-                            logger.info(f"✓ Nombre adjudicatario (método 0b): {nombre}")
+                # Primero buscar h4 con "Adjudicatario"
+                for h4 in soup.find_all('h4'):
+                    h4_text = h4.get_text(strip=True).lower()
+                    if 'adjudicatario' in h4_text and 'entidad' not in h4_text:
+                        # Buscar el siguiente <strong> dentro de <li> o <div>
+                        next_elem = h4.find_next(['ul', 'li', 'div'])
+                        if next_elem:
+                            strong = next_elem.find('strong')
+                            if strong:
+                                valor = strong.get_text(strip=True)
+                                # Validar que parece nombre de empresa (no vacío, no solo números)
+                                if valor and len(valor) > 3 and not valor.isdigit():
+                                    # Excluir valores que parecen NIF o localidades cortas
+                                    if not re.match(r'^[A-Z]\d{8}$', valor) and not re.match(r'^[A-Z]\d{7}[A-Z]$', valor):
+                                        datos['nombre_comercial'] = valor
+                                        logger.info(f"✓ Nombre adjudicatario (método 0 H4+strong): {valor}")
+                                        break
+                        # Si no hay strong inmediato, buscar más adelante
+                        if not datos.get('nombre_comercial'):
+                            next_strong = h4.find_next('strong')
+                            if next_strong:
+                                valor = next_strong.get_text(strip=True)
+                                if valor and len(valor) > 3 and not valor.isdigit():
+                                    if not re.match(r'^[A-Z]\d{8}$', valor) and not re.match(r'^[A-Z]\d{7}[A-Z]$', valor):
+                                        datos['nombre_comercial'] = valor
+                                        logger.info(f"✓ Nombre adjudicatario (método 0 H4+strong fallback): {valor}")
+                                        break
 
-                # === MÉTODO 1: Buscar <strong> después de <h5> (estructura típica PLACSP) ===
+                # === MÉTODO 1: Buscar <strong> después de <h5> (estructura alternativa PLACSP) ===
                 if not datos.get('nombre_comercial'):
                     for h5 in soup.find_all('h5'):
                         h5_text = h5.get_text(strip=True).lower()
@@ -1439,7 +1443,36 @@ class AdjudicatarioEnricher:
                                     datos['organo_contratacion'] = valor
                                     logger.debug(f"H5: organo_contratacion = {valor}")
 
-                # === MÉTODO 2: Buscar patrones "Label: Valor" en el texto ===
+                # === MÉTODO 2: Regex - Buscar patrón directo "Adjudicatario → NOMBRE" con flecha Unicode ===
+                # La estructura puede ser: "Adjudicatario\n→ NOMBRE\n→ NIF..."
+                if not datos.get('nombre_comercial'):
+                    adj_nombre_match = re.search(
+                        r'Adjudicatario\s*(?:</h\d>)?\s*[→\-:]\s*([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñÁÉÍÓÚÑ\s\.,&]+(?:S\.?L\.?U?\.?|S\.?A\.?U?\.?|S\.?L\.?|S\.?A\.?))',
+                        texto_raw, re.I
+                    )
+                    if adj_nombre_match:
+                        nombre = adj_nombre_match.group(1).strip()
+                        nombre = re.sub(r'\s+', ' ', nombre)
+                        if nombre and len(nombre) > 3:
+                            datos['nombre_comercial'] = nombre
+                            logger.info(f"✓ Nombre adjudicatario (método 2a regex): {nombre}")
+
+                # Si no encontramos con forma jurídica, buscar nombre genérico antes de NIF
+                if not datos.get('nombre_comercial'):
+                    adj_nombre_match2 = re.search(
+                        r'Adjudicatario\s*(?:</h\d>)?\s*[→\-:]\s*([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñÁÉÍÓÚÑ\s\.,&\-]+?)(?=\s*[→\-:]\s*NIF|\s*NIF\s|$)',
+                        texto_raw, re.I
+                    )
+                    if adj_nombre_match2:
+                        nombre = adj_nombre_match2.group(1).strip()
+                        nombre = re.sub(r'\s+', ' ', nombre)
+                        # Validar que no sea una localidad (menos de 3 palabras y sin forma jurídica)
+                        palabras = nombre.split()
+                        if nombre and len(nombre) > 5 and len(palabras) >= 2:
+                            datos['nombre_comercial'] = nombre
+                            logger.info(f"✓ Nombre adjudicatario (método 2b regex): {nombre}")
+
+                # === MÉTODO 3: Buscar patrones "Label: Valor" en el texto ===
 
                 # NIF del adjudicatario (buscar cerca de "Adjudicatario" o solo el patrón)
                 nif_patterns = [
