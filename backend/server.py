@@ -239,6 +239,10 @@ class OportunidadPLACSPBase(BaseModel):
     estado_revision: str = "nueva"  # nueva, revisada, descartada
     fecha_revision: Optional[datetime] = None
     revisado_por: Optional[str] = None
+    # Asignación de oportunidad
+    asignado_a: Optional[str] = None  # user_id del usuario asignado
+    asignado_nombre: Optional[str] = None  # nombre para mostrar
+    fecha_asignacion: Optional[datetime] = None
     # Pain Score y análisis
     pain_score: Optional[int] = None  # 0-100
     nivel_urgencia: Optional[str] = None  # critico, alto, medio, bajo
@@ -2682,6 +2686,47 @@ async def analisis_rapido_endpoint(
 
 class EstadoRevisionUpdate(BaseModel):
     estado: str  # nueva, revisada, descartada
+
+
+class AsignarUsuarioUpdate(BaseModel):
+    user_id: Optional[str] = None  # None para desasignar
+    nombre: Optional[str] = None
+
+
+@api_router.patch("/oportunidades/{oportunidad_id}/asignar")
+async def asignar_oportunidad(
+    oportunidad_id: str,
+    data: AsignarUsuarioUpdate,
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """Asignar o desasignar una oportunidad a un usuario"""
+    update_data = {
+        "fecha_asignacion": datetime.now(timezone.utc).isoformat() if data.user_id else None
+    }
+
+    if data.user_id:
+        # Asignar a usuario específico
+        update_data["asignado_a"] = data.user_id
+        update_data["asignado_nombre"] = data.nombre or data.user_id
+    else:
+        # Desasignar
+        update_data["asignado_a"] = None
+        update_data["asignado_nombre"] = None
+
+    result = await db.oportunidades_placsp.update_one(
+        {"oportunidad_id": oportunidad_id},
+        {"$set": update_data}
+    )
+
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Oportunidad no encontrada")
+
+    return {
+        "success": True,
+        "oportunidad_id": oportunidad_id,
+        "asignado_a": data.user_id,
+        "asignado_nombre": update_data.get("asignado_nombre")
+    }
 
 
 @api_router.patch("/oportunidades/{oportunidad_id}/estado-revision")
