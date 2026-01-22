@@ -1,0 +1,373 @@
+{
+  "_version": "2.0-TALADRO",
+  "_descripcion": "Mapeo de CPVs relacionados con servicios de drones para deteccion de licitaciones",
+  "_fecha_actualizacion": "2026-01-22",
+
+  "categorias": {
+    "topografia_cartografia": {
+      "nombre": "Topografia y Cartografia",
+      "descripcion": "Servicios de levantamientos topograficos, fotogrametria y cartografia con drones",
+      "peso_base": 90,
+      "cpvs": {
+        "71351000": "Servicios de prospeccion geologica y geofisica",
+        "71351500": "Servicios de investigacion del subsuelo",
+        "71351900": "Servicios de geologia, oceanografia e hidrologia",
+        "71352000": "Servicios de topografia del subsuelo",
+        "71353000": "Servicios de medicion topografica",
+        "71353100": "Servicios de levantamientos topograficos hidrograficos",
+        "71353200": "Servicios de levantamientos de dimensiones",
+        "71354000": "Servicios de cartografia",
+        "71354100": "Servicios de cartografia digital",
+        "71354200": "Servicios de cartografia aerea",
+        "71354300": "Servicios catastrales",
+        "71354400": "Servicios de hidrografia",
+        "71354500": "Servicios de estudios marinos",
+        "71355000": "Servicios de agrimensura",
+        "71355100": "Servicios de fotogrametria",
+        "71355200": "Servicios de levantamiento catastral"
+      },
+      "keywords": [
+        "topografia", "fotogrametria", "levantamiento", "cartografia",
+        "ortofoto", "mdt", "mde", "modelo digital", "catastro", "nube de puntos",
+        "lidar", "aerofotogrametria", "georreferenciacion"
+      ]
+    },
+
+    "inspeccion_infraestructuras": {
+      "nombre": "Inspeccion Tecnica de Infraestructuras",
+      "descripcion": "Inspeccion de lineas electricas, puentes, edificios, torres, etc.",
+      "peso_base": 85,
+      "cpvs": {
+        "71315200": "Servicios de consultoria en materia de construccion",
+        "71315300": "Servicios de supervision de obras de construccion",
+        "71315400": "Servicios de inspeccion y supervision de instalaciones",
+        "71315410": "Servicios de inspeccion de edificios",
+        "71600000": "Servicios de ensayos, analisis y consultoria tecnicos",
+        "71610000": "Servicios de ensayos y analisis de la composicion y la pureza",
+        "71631000": "Servicios de inspeccion tecnica",
+        "71631100": "Servicios de inspeccion de maquinaria",
+        "71631200": "Servicios de inspeccion tecnica de vehiculos",
+        "71631300": "Servicios de inspeccion tecnica de construcciones",
+        "71631400": "Servicios de inspeccion tecnica de estructuras de ingenieria",
+        "71631420": "Servicios de inspeccion de seguridad naval",
+        "71631430": "Servicios de control de fugas",
+        "71631450": "Servicios de inspeccion de puentes",
+        "71631460": "Servicios de inspeccion de presas",
+        "71631470": "Servicios de inspeccion de vias ferreas",
+        "71631480": "Servicios de inspeccion de carreteras",
+        "71631490": "Servicios de inspeccion de pistas de aterrizaje",
+        "71632000": "Servicios de ensayos tecnicos",
+        "71632100": "Servicios de control de valvulas",
+        "71632200": "Servicios de ensayos no destructivos"
+      },
+      "keywords": [
+        "inspeccion", "termografia", "torre", "puente", "viaducto", "edificio",
+        "linea electrica", "tendido electrico", "aerogenerador", "eolico",
+        "infraestructura", "estado", "revision", "mantenimiento preventivo"
+      ]
+    },
+
+    "agricultura_medioambiente": {
+      "nombre": "Agricultura y Medio Ambiente",
+      "descripcion": "Agricultura de precision, monitoreo ambiental, gestion forestal",
+      "peso_base": 80,
+      "cpvs": {
+        "77100000": "Servicios agricolas",
+        "77110000": "Servicios relacionados con la produccion agricola",
+        "77111000": "Alquiler de maquinaria agricola con operador",
+        "77112000": "Alquiler de segadoras o equipamiento agricola con operador",
+        "90700000": "Servicios medioambientales",
+        "90710000": "Gestion medioambiental",
+        "90711000": "Evaluacion del impacto medioambiental distinta de la de las obras de construccion",
+        "90711100": "Evaluacion de riesgos o peligros, no de la construccion",
+        "90711200": "Normas medioambientales, no de la construccion",
+        "90711300": "Analisis de indicadores medioambientales, no de la construccion",
+        "90711400": "Servicios de evaluacion de impacto ambiental (EIA), no de la construccion",
+        "90711500": "Control medioambiental, no de construccion",
+        "90712000": "Planificacion medioambiental",
+        "90712100": "Planificacion de desarrollo del entorno urbano",
+        "90712200": "Planificacion de la conservacion forestal",
+        "90712300": "Planificacion de la conservacion marina",
+        "90712400": "Servicios de gestion de recursos naturales",
+        "77231000": "Servicios de gestion de silvicultura",
+        "77231200": "Servicios de lucha contra plagas forestales",
+        "77231300": "Servicios de administracion forestal",
+        "77231400": "Servicios de inventario forestal",
+        "77231500": "Servicios de vigilancia forestal",
+        "77231600": "Servicios de repoblacion forestal"
+      },
+      "keywords": [
+        "agricultura", "precision", "cultivo", "parcela", "ndvi", "vigor vegetativo",
+        "riego", "fertilizacion", "fitosanitario", "forestal", "incendio", "masa forestal",
+        "medioambiente", "impacto ambiental", "ecosistema", "fauna", "flora"
+      ]
+    },
+
+    "energia_fotovoltaica": {
+      "nombre": "Energia (Fotovoltaica, Eolica)",
+      "descripcion": "Inspeccion de plantas solares, parques eolicos, termografia",
+      "peso_base": 85,
+      "cpvs": {
+        "09331200": "Modulos solares fotovoltaicos",
+        "09332000": "Instalacion solar",
+        "45251160": "Instalacion de energia solar",
+        "71313000": "Servicios de consultoria en ingenieria medioambiental",
+        "71313100": "Servicios de consultoria en control del ruido",
+        "71313200": "Servicios de consultoria en aislamiento acustico e insonorizacion",
+        "71313400": "Evaluacion de impacto ambiental para la construccion",
+        "71313410": "Evaluacion de riesgos y peligros para la construccion",
+        "71313420": "Normas medioambientales para la construccion",
+        "71313430": "Analisis de indicadores medioambientales para la construccion",
+        "71313440": "Servicios de EIA para la construccion",
+        "71313450": "Control medioambiental para la construccion",
+        "09310000": "Electricidad",
+        "65310000": "Distribucion de electricidad"
+      },
+      "keywords": [
+        "fotovoltaica", "solar", "panel", "modulo", "planta solar", "huerto solar",
+        "eolico", "aerogenerador", "pala", "termografia", "hot spot", "celula",
+        "string", "inversor", "tracker", "rendimiento", "mantenimiento"
+      ]
+    },
+
+    "emergencias_seguridad": {
+      "nombre": "Emergencias y Seguridad",
+      "descripcion": "Servicios de emergencia, busqueda y rescate, vigilancia",
+      "peso_base": 80,
+      "cpvs": {
+        "75240000": "Servicios de seguridad publica, orden publico y seguridad",
+        "75241000": "Servicios de seguridad publica",
+        "75241100": "Servicios de policia",
+        "75242000": "Servicios de orden publico",
+        "75242100": "Servicios de vigilancia publica",
+        "75242110": "Servicios de alguaciles",
+        "75250000": "Servicios de bomberos y de salvamento",
+        "75251000": "Servicios de bomberos",
+        "75251100": "Servicios de extincion de incendios",
+        "75251110": "Servicios de prevencion de incendios",
+        "75251120": "Servicios de extincion de incendios forestales",
+        "75252000": "Servicios de salvamento",
+        "79710000": "Servicios de seguridad",
+        "79713000": "Servicios de guarda",
+        "79714000": "Servicios de vigilancia"
+      },
+      "keywords": [
+        "emergencia", "incendio", "rescate", "busqueda", "salvamento", "policia",
+        "seguridad", "vigilancia", "control", "frontera", "maritimo", "proteccion civil"
+      ]
+    },
+
+    "audiovisual_patrimonio": {
+      "nombre": "Audiovisual y Patrimonio",
+      "descripcion": "Grabacion audiovisual, documentacion patrimonial, eventos",
+      "peso_base": 70,
+      "cpvs": {
+        "92110000": "Servicios de produccion de peliculas cinematograficas, de video y de DVD",
+        "92111000": "Servicios de produccion de peliculas cinematograficas y de video",
+        "92111100": "Produccion de peliculas y videos de formacion",
+        "92111200": "Produccion de peliculas y videos de publicidad, propaganda y de informacion",
+        "92111210": "Produccion de peliculas de publicidad",
+        "92111220": "Produccion de videos de publicidad",
+        "92111230": "Produccion de peliculas de propaganda",
+        "92111240": "Produccion de videos de propaganda",
+        "92111250": "Produccion de peliculas de informacion",
+        "92111260": "Produccion de videos de informacion",
+        "92111300": "Produccion de peliculas y videos de entretenimiento",
+        "92111310": "Produccion de peliculas de entretenimiento",
+        "92111320": "Produccion de videos de entretenimiento",
+        "92112000": "Servicios de produccion de peliculas cinematograficas y de cintas de video",
+        "92120000": "Servicios de distribucion de peliculas cinematograficas y de cintas de video",
+        "92130000": "Servicios de proyeccion de peliculas cinematograficas",
+        "92200000": "Servicios de radio y television",
+        "92220000": "Servicios de television",
+        "71312000": "Servicios de consultoria en ingenieria de estructuras"
+      },
+      "keywords": [
+        "audiovisual", "video", "filmacion", "grabacion", "rodaje", "produccion",
+        "evento", "retransmision", "patrimonio", "arqueologia", "monumento",
+        "documentacion", "modelado 3d", "realidad virtual"
+      ]
+    },
+
+    "formacion_rpas": {
+      "nombre": "Formacion RPAS",
+      "descripcion": "Cursos y formacion de pilotos de drones",
+      "peso_base": 75,
+      "cpvs": {
+        "80530000": "Servicios de formacion profesional",
+        "80531000": "Servicios de formacion del personal industrial y tecnico",
+        "80531100": "Servicios de formacion del personal industrial",
+        "80531200": "Servicios de formacion tecnica",
+        "80532000": "Servicios de formacion en gestion",
+        "80533000": "Servicios de formacion y familiarizacion en informatica",
+        "80533100": "Servicios de formacion en informatica",
+        "80533200": "Cursos de informatica",
+        "80540000": "Servicios de formacion en medio ambiente",
+        "80550000": "Servicios de formacion en seguridad",
+        "80560000": "Servicios de formacion sanitaria y en primeros auxilios",
+        "80570000": "Servicios de formacion en desarrollo personal"
+      },
+      "keywords": [
+        "formacion", "curso", "capacitacion", "piloto", "rpas", "uas", "dron",
+        "certificacion", "habilitacion", "aeronautico", "aesa"
+      ]
+    },
+
+    "suministro_equipos": {
+      "nombre": "Suministro de Equipos",
+      "descripcion": "Compra de drones y equipamiento asociado",
+      "peso_base": 95,
+      "cpvs": {
+        "34711200": "Aeronaves no tripuladas",
+        "34711500": "Helicopteros",
+        "35125100": "Sensores",
+        "35125110": "Sensores biometricos",
+        "35125120": "Sensores de vigilancia",
+        "35125300": "Camaras de seguridad",
+        "38110000": "Instrumentos de navegacion",
+        "38111000": "Equipos de radionavegacion",
+        "38111100": "Compases",
+        "38111110": "Compases de navegacion",
+        "38112000": "Sextantes",
+        "38112100": "Sistemas de navegacion y posicionamiento globales (GPS o equivalente)",
+        "38113000": "Sonares",
+        "38114000": "Ecosondas",
+        "38300000": "Instrumentos de medicion",
+        "38330000": "Instrumentos manuales para medicion de longitudes",
+        "38400000": "Instrumentos para controlar caracteristicas fisicas",
+        "38410000": "Instrumentos de conteo",
+        "38420000": "Instrumentos para medir el caudal, el nivel y la presion de liquidos y gases",
+        "38500000": "Aparatos de control y de ensayo",
+        "38636000": "Instrumentos opticos especializados"
+      },
+      "keywords": [
+        "suministro", "adquisicion", "compra", "drone", "dron", "uas", "rpas",
+        "aeronave no tripulada", "camara", "gimbal", "sensor", "lidar", "termico",
+        "multiespectral", "hiperbolos"
+      ]
+    },
+
+    "gemelos_digitales": {
+      "nombre": "Gemelos Digitales y BIM",
+      "descripcion": "Modelado 3D, BIM, gemelos digitales de infraestructuras",
+      "peso_base": 80,
+      "cpvs": {
+        "71240000": "Servicios de arquitectura, ingenieria y planificacion",
+        "71241000": "Estudios de viabilidad, servicio de asesoria, analisis",
+        "71242000": "Preparacion de proyectos y disenos, estimacion de costes",
+        "71243000": "Proyectos de planes (sistemas y su integracion)",
+        "71244000": "Calculo de costes, supervision de costes",
+        "71245000": "Planes de aprobacion, planos de obras y especificaciones",
+        "71246000": "Determinacion y listado de las cantidades necesarias para la construccion",
+        "71247000": "Supervision de las obras de construccion",
+        "71248000": "Supervision del proyecto y documentacion",
+        "72212700": "Servicios de desarrollo de programas de software de apoyo",
+        "72212720": "Servicios de desarrollo de codigo de barras",
+        "72212730": "Servicios de desarrollo de programas de seguridad",
+        "72212731": "Servicios de desarrollo de programas antivirus",
+        "72212732": "Servicios de desarrollo de programas de seguridad de datos",
+        "72310000": "Servicios de proceso de datos",
+        "72311000": "Servicios de tabulacion informatica",
+        "72312000": "Servicios de entrada de datos",
+        "72312100": "Servicios de preparacion de datos",
+        "72312200": "Servicios de reconocimiento optico de caracteres"
+      },
+      "keywords": [
+        "gemelo digital", "digital twin", "bim", "modelado 3d", "modelo 3d",
+        "reconstruccion 3d", "nube de puntos", "escaneado", "as-built",
+        "maqueta digital", "visualizacion", "realidad aumentada"
+      ]
+    },
+
+    "investigacion_desarrollo": {
+      "nombre": "I+D",
+      "descripcion": "Proyectos de investigacion y desarrollo con drones",
+      "peso_base": 70,
+      "cpvs": {
+        "73000000": "Servicios de investigacion y desarrollo y servicios de consultoria conexos",
+        "73100000": "Servicios de investigacion y de desarrollo experimental",
+        "73110000": "Servicios de investigacion",
+        "73111000": "Servicios de laboratorio de investigacion",
+        "73112000": "Servicios de investigacion marina",
+        "73120000": "Servicios de desarrollo experimental",
+        "73200000": "Servicios de consultoria en materia de investigacion y desarrollo",
+        "73210000": "Servicios de consultoria en materia de investigacion",
+        "73220000": "Servicios de consultoria en materia de desarrollo",
+        "73300000": "Diseno y ejecucion de las actividades de investigacion y desarrollo",
+        "73400000": "Suministro de equipos de investigacion y desarrollo",
+        "73420000": "Estudio previo de viabilidad y demostracion tecnologica",
+        "73421000": "Desarrollo de equipos de seguridad",
+        "73422000": "Desarrollo de equipos de proteccion y seguridad"
+      },
+      "keywords": [
+        "investigacion", "desarrollo", "innovacion", "i+d", "proyecto piloto",
+        "prototipo", "ensayo", "prueba", "validacion", "demostracion"
+      ]
+    },
+
+    "telecomunicaciones": {
+      "nombre": "Telecomunicaciones",
+      "descripcion": "Inspeccion de torres, antenas, despliegue de conectividad",
+      "peso_base": 75,
+      "cpvs": {
+        "64200000": "Servicios de telecomunicaciones",
+        "64210000": "Servicios de telefonia y transmision de datos",
+        "64212000": "Servicios de telefonia movil",
+        "64212100": "Servicios de mensajeria corta (SMS)",
+        "64212200": "Servicios de mensajeria multimedia (MMS)",
+        "64212300": "Servicios de mensajeria multimedia mejorada (EMS)",
+        "64212400": "Servicios de protocolo de aplicacion inalambrica (WAP)",
+        "64212500": "Servicios de sistema de paquetes de radio general (GPRS)",
+        "64212600": "Servicios de red digital de servicio integrado universal (UMTS)",
+        "64212700": "Servicios de «roaming» en telefonia movil",
+        "64212800": "Servicios de cabinas telefonicas",
+        "64212900": "Servicios de tarjetas telefonicas de previo pago",
+        "64213000": "Servicios de red compartida para empresas",
+        "64214000": "Servicios de lineas especializadas para empresas",
+        "64214100": "Servicios de alquiler de lineas satelite",
+        "64214200": "Servicios de centrales telefonicas",
+        "64214400": "Alquiler de lineas terrestres de comunicacion"
+      },
+      "keywords": [
+        "telecomunicacion", "antena", "torre", "estacion base", "5g", "4g",
+        "fibra optica", "despliegue", "cobertura", "conectividad"
+      ]
+    }
+  },
+
+  "keywords_genericas_drones": {
+    "alta_prioridad": [
+      "drone", "dron", "drones", "rpas", "uas", "uav",
+      "aeronave no tripulada", "aeronaves no tripuladas",
+      "vehiculo aereo no tripulado", "sistema aereo no tripulado",
+      "multicoptero", "cuadricoptero", "hexacoptero", "octocoptero",
+      "vuelo autonomo", "vuelo automatico", "plan de vuelo"
+    ],
+    "media_prioridad": [
+      "fotogrametria", "lidar aereo", "termografia aerea", "ortofoto",
+      "levantamiento aereo", "inspeccion aerea", "vigilancia aerea",
+      "vuelo", "piloto remoto", "operador rpas"
+    ],
+    "contexto_adicional": [
+      "aesa", "habilitacion", "operacion especializada", "sts",
+      "zona urbana", "zona poblada", "espacio aereo", "bvlos",
+      "vlos", "beyond visual line of sight"
+    ]
+  },
+
+  "scoring": {
+    "cpv_directo_drones": 100,
+    "cpv_categoria_primaria": 80,
+    "cpv_categoria_secundaria": 60,
+    "keyword_alta_prioridad": 50,
+    "keyword_media_prioridad": 30,
+    "keyword_contexto": 10,
+    "multiplicador_presupuesto_alto": 1.2,
+    "umbral_presupuesto_alto": 50000,
+    "bonus_urgencia_dias": {
+      "menos_15": 20,
+      "menos_30": 10,
+      "menos_60": 5
+    }
+  }
+}
