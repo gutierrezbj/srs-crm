@@ -29,7 +29,11 @@ const navItems = [
   { name: "Leads", path: "/leads", icon: Users },
   { name: "Pipeline", path: "/pipeline", icon: Kanban },
   { name: "Oportunidades", path: "/oportunidades", icon: Target },
+
   { name: "Analizar Drones", path: "/analizar-drones", icon: Plane },
+
+  { name: "Licit. Drones", path: "/licitaciones-drones", icon: Plane },
+
   { name: "Reportes", path: "/reports", icon: BarChart3 },
 ];
 
