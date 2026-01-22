@@ -2522,6 +2522,303 @@ async def apollo_health_check(current_user: UserResponse = Depends(get_current_u
         return {"status": "error", "message": str(e)}
 
 
+# ============== LICITACIONES DRONES ROUTES ==============
+
+class LicitacionDronesBase(BaseModel):
+    expediente: str
+    titulo: str
+    descripcion: str
+    cpv: str
+    presupuesto: float
+    organo_contratacion: str
+    fecha_publicacion: str
+    fecha_limite: Optional[str] = None
+    dias_restantes: Optional[int] = None
+    url_licitacion: str
+    url_pliego: Optional[str] = None
+    score: int
+    relevante: bool
+    cpv_matches: List[Dict[str, Any]] = []
+    keywords_detectados: List[str] = []
+    categoria_principal: Optional[str] = None
+    estado: str = "nueva"
+    fecha_deteccion: str
+    notas: str = ""
+
+class LicitacionDronesCreate(LicitacionDronesBase):
+    pass
+
+class LicitacionDrones(LicitacionDronesBase):
+    model_config = ConfigDict(extra="ignore")
+    licitacion_id: str
+
+class LicitacionDronesImport(BaseModel):
+    licitaciones: List[LicitacionDronesCreate]
+
+class LicitacionDronesEstadoUpdate(BaseModel):
+    estado: str  # nueva, vista, descartada, en_seguimiento
+
+@api_router.get("/licitaciones-drones", response_model=List[LicitacionDrones])
+async def get_licitaciones_drones(
+    score_min: Optional[int] = None,
+    dias_restantes: Optional[int] = None,
+    categoria: Optional[str] = None,
+    estado: Optional[str] = None,
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """Obtener lista de licitaciones de drones detectadas"""
+    query = {}
+
+    if score_min is not None:
+        query["score"] = {"$gte": score_min}
+
+    if dias_restantes is not None:
+        query["dias_restantes"] = {"$lte": dias_restantes, "$gte": 0}
+
+    if categoria:
+        query["categoria_principal"] = {"$regex": categoria, "$options": "i"}
+
+    if estado:
+        query["estado"] = estado
+
+    licitaciones = await db.licitaciones_drones.find(
+        query, {"_id": 0}
+    ).sort([("score", -1), ("fecha_limite", 1)]).to_list(500)
+
+    # Recalcular dias_restantes al vuelo
+    for lic in licitaciones:
+        if lic.get("fecha_limite"):
+            try:
+                for fmt in ["%Y-%m-%d", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M:%S.%f"]:
+                    try:
+                        fecha_limite = datetime.strptime(
+                            lic["fecha_limite"].replace("+00:00", "").replace("Z", ""),
+                            fmt.replace("Z", "")
+                        )
+                        break
+                    except ValueError:
+                        continue
+                else:
+                    continue
+                hoy = datetime.now()
+                lic["dias_restantes"] = max(0, (fecha_limite - hoy).days)
+            except:
+                pass
+
+    return licitaciones
+
+@api_router.get("/licitaciones-drones/stats")
+async def get_licitaciones_drones_stats(current_user: UserResponse = Depends(get_current_user)):
+    """Estadisticas de licitaciones de drones"""
+    licitaciones = await db.licitaciones_drones.find({}, {"_id": 0}).to_list(1000)
+
+    total = len(licitaciones)
+    por_estado = {}
+    por_categoria = {}
+    por_score = {"alta": 0, "media": 0, "baja": 0}
+    valor_total = 0
+    urgentes = 0  # < 15 dias
+
+    for lic in licitaciones:
+        # Por estado
+        estado = lic.get("estado", "nueva")
+        por_estado[estado] = por_estado.get(estado, 0) + 1
+
+        # Por categoria
+        cat = lic.get("categoria_principal", "Sin categoria")
+        por_categoria[cat] = por_categoria.get(cat, 0) + 1
+
+        # Por score
+        score = lic.get("score", 0)
+        if score >= 80:
+            por_score["alta"] += 1
+        elif score >= 60:
+            por_score["media"] += 1
+        else:
+            por_score["baja"] += 1
+
+        # Valor total
+        valor_total += lic.get("presupuesto", 0)
+
+        # Urgentes
+        dias = lic.get("dias_restantes")
+        if dias is not None and dias <= 15:
+            urgentes += 1
+
+    return {
+        "total": total,
+        "por_estado": por_estado,
+        "por_categoria": por_categoria,
+        "por_score": por_score,
+        "valor_total": valor_total,
+        "urgentes": urgentes
+    }
+
+@api_router.get("/licitaciones-drones/{licitacion_id}", response_model=LicitacionDrones)
+async def get_licitacion_drones(
+    licitacion_id: str,
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """Obtener una licitacion de drones por ID"""
+    licitacion = await db.licitaciones_drones.find_one(
+        {"licitacion_id": licitacion_id}, {"_id": 0}
+    )
+
+    if not licitacion:
+        raise HTTPException(status_code=404, detail="Licitacion no encontrada")
+
+    return licitacion
+
+@api_router.patch("/licitaciones-drones/{licitacion_id}/estado")
+async def update_licitacion_drones_estado(
+    licitacion_id: str,
+    estado_update: LicitacionDronesEstadoUpdate,
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """Actualizar estado de una licitacion de drones"""
+    estados_validos = ["nueva", "vista", "descartada", "en_seguimiento"]
+
+    if estado_update.estado not in estados_validos:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Estado invalido. Usar: {estados_validos}"
+        )
+
+    result = await db.licitaciones_drones.update_one(
+        {"licitacion_id": licitacion_id},
+        {"$set": {
+            "estado": estado_update.estado,
+            "fecha_actualizacion": datetime.now(timezone.utc).isoformat()
+        }}
+    )
+
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Licitacion no encontrada")
+
+    return {
+        "message": "Estado actualizado",
+        "licitacion_id": licitacion_id,
+        "estado": estado_update.estado
+    }
+
+@api_router.patch("/licitaciones-drones/{licitacion_id}/notas")
+async def update_licitacion_drones_notas(
+    licitacion_id: str,
+    notas: str,
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """Actualizar notas de una licitacion de drones"""
+    result = await db.licitaciones_drones.update_one(
+        {"licitacion_id": licitacion_id},
+        {"$set": {"notas": notas}}
+    )
+
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Licitacion no encontrada")
+
+    return {"message": "Notas actualizadas", "licitacion_id": licitacion_id}
+
+@api_router.post("/licitaciones-drones/importar")
+async def importar_licitaciones_drones(
+    data: LicitacionDronesImport,
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """Importar licitaciones desde el spotter de drones"""
+    imported = 0
+    duplicates = 0
+    errors = 0
+
+    for licitacion in data.licitaciones:
+        try:
+            # Verificar si ya existe por expediente
+            existing = await db.licitaciones_drones.find_one(
+                {"expediente": licitacion.expediente}
+            )
+
+            if existing:
+                # Actualizar score y datos si es mas reciente
+                await db.licitaciones_drones.update_one(
+                    {"expediente": licitacion.expediente},
+                    {"$set": {
+                        "score": licitacion.score,
+                        "dias_restantes": licitacion.dias_restantes,
+                        "fecha_actualizacion": datetime.now(timezone.utc).isoformat()
+                    }}
+                )
+                duplicates += 1
+                continue
+
+            # Crear nueva licitacion
+            licitacion_id = f"licdron_{uuid.uuid4().hex[:12]}"
+            licitacion_doc = licitacion.model_dump()
+            licitacion_doc["licitacion_id"] = licitacion_id
+            licitacion_doc["fecha_creacion"] = datetime.now(timezone.utc).isoformat()
+
+            await db.licitaciones_drones.insert_one(licitacion_doc)
+            imported += 1
+
+        except Exception as e:
+            logging.error(f"Error importando licitacion {licitacion.expediente}: {e}")
+            errors += 1
+
+    return {
+        "message": "Importacion completada",
+        "imported": imported,
+        "duplicates": duplicates,
+        "errors": errors,
+        "total": len(data.licitaciones)
+    }
+
+@api_router.post("/licitaciones-drones/importar-interno")
+async def importar_licitaciones_drones_interno(data: LicitacionDronesImport):
+    """Endpoint interno para importar desde cron (sin auth)"""
+    imported = 0
+    duplicates = 0
+
+    for licitacion in data.licitaciones:
+        existing = await db.licitaciones_drones.find_one(
+            {"expediente": licitacion.expediente}
+        )
+
+        if existing:
+            await db.licitaciones_drones.update_one(
+                {"expediente": licitacion.expediente},
+                {"$set": {
+                    "score": licitacion.score,
+                    "dias_restantes": licitacion.dias_restantes,
+                    "fecha_actualizacion": datetime.now(timezone.utc).isoformat()
+                }}
+            )
+            duplicates += 1
+        else:
+            licitacion_id = f"licdron_{uuid.uuid4().hex[:12]}"
+            licitacion_doc = licitacion.model_dump()
+            licitacion_doc["licitacion_id"] = licitacion_id
+            licitacion_doc["fecha_creacion"] = datetime.now(timezone.utc).isoformat()
+            await db.licitaciones_drones.insert_one(licitacion_doc)
+            imported += 1
+
+    return {
+        "message": "Importacion completada",
+        "imported": imported,
+        "duplicates": duplicates,
+        "total": len(data.licitaciones)
+    }
+
+@api_router.delete("/licitaciones-drones/{licitacion_id}")
+async def delete_licitacion_drones(
+    licitacion_id: str,
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """Eliminar una licitacion de drones"""
+    result = await db.licitaciones_drones.delete_one({"licitacion_id": licitacion_id})
+
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Licitacion no encontrada")
+
+    return {"message": "Licitacion eliminada", "licitacion_id": licitacion_id}
+
+
 @api_router.get("/")
 async def root():
     return {"message": "System Rapid Solutions CRM API", "version": "1.1.0"}
