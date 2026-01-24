@@ -155,7 +155,7 @@ class LicitacionAnalyzer:
         return matches
 
     def _find_keywords(self, texto: str) -> Dict[str, List[str]]:
-        """Busca keywords en el texto"""
+        """Busca keywords en el texto usando word boundaries para evitar falsos positivos"""
         if not texto:
             return {"alta": [], "media": [], "contexto": [], "categoria": []}
 
@@ -167,17 +167,27 @@ class LicitacionAnalyzer:
             "categoria": []
         }
 
+        def keyword_match(kw, text):
+            """Match keyword con word boundary para keywords cortas"""
+            if len(kw) <= 4:
+                # Para keywords cortas, usar word boundaries
+                pattern = r'\b' + re.escape(kw) + r'\b'
+                return re.search(pattern, text) is not None
+            else:
+                # Para keywords largas, substring match es suficiente
+                return kw in text
+
         # Keywords genericas
         for kw in self.keywords_alta:
-            if kw in texto_lower:
+            if keyword_match(kw, texto_lower):
                 found["alta"].append(kw)
 
         for kw in self.keywords_media:
-            if kw in texto_lower:
+            if keyword_match(kw, texto_lower):
                 found["media"].append(kw)
 
         for kw in self.keywords_contexto:
-            if kw in texto_lower:
+            if keyword_match(kw, texto_lower):
                 found["contexto"].append(kw)
 
         # Keywords por categoria

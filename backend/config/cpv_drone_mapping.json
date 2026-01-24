@@ -218,6 +218,7 @@
       "descripcion": "Compra de drones y equipamiento asociado",
       "peso_base": 95,
       "cpvs": {
+        "35613000": "Vehiculos aereos no tripulados",
         "34711200": "Aeronaves no tripuladas",
         "34711500": "Helicopteros",
         "35125100": "Sensores",

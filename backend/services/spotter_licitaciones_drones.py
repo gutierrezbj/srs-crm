@@ -418,7 +418,7 @@ def guardar_en_mongodb(licitaciones: List[LicitacionDrones]) -> Dict[str, int]:
 
     try:
         response = requests.post(
-            f"{CRM_API_URL}/licitaciones-drones/importar",
+            f"{CRM_API_URL}/licitaciones-drones/importar-interno",
             json=data,
             headers={"Content-Type": "application/json"},
             timeout=30

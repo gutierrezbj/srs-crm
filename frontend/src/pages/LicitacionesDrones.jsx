@@ -90,10 +90,10 @@ export default function LicitacionesDrones({ user }) {
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      if (scoreMin) params.append("score_min", scoreMin);
-      if (diasRestantes) params.append("dias_restantes", diasRestantes);
-      if (categoriaFilter) params.append("categoria", categoriaFilter);
-      if (estadoFilter) params.append("estado", estadoFilter);
+      if (scoreMin && scoreMin !== "all") params.append("score_min", scoreMin);
+      if (diasRestantes && diasRestantes !== "all") params.append("dias_restantes", diasRestantes);
+      if (categoriaFilter && categoriaFilter !== "all") params.append("categoria", categoriaFilter);
+      if (estadoFilter && estadoFilter !== "all") params.append("estado", estadoFilter);
 
       const [licRes, statsRes] = await Promise.all([
         axios.get(`${API}/licitaciones-drones?${params.toString()}`),
@@ -224,7 +224,7 @@ export default function LicitacionesDrones({ user }) {
                 <SelectValue placeholder="Todos" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Todos</SelectItem>
+                <SelectItem value="all">Todos</SelectItem>
                 <SelectItem value="80">80+ (Alta)</SelectItem>
                 <SelectItem value="60">60+ (Media)</SelectItem>
                 <SelectItem value="40">40+ (Baja)</SelectItem>
@@ -239,7 +239,7 @@ export default function LicitacionesDrones({ user }) {
                 <SelectValue placeholder="Todos" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Todos</SelectItem>
+                <SelectItem value="all">Todos</SelectItem>
                 <SelectItem value="7">7 dias o menos</SelectItem>
                 <SelectItem value="15">15 dias o menos</SelectItem>
                 <SelectItem value="30">30 dias o menos</SelectItem>
@@ -254,7 +254,7 @@ export default function LicitacionesDrones({ user }) {
                 <SelectValue placeholder="Todas" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Todas</SelectItem>
+                <SelectItem value="all">Todas</SelectItem>
                 {categorias.map(cat => (
                   <SelectItem key={cat} value={cat}>{cat}</SelectItem>
                 ))}
@@ -268,7 +268,7 @@ export default function LicitacionesDrones({ user }) {
                 <SelectValue placeholder="Todos" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Todos</SelectItem>
+                <SelectItem value="all">Todos</SelectItem>
                 {ESTADOS.map(e => (
                   <SelectItem key={e.value} value={e.value}>{e.label}</SelectItem>
                 ))}
@@ -401,7 +401,7 @@ export default function LicitacionesDrones({ user }) {
 
       {/* Dialog de detalle */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-3xl theme-bg-secondary border" style={{ borderColor: 'var(--theme-border)' }}>
+        <DialogContent className="max-w-2xl theme-bg-secondary overflow-hidden border" style={{ borderColor: 'var(--theme-border)' }}>
           {selectedLicitacion && (
             <>
               <DialogHeader>
