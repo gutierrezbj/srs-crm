@@ -1,0 +1,206 @@
+sector: it
+nombre: "Servicios IT"
+activo: true
+
+tipos:
+  - adjudicacion
+  - licitacion
+
+scoring:
+  pesos:
+    cpv: 0.35
+    keywords: 0.35
+    importe: 0.15
+    urgencia: 0.15
+  umbrales:
+    oro: 85
+    plata: 70
+    bronce: 50
+  importe_optimo: 500000
+
+feeds:
+  adjudicacion: "https://contrataciondelestado.es/sindicacion/sindicacion_1044/licitacionesPerfilesContratanteCompleto3.atom"
+  licitacion: "https://contrataciondelestado.es/sindicacion/sindicacion_1044/licitacionesPerfilesContratanteCompleto3.atom"
+
+cpvs:
+  servicios_ti:
+    peso_base: 100
+    codigos:
+      - codigo: "72000000"
+        descripcion: "Servicios TI general"
+      - codigo: "72200000"
+        descripcion: "Programación y consultoría"
+      - codigo: "72300000"
+        descripcion: "Servicios de datos"
+      - codigo: "72400000"
+        descripcion: "Servicios de Internet"
+      - codigo: "72500000"
+        descripcion: "Servicios informáticos"
+      - codigo: "72600000"
+        descripcion: "Soporte informático"
+      - codigo: "72700000"
+        descripcion: "Servicios de redes"
+      - codigo: "72800000"
+        descripcion: "Auditoría informática"
+      - codigo: "72900000"
+        descripcion: "Backup y recuperación"
+  
+  helpdesk:
+    peso_base: 100
+    codigos:
+      - codigo: "72253000"
+        descripcion: "Help desk"
+      - codigo: "72253100"
+        descripcion: "Soporte técnico"
+      - codigo: "72253200"
+        descripcion: "Soporte sistemas"
+      - codigo: "72254000"
+        descripcion: "Pruebas software"
+      - codigo: "72254100"
+        descripcion: "Pruebas sistemas"
+  
+  cloud_datacenter:
+    peso_base: 95
+    codigos:
+      - codigo: "72310000"
+        descripcion: "Proceso de datos"
+      - codigo: "72311000"
+        descripcion: "Tabulación"
+      - codigo: "72312000"
+        descripcion: "Entrada de datos"
+      - codigo: "72317000"
+        descripcion: "Almacenamiento datos"
+      - codigo: "72318000"
+        descripcion: "Transmisión datos"
+      - codigo: "72319000"
+        descripcion: "Suministro datos"
+  
+  seguridad:
+    peso_base: 95
+    codigos:
+      - codigo: "72212730"
+        descripcion: "Desarrollo seguridad"
+      - codigo: "72212731"
+        descripcion: "Desarrollo cortafuegos"
+      - codigo: "72212732"
+        descripcion: "Desarrollo antivirus"
+      - codigo: "79132000"
+        descripcion: "Certificación"
+  
+  comunicaciones:
+    peso_base: 90
+    codigos:
+      - codigo: "64200000"
+        descripcion: "Telecomunicaciones"
+      - codigo: "64210000"
+        descripcion: "Telefonía"
+      - codigo: "64212000"
+        descripcion: "Telefonía móvil"
+      - codigo: "64214000"
+        descripcion: "Redes empresariales"
+      - codigo: "64216000"
+        descripcion: "Mensajería electrónica"
+      - codigo: "32400000"
+        descripcion: "Equipos de red"
+      - codigo: "32420000"
+        descripcion: "Equipos de red activos"
+      - codigo: "32424000"
+        descripcion: "Infraestructura de red"
+
+  hardware:
+    peso_base: 85
+    codigos:
+      - codigo: "30200000"
+        descripcion: "Equipos informáticos"
+      - codigo: "30210000"
+        descripcion: "Procesamiento de datos"
+      - codigo: "30211000"
+        descripcion: "Ordenadores"
+      - codigo: "30213000"
+        descripcion: "Ordenadores personales"
+      - codigo: "30230000"
+        descripcion: "Material informático"
+      - codigo: "48000000"
+        descripcion: "Paquetes software"
+      - codigo: "48800000"
+        descripcion: "Sistemas de información"
+
+keywords:
+  criticas:
+    peso: 100
+    palabras:
+      - "soporte técnico"
+      - "helpdesk"
+      - "help desk"
+      - "service desk"
+      - "ens"
+      - "esquema nacional de seguridad"
+      - "iso 27001"
+      - "ciberseguridad"
+      - "soc 24"
+      - "smart hands"
+      - "manos remotas"
+  
+  altas:
+    peso: 80
+    palabras:
+      - "vmware"
+      - "vsphere"
+      - "vcenter"
+      - "esxi"
+      - "azure"
+      - "microsoft 365"
+      - "office 365"
+      - "aws"
+      - "google cloud"
+      - "gcp"
+      - "teams"
+      - "zoom"
+      - "backup"
+      - "veeam"
+      - "disaster recovery"
+      - "field services"
+      - "servicios de campo"
+  
+  medias:
+    peso: 60
+    palabras:
+      - "servidor"
+      - "servidores"
+      - "cloud"
+      - "nube"
+      - "datacenter"
+      - "data center"
+      - "centro de datos"
+      - "virtualización"
+      - "mantenimiento informático"
+      - "soporte informático"
+      - "infraestructura ti"
+      - "administración sistemas"
+      - "active directory"
+      - "directorio activo"
+      - "firewall"
+      - "cortafuegos"
+      - "vpn"
+      - "lan"
+      - "wan"
+      - "wifi"
+      - "wireless"
+  
+  bajas:
+    peso: 40
+    palabras:
+      - "ordenador"
+      - "ordenadores"
+      - "portátil"
+      - "portátiles"
+      - "impresora"
+      - "impresoras"
+      - "monitor"
+      - "monitores"
+      - "red"
+      - "redes"
+      - "software"
+      - "hardware"
+      - "aplicación"
+      - "aplicaciones"

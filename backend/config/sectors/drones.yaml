@@ -1,0 +1,214 @@
+sector: drones
+nombre: "Servicios con Drones"
+activo: true
+
+tipos:
+  - licitacion
+
+scoring:
+  pesos:
+    cpv: 0.40
+    keywords: 0.35
+    importe: 0.10
+    urgencia: 0.15
+  umbrales:
+    oro: 85
+    plata: 70
+    bronce: 50
+  importe_optimo: 100000
+
+feeds:
+  licitacion: "https://contrataciondelestado.es/sindicacion/sindicacion_1044/licitacionesPerfilesContratanteCompleto3.atom"
+
+cpv_directo:
+  codigo: "34711200"
+  descripcion: "Aeronaves no tripuladas (drones)"
+  peso: 100
+
+cpvs:
+  topografia:
+    peso_base: 90
+    codigos:
+      - codigo: "71351000"
+        descripcion: "Servicios topográficos"
+      - codigo: "71351500"
+        descripcion: "Investigación del suelo"
+      - codigo: "71351700"
+        descripcion: "Prospección científica"
+      - codigo: "71351810"
+        descripcion: "Servicios topográficos"
+      - codigo: "71351900"
+        descripcion: "Geología"
+      - codigo: "71352000"
+        descripcion: "Subsuelo"
+      - codigo: "71352100"
+        descripcion: "Sísmica"
+      - codigo: "71352300"
+        descripcion: "Catastro"
+      - codigo: "71353000"
+        descripcion: "Levantamientos"
+      - codigo: "71353200"
+        descripcion: "Agrimensura"
+      - codigo: "71354000"
+        descripcion: "Cartografía"
+      - codigo: "71354100"
+        descripcion: "Cartografía digital"
+      - codigo: "71354200"
+        descripcion: "Cartografía aérea"
+      - codigo: "71354300"
+        descripcion: "Catastro"
+      - codigo: "71354400"
+        descripcion: "Hidrografía"
+      - codigo: "71354500"
+        descripcion: "Batimetría"
+      - codigo: "71355000"
+        descripcion: "Mediciones"
+      - codigo: "71355100"
+        descripcion: "Fotogrametría"
+      - codigo: "71355200"
+        descripcion: "Ortofotos"
+
+  inspeccion:
+    peso_base: 85
+    codigos:
+      - codigo: "71630000"
+        descripcion: "Servicios de inspección técnica"
+      - codigo: "71631000"
+        descripcion: "Inspección técnica"
+      - codigo: "71631100"
+        descripcion: "Inspección maquinaria"
+      - codigo: "71631200"
+        descripcion: "Inspección técnica vehículos"
+      - codigo: "71631300"
+        descripcion: "Inspección técnica edificios"
+      - codigo: "71631400"
+        descripcion: "Inspección técnica estructuras"
+      - codigo: "71631420"
+        descripcion: "Inspección seguridad marítima"
+      - codigo: "71631430"
+        descripcion: "Ensayos fugas"
+      - codigo: "71631450"
+        descripcion: "Inspección puentes"
+      - codigo: "71631460"
+        descripcion: "Inspección presas"
+      - codigo: "71631470"
+        descripcion: "Inspección ferroviaria"
+      - codigo: "71631480"
+        descripcion: "Inspección carreteras"
+      - codigo: "71631490"
+        descripcion: "Inspección pistas"
+
+  medioambiente:
+    peso_base: 80
+    codigos:
+      - codigo: "90700000"
+        descripcion: "Servicios medioambientales"
+      - codigo: "90710000"
+        descripcion: "Gestión medioambiental"
+      - codigo: "90711000"
+        descripcion: "Evaluación impacto"
+      - codigo: "90711100"
+        descripcion: "Evaluación riesgos"
+      - codigo: "90711200"
+        descripcion: "Normas medioambientales"
+      - codigo: "90711300"
+        descripcion: "Indicadores medioambientales"
+      - codigo: "90711400"
+        descripcion: "Evaluación impacto no construcción"
+      - codigo: "90711500"
+        descripcion: "Seguimiento medioambiental"
+      - codigo: "90712000"
+        descripcion: "Planificación medioambiental"
+      - codigo: "90712100"
+        descripcion: "Planificación desarrollo urbano"
+      - codigo: "90712200"
+        descripcion: "Conservación bosques"
+      - codigo: "90712300"
+        descripcion: "Conservación marina"
+      - codigo: "90712400"
+        descripcion: "Gestión recursos naturales"
+
+  emergencias:
+    peso_base: 75
+    codigos:
+      - codigo: "75250000"
+        descripcion: "Servicios de bomberos"
+      - codigo: "75251000"
+        descripcion: "Servicios de bomberos"
+      - codigo: "75251100"
+        descripcion: "Extinción incendios"
+      - codigo: "75251110"
+        descripcion: "Prevención incendios"
+      - codigo: "75251120"
+        descripcion: "Lucha incendios forestales"
+      - codigo: "75252000"
+        descripcion: "Servicios rescate"
+      - codigo: "71222200"
+        descripcion: "Cartografía zonas rurales"
+
+keywords:
+  criticas:
+    peso: 100
+    palabras:
+      - "dron"
+      - "drone"
+      - "drones"
+      - "rpas"
+      - "uas"
+      - "uav"
+      - "aeronave no tripulada"
+      - "aeronaves no tripuladas"
+      - "vehículo aéreo no tripulado"
+  
+  altas:
+    peso: 85
+    palabras:
+      - "fotogrametría"
+      - "fotogrametrico"
+      - "fotogramétrico"
+      - "lidar"
+      - "lidar aéreo"
+      - "ortofoto"
+      - "ortofotografía"
+      - "ortomosaico"
+      - "modelo 3d"
+      - "modelo digital"
+      - "nube de puntos"
+      - "termografía aérea"
+      - "inspección aérea"
+      - "vuelo fotogramétrico"
+  
+  medias:
+    peso: 65
+    palabras:
+      - "levantamiento topográfico"
+      - "cartografía"
+      - "cartográfico"
+      - "topografía"
+      - "topográfico"
+      - "batimetría"
+      - "inspección de líneas"
+      - "inspección torres"
+      - "inspección aerogeneradores"
+      - "inspección parque eólico"
+      - "inspección fotovoltaica"
+      - "inspección solar"
+      - "vigilancia forestal"
+      - "detección incendios"
+      - "control plagas"
+      - "agricultura precisión"
+  
+  bajas:
+    peso: 45
+    palabras:
+      - "georreferenciación"
+      - "georeferenciación"
+      - "mdt"
+      - "mde"
+      - "dsm"
+      - "dtm"
+      - "dem"
+      - "sig"
+      - "gis"
+      - "teledetección"
+      - "sensores remotos"
