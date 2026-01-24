@@ -1,5 +1,6 @@
 from fastapi import FastAPI, APIRouter, HTTPException, UploadFile, File, Response, Request, Depends, BackgroundTasks
 from app.auth.router import router as auth_router, users_router
+from app.routers.oportunidades import router as oportunidades_router
 from fastapi.responses import StreamingResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -3405,6 +3406,7 @@ async def analizar_licitaciones_batch(
 
 # Include the router
 app.include_router(auth_router)
+app.include_router(oportunidades_router)
 app.include_router(users_router)
 app.include_router(api_router)
 
