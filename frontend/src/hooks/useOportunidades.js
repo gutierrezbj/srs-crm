@@ -44,7 +44,7 @@ const useOportunidades = ({ tipo, sector, autoFetch = true }) => {
             if (f.page) params.append('page', f.page);
             if (f.limit) params.append('limit', f.limit);
 
-            const response = await api.get(`/api/oportunidades?${params.toString()}`);
+            const response = await api.get(`/oportunidades?${params.toString()}`);
 
             setOportunidades(response.data.items || []);
             setPagination({
@@ -67,7 +67,7 @@ const useOportunidades = ({ tipo, sector, autoFetch = true }) => {
             if (tipo) params.append('tipo', tipo);
             if (sector && sector !== 'all') params.append('sector', sector);
 
-            const response = await api.get(`/api/oportunidades/stats?${params.toString()}`);
+            const response = await api.get(`/oportunidades/stats?${params.toString()}`);
             setStats(response.data);
         } catch (err) {
             console.error('Error cargando stats:', err);
@@ -76,7 +76,7 @@ const useOportunidades = ({ tipo, sector, autoFetch = true }) => {
 
     const updateEstado = async (expediente, nuevoEstado) => {
         try {
-            await api.patch(`/api/oportunidades/${expediente}/estado`, { estado: nuevoEstado });
+            await api.patch(`/oportunidades/${expediente}/estado`, { estado: nuevoEstado });
             await fetchOportunidades();
             return true;
         } catch (err) {
@@ -87,7 +87,7 @@ const useOportunidades = ({ tipo, sector, autoFetch = true }) => {
 
     const asignar = async (expediente, propietario) => {
         try {
-            await api.patch(`/api/oportunidades/${expediente}/asignar`, { propietario });
+            await api.patch(`/oportunidades/${expediente}/asignar`, { propietario });
             await fetchOportunidades();
             return true;
         } catch (err) {
