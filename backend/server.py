@@ -3,6 +3,7 @@ from app.auth.router import router as auth_router, users_router
 from app.routers.oportunidades import router as oportunidades_router
 from fastapi.responses import StreamingResponse
 from app.routers.spotter import router as spotter_router
+from app.routers.features import router as features_router
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -3409,6 +3410,7 @@ async def analizar_licitaciones_batch(
 app.include_router(auth_router)
 app.include_router(oportunidades_router)
 app.include_router(spotter_router)
+app.include_router(features_router)
 app.include_router(users_router)
 app.include_router(api_router)
 

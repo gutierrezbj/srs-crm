@@ -8,11 +8,12 @@ import Leads from "@/pages/Leads";
 import Pipeline from "@/pages/Pipeline";
 import Reports from "@/pages/Reports";
 import Admin from "@/pages/Admin";
-import Oportunidades from "@/pages/Oportunidades";
+import AdminUsuarios from "@/pages/AdminUsuarios";
 
 import AnalizarDrones from "@/pages/AnalizarDrones";
 
 import LicitacionesDrones from "@/pages/LicitacionesDrones";
+import LicitacionesIT from "@/pages/LicitacionesIT";
 
 import Layout from "@/components/Layout";
 import { Toaster } from "@/components/ui/sonner";
