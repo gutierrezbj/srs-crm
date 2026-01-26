@@ -273,15 +273,25 @@ class OportunidadSpotterImport(BaseModel):
 
 async def get_current_user(request: Request) -> UserResponse:
     """Get current user from session token cookie or Authorization header"""
+    import logging
+    logging.error(f"DEBUG: Headers: {request.headers}")
+    logging.error(f"DEBUG: Auth Header: {request.headers.get('Authorization')}")
     session_token = request.cookies.get("session_token")
     
     if not session_token:
+        # Check Authorization header
         auth_header = request.headers.get("Authorization")
         if auth_header and auth_header.startswith("Bearer "):
             session_token = auth_header.split(" ")[1]
-    
+            
     if not session_token:
-        raise HTTPException(status_code=401, detail="No autenticado")
+        # DEBUG MODE: Return received headers in error
+        auth_dbg = request.headers.get("Authorization", "None")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"DEBUG INFO -> Token: None. AuthHeader: {auth_dbg}. Keys: {list(request.headers.keys())}",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     
     session = await db.user_sessions.find_one(
         {"session_token": session_token},
@@ -398,12 +408,13 @@ async def google_auth(request: Request, response: Response):
     })
     
     # Set cookie
+    # Set cookie
     response.set_cookie(
         key="session_token",
         value=session_token,
         httponly=True,
-        secure=True,
-        samesite="none",
+        secure=False if DEV_MODE else True,  # Allow HTTP in dev
+        samesite="lax",  # Better for local dev than 'none' which requires Secure
         max_age=7 * 24 * 60 * 60,
         path="/"
     )
@@ -411,6 +422,7 @@ async def google_auth(request: Request, response: Response):
     # Return success response
     return {
         "success": True,
+        "session_token": session_token,  # Return token for localStorage usage
         "user": {
             "user_id": user_id,
             "email": email,

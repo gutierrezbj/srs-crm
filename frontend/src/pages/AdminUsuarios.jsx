@@ -1,15 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
-import { useAuth } from '../context/AuthContext';
-
 const ROLES = [
     { value: 'admin', label: 'Administrador' },
     { value: 'operador', label: 'Operador' },
     { value: 'viewer', label: 'Solo lectura' }
 ];
 
-const AdminUsuarios = () => {
-    const { user: currentUser } = useAuth();
+const AdminUsuarios = ({ user: currentUser }) => {
+    // const { user: currentUser } = useAuth(); removed
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -150,8 +148,8 @@ const AdminUsuarios = () => {
                                     <td className="px-6 py-4 text-sm text-gray-600">{u.email}</td>
                                     <td className="px-6 py-4">
                                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${u.rol === 'admin' ? 'bg-purple-100 text-purple-800' :
-                                                u.rol === 'operador' ? 'bg-blue-100 text-blue-800' :
-                                                    'bg-gray-100 text-gray-800'
+                                            u.rol === 'operador' ? 'bg-blue-100 text-blue-800' :
+                                                'bg-gray-100 text-gray-800'
                                             }`}>
                                             {u.rol}
                                         </span>

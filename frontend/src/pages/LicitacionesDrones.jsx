@@ -3,10 +3,8 @@ import useOportunidades from '../hooks/useOportunidades';
 import OportunidadesTable from '../components/OportunidadesTable';
 import OportunidadFilters from '../components/OportunidadFilters';
 import StatsCards from '../components/StatsCards';
-import { useAuth } from '../context/AuthContext';
-
-const LicitacionesDrones = () => {
-    const { user } = useAuth();
+const LicitacionesDrones = ({ user }) => {
+    // const { user } = useAuth(); removed
     const {
         oportunidades,
         stats,

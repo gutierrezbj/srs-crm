@@ -23,6 +23,16 @@ import { ThemeProvider } from "@/context/ThemeContext";
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
+// Configure Axios interceptor for token
+axios.interceptors.request.use((config) => {
+  const token = localStorage.getItem("session_token");
+  console.log("DEBUG: Interceptor Token:", token);
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
 // Configure axios defaults
 axios.defaults.withCredentials = true;
 
@@ -57,9 +67,12 @@ const AuthCallback = () => {
         // Clear hash and navigate to dashboard with user data
         window.history.replaceState(null, "", window.location.pathname);
         navigate("/dashboard", { state: { user: response.data } });
-      } catch (error) {
-        console.error("Auth error:", error);
-        navigate("/login");
+      } catch (err) {
+        console.error("Auth check failed:", err);
+        if (err.response && err.response.status === 401) {
+          alert("BACKEND DEBUG: " + JSON.stringify(err.response.data));
+        }
+        navigate("/login"); // Original behavior for AuthCallback on error
       }
     };
 

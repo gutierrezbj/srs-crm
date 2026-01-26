@@ -4,6 +4,7 @@
   "private": true,
   "dependencies": {
     "@hello-pangea/dnd": "^18.0.1",
+    "proxy": "http://127.0.0.1:8000",
     "@hookform/resolvers": "^5.0.1",
     "@radix-ui/react-accordion": "^1.2.8",
     "@radix-ui/react-alert-dialog": "^1.1.11",

@@ -9,22 +9,22 @@ load_dotenv()
 class FeedClient:
     """Cliente HTTP para feeds PLACSP."""
     
-    def __init__(self, use_cert: bool = False):
+    def __init__(self, use_cert: bool = True):
         self.use_cert = use_cert
-        self.cert_path = os.getenv("PLACSP_CERT_PATH", "./certs/client_cert.pem")
-        self.key_path = os.getenv("PLACSP_KEY_PATH", "./certs/client_key_nopass.pem")
+        # Use absolute paths matching the working script or env vars
+        default_cert_dir = "/var/www/srs-crm/backend/certs"
+        self.cert_path = os.getenv("PLACSP_CERT_PATH", os.path.join(default_cert_dir, "client_cert.pem"))
+        self.key_path = os.getenv("PLACSP_KEY_PATH", os.path.join(default_cert_dir, "client_key_nopass.pem"))
         self.timeout = 60.0
     
     async def fetch_feed(self, url: str) -> Optional[str]:
         """Descargar feed XML desde URL."""
+        cert = None
+        if self.use_cert and os.path.exists(self.cert_path):
+            cert = (self.cert_path, self.key_path)
+            
         try:
-            async with httpx.AsyncClient(timeout=self.timeout, verify=True) as client:
-                if self.use_cert and os.path.exists(self.cert_path):
-                    client = httpx.AsyncClient(
-                        timeout=self.timeout,
-                        cert=(self.cert_path, self.key_path)
-                    )
-                
+            async with httpx.AsyncClient(timeout=self.timeout, verify=True, cert=cert) as client:
                 response = await client.get(url)
                 response.raise_for_status()
                 return response.text
