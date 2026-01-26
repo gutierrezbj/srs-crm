@@ -14,6 +14,7 @@ import AnalizarDrones from "@/pages/AnalizarDrones";
 
 import LicitacionesDrones from "@/pages/LicitacionesDrones";
 import LicitacionesIT from "@/pages/LicitacionesIT";
+import Oportunidades from "@/pages/Oportunidades";
 
 import Layout from "@/components/Layout";
 import { Toaster } from "@/components/ui/sonner";
@@ -68,6 +69,37 @@ const AuthCallback = () => {
   return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center">
       <div className="text-cyan-400 animate-pulse">Autenticando...</div>
+    </div>
+  );
+  return (
+    <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+      <div className="text-cyan-400 animate-pulse">Autenticando...</div>
+    </div>
+  );
+};
+
+// Google Auth Success Handler
+const AuthSuccess = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    // The backend sets the session cookie, so we can just redirect to dashboard
+    // We could also capture the token from URL if needed for non-cookie auth
+    const params = new URLSearchParams(location.search);
+    const token = params.get("token");
+
+    if (token) {
+      // Optional: Store in localStorage if needed, but cookie is preferred
+      // localStorage.setItem("token", token);
+    }
+
+    navigate("/dashboard");
+  }, [navigate, location]);
+
+  return (
+    <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+      <div className="text-cyan-400 animate-pulse">Finalizando inicio de sesión...</div>
     </div>
   );
 };
@@ -128,6 +160,7 @@ function AppRouter() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/auth/success" element={<AuthSuccess />} />
       <Route
         path="/dashboard"
         element={
@@ -225,6 +258,18 @@ function AppRouter() {
         }
       />
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
+      <Route
+        path="/licitaciones-it"
+        element={
+          <ProtectedRoute>
+            {({ user }) => (
+              <Layout user={user}>
+                <LicitacionesIT user={user} />
+              </Layout>
+            )}
+          </ProtectedRoute>
+        }
+      />
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
   );

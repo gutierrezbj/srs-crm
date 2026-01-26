@@ -3,10 +3,8 @@ import useOportunidades from '../hooks/useOportunidades';
 import OportunidadesTable from '../components/OportunidadesTable';
 import OportunidadFilters from '../components/OportunidadFilters';
 import StatsCards from '../components/StatsCards';
-import { useAuth } from '../context/AuthContext';
-
-const LicitacionesIT = () => {
-    const { user } = useAuth();
+const LicitacionesIT = ({ user }) => {
+    // const { user } = useAuth(); removed
     const {
         oportunidades,
         stats,
@@ -24,7 +22,7 @@ const LicitacionesIT = () => {
         <div className="p-6">
             <div className="mb-6">
                 <h1 className="text-2xl font-bold text-gray-900">Licitaciones IT</h1>
-                <p className="text-gray-600">Oportunidades de licitación del sector TI</p>
+                <p className="text-gray-600">Oportunidades IT donde SRS puede licitar</p>
             </div>
 
             <StatsCards stats={stats} loading={loading} />
