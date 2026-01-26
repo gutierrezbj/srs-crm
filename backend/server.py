@@ -311,108 +311,82 @@ async def get_current_user(request: Request) -> UserResponse:
 
 # ============== AUTH ROUTES ==============
 
-@api_router.post("/auth/session")
-async def create_session(request: Request, response: Response):
-    """Exchange session_id from Emergent Auth for session data"""
-    session_id = request.headers.get("X-Session-ID")
+# Google OAuth Configuration
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
+
+@api_router.post("/auth/google")
+async def google_auth(request: Request, response: Response):
+    """Authenticate with Google OAuth token"""
+    from google.oauth2 import id_token
+    from google.auth.transport import requests as google_requests
     
-    if not session_id:
-        raise HTTPException(status_code=400, detail="Session ID requerido")
+    body = await request.json()
+    token = body.get("token")
     
-    # Exchange session_id with Emergent Auth
-    async with httpx.AsyncClient() as client:
-        auth_response = await client.get(
-            "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data",
-            headers={"X-Session-ID": session_id}
+    if not token:
+        raise HTTPException(status_code=400, detail="Token requerido")
+    
+    try:
+        # Verify the token with Google
+        idinfo = id_token.verify_oauth2_token(
+            token, 
+            google_requests.Request(), 
+            GOOGLE_CLIENT_ID
         )
         
-        if auth_response.status_code != 200:
-            raise HTTPException(status_code=401, detail="Sesión inválida de Emergent Auth")
+        email = idinfo.get("email", "").lower()
+        name = idinfo.get("name", "")
+        picture = idinfo.get("picture", "")
         
-        auth_data = auth_response.json()
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=f"Token inválido: {str(e)}")
     
-    email = auth_data.get("email", "").lower()
-    
-    async def get_user_from_db(email_addr: str):
-        """Obtiene usuario de MongoDB en lugar de ALLOWED_USERS"""
-        user_doc = await db.users.find_one({"email": email_addr, "activo": True})
-        if user_doc:
-            return {
-                "user_id": user_doc["user_id"],
-                "email": user_doc["email"],
-                "name": user_doc["nombre"],
-                "role": user_doc["rol"],
-                "sectores": user_doc.get("sectores", ["all"]),
-                "picture": user_doc.get("picture")
-            }
-        return None
-
-    # In DEV_MODE, allow any email. In production, restrict to @systemrapidsolutions.com
+    # Validate domain (only in production)
     if not DEV_MODE:
-        # Check domain restriction
         if not email.endswith("@systemrapidsolutions.com"):
             raise HTTPException(
                 status_code=403, 
                 detail="Solo cuentas @systemrapidsolutions.com permitidas"
             )
-        
-        # Check if user is in DB
-        db_user = await get_user_from_db(email)
-        if not db_user:
-             raise HTTPException(
+    
+    # Look up user in MongoDB
+    user_doc = await db.users.find_one({"email": email, "activo": True})
+    
+    if not user_doc:
+        if DEV_MODE:
+            # Auto-create user in DEV_MODE
+            user_id = f"user_{uuid.uuid4().hex[:12]}"
+            user_doc = {
+                "user_id": user_id,
+                "email": email,
+                "nombre": name,
+                "picture": picture,
+                "rol": "admin",
+                "activo": True,
+                "sectores": ["all"],
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "ultimo_login": datetime.now(timezone.utc)
+            }
+            await db.users.insert_one(user_doc)
+        else:
+            raise HTTPException(
                 status_code=403,
-                detail="Usuario no autorizado o inactivo. Contacte al administrador."
+                detail="Usuario no autorizado. Contacte al administrador."
             )
-        
-        user_role = db_user["role"]
-        # Allow updating name from Google but prefer DB name if set? Let's keep logic simple
-        # If we want to sync name from Google, we use auth_data["name"]
-        # But instructions say "Modificar la lógica de autenticación para usar get_user_from_db"
-        user_name = db_user["name"] # Use name from DB as source of truth for role/name
-        existing_user_id = db_user["user_id"] # Use ID from DB
-        
     else:
-        # DEV_MODE: Allow any Google account as admin for testing
-        user_role = "admin"
-        user_name = auth_data.get("name", email.split("@")[0])
-        existing_user_id = None
-        # Check if exists in DB anyway to get correct ID
-        db_user = await db.users.find_one({"email": email})
-        if db_user:
-            existing_user_id = db_user["user_id"]
-            user_role = db_user["rol"]
-
-    # Create or update user
-    if existing_user_id:
-        user_id = existing_user_id
+        # Update ultimo_login and picture
         await db.users.update_one(
             {"email": email},
             {"$set": {
                 "ultimo_login": datetime.now(timezone.utc),
-                "picture": auth_data.get("picture")
-                # "name": user_name, # Optional: Don't overwrite name if manually set in DB
+                "picture": picture
             }}
         )
-    else:
-        # Logic for new users (Only in DEV_MODE or if we want auto-provisioning - instruction says use DB lookup)
-        # If strict mode (PROD), we already raised exception if not in DB.
-        # If DEV_MODE, we create it.
-        user_id = f"user_{uuid.uuid4().hex[:12]}"
-        new_user = {
-            "user_id": user_id,
-            "email": email,
-            "nombre": user_name,
-            "picture": auth_data.get("picture"),
-            "rol": user_role, # admin in dev
-            "activo": True,
-            "sectores": ["all"],
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "ultimo_login": datetime.now(timezone.utc)
-        }
-        await db.users.insert_one(new_user)
+    
+    user_id = user_doc.get("user_id", str(user_doc.get("_id")))
     
     # Create session
-    session_token = auth_data.get("session_token", f"session_{uuid.uuid4().hex}")
+    session_token = f"session_{uuid.uuid4().hex}"
     expires_at = datetime.now(timezone.utc) + timedelta(days=7)
     
     await db.user_sessions.delete_many({"user_id": user_id})
@@ -434,8 +408,20 @@ async def create_session(request: Request, response: Response):
         path="/"
     )
     
-    user = await db.users.find_one({"user_id": user_id}, {"_id": 0})
-    return UserResponse(**user)
+    # Return success response
+    return {
+        "success": True,
+        "user": {
+            "user_id": user_id,
+            "email": email,
+            "name": user_doc.get("nombre", name),
+            "role": user_doc.get("rol", "viewer"),
+            "picture": picture
+        }
+    }
+
+# Legacy endpoint - kept for backwards compatibility but commented out
+
 
 @api_router.get("/auth/me", response_model=UserResponse)
 async def get_me(current_user: UserResponse = Depends(get_current_user)):
