@@ -103,12 +103,8 @@ TIPOS_SEGUIMIENTO = [
     "Otro"
 ]
 
-# Allowed users (initial, can be managed via admin panel)
-ALLOWED_USERS = {
-    "juancho@systemrapidsolutions.com": {"name": "JuanCho", "role": "admin"},
-    "andros@systemrapidsolutions.com": {"name": "Andros", "role": "user"},
-    "adriana@systemrapidsolutions.com": {"name": "Adriana", "role": "user"},
-}
+# Allowed users Logic moved to MongoDB
+# ALLOWED_USERS constant removed
 
 # Development mode - set to False for production
 DEV_MODE = os.environ.get('DEV_MODE', 'true').lower() == 'true'
@@ -337,6 +333,20 @@ async def create_session(request: Request, response: Response):
     
     email = auth_data.get("email", "").lower()
     
+    async def get_user_from_db(email_addr: str):
+        """Obtiene usuario de MongoDB en lugar de ALLOWED_USERS"""
+        user_doc = await db.users.find_one({"email": email_addr, "activo": True})
+        if user_doc:
+            return {
+                "user_id": user_doc["user_id"],
+                "email": user_doc["email"],
+                "name": user_doc["nombre"],
+                "role": user_doc["rol"],
+                "sectores": user_doc.get("sectores", ["all"]),
+                "picture": user_doc.get("picture")
+            }
+        return None
+
     # In DEV_MODE, allow any email. In production, restrict to @systemrapidsolutions.com
     if not DEV_MODE:
         # Check domain restriction
@@ -346,42 +356,58 @@ async def create_session(request: Request, response: Response):
                 detail="Solo cuentas @systemrapidsolutions.com permitidas"
             )
         
-        # Check if user is in allowed list (case insensitive)
-        allowed_user = ALLOWED_USERS.get(email)
-        if not allowed_user:
-            raise HTTPException(
+        # Check if user is in DB
+        db_user = await get_user_from_db(email)
+        if not db_user:
+             raise HTTPException(
                 status_code=403,
-                detail="Usuario no autorizado. Contacte al administrador."
+                detail="Usuario no autorizado o inactivo. Contacte al administrador."
             )
-        user_role = allowed_user["role"]
-        user_name = auth_data.get("name", allowed_user["name"])
+        
+        user_role = db_user["role"]
+        # Allow updating name from Google but prefer DB name if set? Let's keep logic simple
+        # If we want to sync name from Google, we use auth_data["name"]
+        # But instructions say "Modificar la lógica de autenticación para usar get_user_from_db"
+        user_name = db_user["name"] # Use name from DB as source of truth for role/name
+        existing_user_id = db_user["user_id"] # Use ID from DB
+        
     else:
         # DEV_MODE: Allow any Google account as admin for testing
         user_role = "admin"
         user_name = auth_data.get("name", email.split("@")[0])
-    
+        existing_user_id = None
+        # Check if exists in DB anyway to get correct ID
+        db_user = await db.users.find_one({"email": email})
+        if db_user:
+            existing_user_id = db_user["user_id"]
+            user_role = db_user["rol"]
+
     # Create or update user
-    user_id = f"user_{uuid.uuid4().hex[:12]}"
-    existing_user = await db.users.find_one({"email": email}, {"_id": 0})
-    
-    if existing_user:
-        user_id = existing_user["user_id"]
+    if existing_user_id:
+        user_id = existing_user_id
         await db.users.update_one(
             {"email": email},
             {"$set": {
-                "name": user_name,
-                "picture": auth_data.get("picture"),
-                "role": user_role
+                "ultimo_login": datetime.now(timezone.utc),
+                "picture": auth_data.get("picture")
+                # "name": user_name, # Optional: Don't overwrite name if manually set in DB
             }}
         )
     else:
+        # Logic for new users (Only in DEV_MODE or if we want auto-provisioning - instruction says use DB lookup)
+        # If strict mode (PROD), we already raised exception if not in DB.
+        # If DEV_MODE, we create it.
+        user_id = f"user_{uuid.uuid4().hex[:12]}"
         new_user = {
             "user_id": user_id,
             "email": email,
-            "name": user_name,
+            "nombre": user_name,
             "picture": auth_data.get("picture"),
-            "role": user_role,
-            "created_at": datetime.now(timezone.utc).isoformat()
+            "rol": user_role, # admin in dev
+            "activo": True,
+            "sectores": ["all"],
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "ultimo_login": datetime.now(timezone.utc)
         }
         await db.users.insert_one(new_user)
     
