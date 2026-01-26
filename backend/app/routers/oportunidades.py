@@ -193,3 +193,76 @@ async def bulk_asignar(
     """Asignar propietario a múltiples oportunidades (solo admin)."""
     count = bulk_update_propietario(data.expedientes, data.propietario, current_user["user_id"])
     return MessageResponse(message=f"{count} oportunidades actualizadas")
+
+# === Internal Import ===
+
+class ImportDronesRequest(BaseModel):
+    licitaciones: List[dict]
+
+@router.post("/import-internal")
+async def import_internal_drones(data: ImportDronesRequest):
+    """Endpoint interno para importar desde cron (sin auth)."""
+    # Importar aquí para evitar ciclo si services importa router (no debería, pero por si acaso)
+    from app.services.oportunidades import create_oportunidad, get_oportunidad_by_expediente, update_oportunidad
+    from datetime import datetime, timezone
+    import uuid
+
+    imported = 0
+    duplicates = 0
+    errors = 0
+
+    for item in data.licitaciones:
+        try:
+            expediente = item.get("expediente")
+            if not expediente:
+                continue
+
+            existing = get_oportunidad_by_expediente(expediente)
+
+            if existing:
+                # Update logic (if needed, e.g. update score or dates)
+                update_data = {
+                     "dias_restantes": item.get("dias_restantes"),
+                     "score": item.get("score"),
+                     # Add other fields to update if recent scan found changes
+                }
+                update_oportunidad(expediente, update_data, usuario="spotter_internal")
+                duplicates += 1
+            else:
+                # Map drone item to Oportunidad structure
+                new_op = {
+                    "tipo": "licitacion",
+                    "sector": "drones",
+                    "expediente": expediente,
+                    "titulo": item.get("titulo"),
+                    "descripcion": item.get("descripcion"),
+                    "importe": item.get("presupuesto", 0),
+                    "cpv": item.get("cpv"),
+                    "organo_contratacion": item.get("organo_contratacion"),
+                    "fecha_adjudicacion": item.get("fecha_publicacion"), # Map publish date to date field
+                    "fechas": {
+                        "publicacion": item.get("fecha_publicacion"),
+                        "limite": item.get("fecha_limite")
+                    },
+                    "url_licitacion": item.get("url_licitacion"),
+                    "url_pliego": item.get("url_pliego"),
+                    "score": item.get("score"),
+                    "relevante": item.get("relevante", False),
+                    "keywords": item.get("keywords_detectados", []),
+                    "estado": "nueva",
+                    "creado_por": "spotter_internal"
+                }
+                # Fix fecha formatting if needed
+                create_oportunidad(new_op)
+                imported += 1
+
+        except Exception as e:
+            print(f"Error importing item {item.get('expediente')}: {e}")
+            errors += 1
+
+    return {
+        "message": "Importacion completada",
+        "imported": imported,
+        "duplicates": duplicates,
+        "errors": errors
+    }
