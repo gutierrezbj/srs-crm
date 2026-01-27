@@ -46,14 +46,28 @@ const useOportunidades = ({ tipo, sector, autoFetch = true }) => {
 
             const response = await api.get(`/oportunidades?${params.toString()}`);
 
-            setOportunidades(response.data.items || []);
-            setPagination({
-                total: response.data.total,
-                page: response.data.page,
-                pages: response.data.pages
-            });
+            // Handle both paginated response { items: [...] } and raw array response [...]
+            const data = response.data;
+            if (Array.isArray(data)) {
+                // Backend returns raw array
+                setOportunidades(data);
+                setPagination({
+                    total: data.length,
+                    page: 1,
+                    pages: 1
+                });
+            } else {
+                // Backend returns paginated response
+                setOportunidades(data.items || []);
+                setPagination({
+                    total: data.total,
+                    page: data.page,
+                    pages: data.pages
+                });
+            }
 
         } catch (err) {
+            console.error('Error fetching oportunidades:', err);
             setError(err.response?.data?.detail || 'Error cargando oportunidades');
             setOportunidades([]);
         } finally {
