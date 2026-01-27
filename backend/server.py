@@ -1643,6 +1643,43 @@ async def delete_user(user_id: str, current_user: UserResponse = Depends(get_cur
 
 # ============== OPORTUNIDADES ROUTES ==============
 
+@api_router.get("/oportunidades/stats")
+async def get_oportunidades_stats(
+    tipo: Optional[str] = None,
+    sector: Optional[str] = None
+):
+    """Get statistics for opportunities"""
+    query = {}
+    if tipo:
+        query["tipo_srs"] = tipo
+    if sector:
+        query["datos_adjudicatario.sector"] = sector
+        
+    total = await db.oportunidades_placsp.count_documents(query)
+    
+    # Calculate stats
+    stats = {
+        "total": total,
+        "by_score": {
+            "critical": await db.oportunidades_placsp.count_documents({**query, "score": {"$gte": 80}}),
+            "high": await db.oportunidades_placsp.count_documents({**query, "score": {"$gte": 60, "$lt": 80}}),
+            "medium": await db.oportunidades_placsp.count_documents({**query, "score": {"$gte": 40, "$lt": 60}}),
+            "low": await db.oportunidades_placsp.count_documents({**query, "score": {"$lt": 40}})
+        },
+        "by_type": {}
+    }
+    
+    # Aggregation for types if not filtered
+    if not tipo:
+        pipeline = [
+            {"$match": query},
+            {"$group": {"_id": "$tipo_srs", "count": {"$sum": 1}}}
+        ]
+        type_counts = await db.oportunidades_placsp.aggregate(pipeline).to_list(None)
+        stats["by_type"] = {doc["_id"]: doc["count"] for doc in type_counts if doc["_id"]}
+        
+    return stats
+
 @api_router.get("/oportunidades/tipos-srs")
 async def get_tipos_srs():
     """Get available SRS types for filtering"""
