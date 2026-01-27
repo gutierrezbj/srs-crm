@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
+    "@react-oauth/google": "^0.12.1",
     "@hello-pangea/dnd": "^18.0.1",
     "proxy": "http://127.0.0.1:8000",
     "@hookform/resolvers": "^5.0.1",

@@ -1,288 +1,139 @@
-# SRS-CRM
+# SRS CRM
 
-Sistema de Gestion Comercial y Deteccion de Oportunidades para **System Rapid Solutions**.
+Sistema CRM interno de System Rapid Solutions para gestión de leads, pipeline comercial y detección de oportunidades de contratación pública.
 
-## Descripcion
+## Stack Tecnológico
 
-SRS-CRM combina un CRM tradicional con un detector inteligente de oportunidades (**SpotterSRS**) que monitoriza diariamente PLACSP (Portal de Licitaciones del Sector Publico) para identificar empresas adjudicatarias con potencial necesidad de servicios IT.
-
-### Modulos Principales
-
-| Modulo | Descripcion |
-|--------|-------------|
-| **CRM Core** | Gestion de leads, pipeline Kanban, actividades comerciales |
-| **SpotterSRS** | Detector automatico de oportunidades de subcontratacion en PLACSP |
-| **Apollo Enricher** | Enriquecimiento de datos B2B via Apollo.io |
-| **Pain Analyzer** | Analisis de dolor con IA multi-proveedor (Claude/Gemini/OpenAI) |
-| **Pliego Analyzer** | Extraccion y analisis de Pliegos Tecnicos PDF |
-
-## Arquitectura
-
-```
-                                    +------------------+
-                                    |   Frontend       |
-                                    |   React 19       |
-                                    |   Tailwind CSS   |
-                                    +--------+---------+
-                                             |
-                                             | HTTPS :3001
-                                             v
-+------------------+              +------------------+              +------------------+
-|   PLACSP         |   Feed XML  |   Backend        |   Motor      |   MongoDB        |
-|   (Licitaciones) | ----------> |   FastAPI        | <----------> |   Atlas          |
-+------------------+              |   Python 3.11    |              +------------------+
-                                  +--------+---------+
-                                           |
-                    +----------------------+----------------------+
-                    |                      |                      |
-                    v                      v                      v
-            +-------------+        +-------------+        +-------------+
-            |  Apollo.io  |        |  Claude AI  |        |  Gemini AI  |
-            |  (B2B Data) |        |  (Analisis) |        |  (Fallback) |
-            +-------------+        +-------------+        +-------------+
-```
-
-## Stack Tecnologico
-
-| Capa | Tecnologia |
+| Capa | Tecnología |
 |------|------------|
-| Backend | FastAPI (Python 3.11) + Uvicorn |
-| Frontend | React 19 + Tailwind CSS + shadcn/ui |
+| Frontend | React + Tailwind CSS |
+| Backend | Python FastAPI |
 | Base de datos | MongoDB Atlas |
-| Autenticacion | Google OAuth 2.0 |
-| IA | Claude (Anthropic), Gemini (Google), OpenAI |
-| Hosting | VPS Hostinger + Nginx + PM2 |
+| Autenticación | Google OAuth 2.0 |
+| Hosting | VPS Hostinger |
 | SSL | Let's Encrypt |
-
-## Requisitos
-
-- Python 3.11+
-- Node.js 18+ / Yarn 1.22+
-- MongoDB Atlas (o local)
-- Claves API: Apollo.io, Anthropic (Claude), Google (Gemini/OAuth)
-
-## Instalacion Local
-
-### 1. Clonar repositorio
-
-```bash
-git clone https://github.com/gutierrezbj/srs-crm.git
-cd srs-crm
-```
-
-### 2. Backend
-
-```bash
-cd backend
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-pip install -r requirements.txt
-cp .env.example .env
-# Editar .env con tus credenciales
-python server.py
-```
-
-El backend estara disponible en `http://localhost:8000`
-
-### 3. Frontend
-
-```bash
-cd frontend
-yarn install
-cp .env.example .env
-# Editar .env con la URL del backend
-yarn start
-```
-
-El frontend estara disponible en `http://localhost:3000`
-
-## Variables de Entorno
-
-Ver `.env.example` en cada directorio para la lista completa. Variables criticas:
-
-```env
-# MongoDB
-MONGO_URL=mongodb+srv://...
-
-# Google OAuth
-GOOGLE_CLIENT_ID=xxx.apps.googleusercontent.com
-GOOGLE_CLIENT_SECRET=xxx
-
-# Apollo.io
-APOLLO_API_KEY=xxx
-
-# IA (al menos uno requerido)
-ANTHROPIC_API_KEY=sk-ant-xxx
-GOOGLE_API_KEY=xxx
-OPENAI_API_KEY=sk-xxx
-```
-
-## Comandos de Desarrollo
-
-```bash
-# Backend
-cd backend
-python server.py                    # Servidor desarrollo
-python -m pytest tests/             # Tests
-
-# Frontend
-cd frontend
-yarn start                          # Servidor desarrollo
-yarn build                          # Build produccion
-yarn test                           # Tests
-```
-
-## Estructura del Proyecto
-
-```
-srs-crm/
-├── backend/
-│   ├── server.py                 # API FastAPI (40+ endpoints)
-│   ├── requirements.txt
-│   ├── app/spotter/              # Motor de analisis
-│   │   ├── spotter_srs.py        # Scraper PLACSP + clasificacion
-│   │   ├── pliego_analyzer.py    # Analisis PDFs con IA
-│   │   ├── pain_analyzer.py      # Analisis de dolor rapido
-│   │   ├── adjudicatario_enricher.py  # Extraccion datos PLACSP
-│   │   ├── analisis_comercial.py # Orquestacion analisis completo
-│   │   ├── catalogo_srs.py       # Catalogo servicios SRS
-│   │   ├── modelos_analisis.py   # Modelos Pydantic
-│   │   └── run_spotter_cron.py   # Script para cron job
-│   └── docs/                     # Documentacion backend
-├── frontend/
-│   ├── src/
-│   │   ├── pages/                # Paginas principales
-│   │   │   ├── Dashboard.js      # KPIs y metricas
-│   │   │   ├── Leads.js          # Gestion leads CRM
-│   │   │   ├── Pipeline.js       # Vista Kanban
-│   │   │   ├── Oportunidades.jsx # Gestor PLACSP
-│   │   │   └── Admin.js          # Panel administracion
-│   │   ├── components/           # Componentes React
-│   │   │   ├── Layout.js         # Sidebar + header
-│   │   │   ├── LeadModal.js      # Modal crear/editar lead
-│   │   │   └── ui/               # 50+ componentes shadcn/ui
-│   │   └── context/              # Contextos (tema, auth)
-│   └── docs/                     # Documentacion frontend
-├── docs/
-│   ├── architecture.md           # Arquitectura detallada
-│   ├── deployment/               # Guias de deployment
-│   │   ├── vps-setup.md
-│   │   ├── nginx.md
-│   │   ├── pm2.md
-│   │   └── ssl.md
-│   └── api/
-│       └── endpoints.md          # Referencia API
-└── README.md
-```
 
 ## Funcionalidades
 
-### CRM Core
-- Gestion de leads (CRUD completo)
-- Pipeline visual Kanban con 7 etapas
+### Core CRM
+- Gestión de leads (CRUD completo)
+- Pipeline visual Kanban con etapas personalizadas
 - Historial de actividades por lead
-- Importacion de leads desde Excel
-- Dashboard con metricas de conversion
-- Exportacion CSV
+- Importación de leads desde Excel
+- Dashboard con métricas de conversión
 
-### SpotterSRS - Detector de Oportunidades
-- Monitorización automatica de PLACSP (licitaciones publicas)
-- Filtrado por CPVs relevantes (IT, telecomunicaciones, energia)
-- Clasificacion inteligente por tipo:
-  - Infraestructura / CPD
-  - Cloud / Virtualizacion
-  - Ciberseguridad
-  - Comunicaciones Unificadas
-  - Healthcare IT
-  - Fotovoltaica / Energia
-  - Drones / Cartografia
-- Scoring de oportunidades (0-100)
-- Conversion de oportunidades a leads
+### Integración Apollo.io
+- Enriquecimiento de leads (teléfono, cargo, LinkedIn)
+- Enriquecimiento de empresas (sector, tamaño, revenue)
+- Botón "Enriquecer" en vista de lead
 
-### Integracion Apollo.io
-- Enriquecimiento de leads (telefono, cargo, LinkedIn)
-- Enriquecimiento de empresas (sector, tamanio, revenue)
-- Boton "Enriquecer" en modal de lead
+### SpotterSRS - Detector de Oportunidades (Adjudicaciones)
+- Monitorización automática de PLACSP (licitaciones públicas españolas)
+- Filtrado por CPVs relevantes para SRS
+- Scoring de oportunidades
+- Conversión de oportunidades a leads
+- Cron job diario (8:00 AM)
 
-### Analisis con IA
-- **Analisis Rapido** (~10s): Score basico sin descargar PDFs
-- **Analisis Completo** (~2min): Descarga pliego + analisis Claude
-- **Analisis de Pain**: Identificacion de dolores especificos
+### SpotterSRS-Licitaciones (Drones) - NUEVO
+Módulo para detectar licitaciones ABIERTAS relacionadas con servicios de drones.
 
-## Documentacion
+**Diferencia con SpotterSRS principal:**
+| Aspecto | SpotterSRS (principal) | SpotterSRS-Licitaciones |
+|---------|------------------------|-------------------------|
+| Objetivo | Adjudicaciones (subcontratación) | Licitaciones abiertas (pujar) |
+| Target | Empresas que ganaron contratos | Licitaciones sin adjudicar |
+| Acción | Contactar adjudicatario | Preparar oferta |
 
-| Documento | Descripcion |
-|-----------|-------------|
-| [Arquitectura](/docs/architecture.md) | Diseno del sistema |
-| [API Backend](/backend/docs/api.md) | Referencia de endpoints |
-| [Modelos](/backend/docs/models.md) | Esquemas MongoDB |
-| [SpotterSRS](/backend/docs/spotter.md) | Motor de deteccion |
-| [Enricher](/backend/docs/enricher.md) | Extraccion de datos |
-| [Analyzer](/backend/docs/analyzer.md) | Analisis con IA |
-| [Componentes](/frontend/docs/components.md) | Componentes React |
-| [Paginas](/frontend/docs/pages.md) | Rutas y vistas |
-| [Deployment](/docs/deployment/) | Guias de despliegue |
+**Funcionalidades:**
+- Consulta feed ATOM de PLACSP con certificado FNMT
+- Motor de análisis con scoring 0-100 basado en CPVs y keywords
+- Mapeo CPV drones v2.0-TALADRO (11 categorías)
+- Vista frontend con filtros y código de colores por score
+- Estados: nueva, vista, en_seguimiento, descartada
 
-## URLs de Produccion
+**CPV principal:** 35613000 (Vehículos aéreos no tripulados)
 
-- **CRM**: https://crm.systemrapidsolutions.com:3001
-- **API**: https://crm.systemrapidsolutions.com:3001/api
-- **Health**: https://crm.systemrapidsolutions.com:3001/api/health
+**Categorías de CPV soportadas:**
+- Topografía y cartografía
+- Inspección técnica de infraestructuras
+- Agricultura y medio ambiente
+- Energía (fotovoltaica, eólica)
+- Emergencias y seguridad
+- Audiovisual y patrimonio
+- Formación RPAS
+- Suministro de equipos
+- Gemelos digitales / BIM
+- I+D
+- Telecomunicaciones
 
-## Cron Jobs
+## Estructura del Proyecto
+```
+srs-crm/
+├── backend/
+│   ├── server.py                    # API FastAPI principal
+│   ├── ecosystem.config.js          # Config PM2
+│   ├── app/
+│   │   └── spotter/
+│   │       ├── spotter_srs.py       # Detector PLACSP (adjudicaciones)
+│   │       └── run_spotter_cron.py  # Script para cron
+│   ├── services/
+│   │   ├── spotter_licitaciones_drones.py  # Scraper licitaciones drones
+│   │   └── spotter_licitaciones.py         # Motor de análisis (LicitacionAnalyzer)
+│   ├── config/
+│   │   └── cpv_drone_mapping.json   # Mapeo CPV drones v2.0-TALADRO
+│   └── start.sh                     # Script de inicio
+├── frontend/
+│   ├── src/
+│   │   ├── pages/
+│   │   │   ├── LicitacionesDrones.jsx  # Vista lista licitaciones drones
+│   │   │   └── AnalizarDrones.jsx      # Análisis manual de licitaciones
+│   │   ├── components/
+│   │   │   └── LeadModal.js         # Modal con botón Apollo
+│   │   └── ...
+│   └── package.json
+└── README.md
+```
 
-| Job | Horario | Descripcion |
-|-----|---------|-------------|
-| SpotterSRS | 8:00 AM diario | Escanea PLACSP por nuevas adjudicaciones |
+## Configuración
 
-## Deployment a Produccion
+### Variables de entorno (backend/.env)
+```env
+MONGODB_URI=mongodb+srv://...
+GOOGLE_CLIENT_ID=...
+GOOGLE_CLIENT_SECRET=...
+APOLLO_API_KEY=...
+JWT_SECRET=...
+```
 
+### Comandos útiles
 ```bash
-# En el servidor VPS
-ssh usuario@72.62.41.234
-cd /var/www/srs-crm
-git pull origin main
+# Estado del backend
+pm2 status
+pm2 logs srs-backend
 
-# Backend
-cd backend && source venv/bin/activate
-pip install -r requirements.txt
-pm2 restart srs-crm-backend
+# Reiniciar backend
+pm2 restart srs-backend
 
-# Frontend
-cd ../frontend
-yarn install && yarn build
+# Rebuild frontend
+cd /var/www/srs-crm/frontend
+npm run build
 systemctl reload nginx
+
+# Ejecutar SpotterSRS (adjudicaciones) manualmente
+cd /var/www/srs-crm/backend
+source venv/bin/activate
+python app/spotter/run_spotter_cron.py
+
+# Ejecutar SpotterSRS-Licitaciones (drones) manualmente
+cd /var/www/srs-crm/backend
+source venv/bin/activate
+python -m services.spotter_licitaciones_drones
 ```
 
-Ver documentacion detallada en `/docs/deployment/`
+## URLs
 
-## Troubleshooting
-
-### Backend no inicia
-```bash
-pm2 logs srs-crm-backend --lines 100
-# Verificar MONGO_URL y API keys en .env
-```
-
-### Frontend no carga datos
-```bash
-# Verificar REACT_APP_BACKEND_URL en frontend/.env
-# Verificar CORS en backend
-```
-
-### SpotterSRS no detecta oportunidades
-```bash
-# Ejecutar manualmente para debug
-cd backend/app/spotter
-python run_spotter_cron.py
-```
-
-### Reclasificar oportunidades existentes
-```bash
-cd backend/app/spotter
-python reclasificar_oportunidades.py --dry-run  # Ver cambios sin aplicar
-python reclasificar_oportunidades.py            # Aplicar cambios
-```
+- **Producción:** https://crm.systemrapidsolutions.com:3001
+- **API Health:** https://crm.systemrapidsolutions.com:3001/api/health
 
 ## Equipo
 
@@ -290,20 +141,59 @@ python reclasificar_oportunidades.py            # Aplicar cambios
 - Andros (Ops)
 - Adriana (Ops)
 
+## API Endpoints
+
+### Licitaciones Drones
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| POST | `/api/licitaciones/analizar` | Analizar una licitación individual |
+| POST | `/api/licitaciones/analizar-batch` | Analizar lote de licitaciones |
+| GET | `/api/licitaciones-drones` | Lista con filtros (score_min, dias_restantes, categoria, estado) |
+| GET | `/api/licitaciones-drones/{id}` | Detalle de licitación |
+| PATCH | `/api/licitaciones-drones/{id}/estado` | Actualizar estado |
+| POST | `/api/licitaciones-drones/importar` | Importar licitaciones (auth requerida) |
+| POST | `/api/licitaciones-drones/importar-interno` | Importar desde cron (sin auth) |
+
+### Colección MongoDB
+```
+licitaciones_drones: {
+  licitacion_id, expediente, titulo, descripcion, cpv,
+  presupuesto, organo_contratacion, fecha_publicacion,
+  fecha_limite, dias_restantes, url_licitacion, url_pliego,
+  score, relevante, cpv_matches, keywords_detectados,
+  categoria_principal, estado, fecha_deteccion, notas
+}
+```
+
+## Notas Técnicas
+
+### Fix word boundaries (spotter_licitaciones.py)
+Keywords cortas (<=4 chars) usan regex `\b` para evitar falsos positivos:
+- "uas" no detecta "ag**uas**" ni "d**uas**"
+- "rpas", "bim", "gps" funcionan correctamente
+
+### Pendiente de implementar
+- [ ] Cron job diario 7:00 AM para SpotterSRS-Licitaciones
+- [ ] Afinar scoring para reducir falsos positivos
+- [ ] Revisar CPVs de categoría "Emergencias" que generan ruido
+
 ## Changelog
 
 ### v1.1.0 (Enero 2026)
-- Clasificacion Drones/Cartografia con deteccion inteligente LiDAR
-- Asignacion de oportunidades a usuarios
-- Abreviaciones de tipos SRS (FV, Infra, etc.)
-- Analisis de pliegos tecnicos con Claude
+- **SpotterSRS-Licitaciones (Drones):** Nuevo módulo para detectar licitaciones abiertas
+- Motor de análisis con scoring basado en CPVs y keywords
+- Mapeo CPV drones v2.0-TALADRO (11 categorías)
+- Vista frontend LicitacionesDrones.jsx con filtros y código colores
+- Análisis manual en AnalizarDrones.jsx
+- CPV 35613000 (Vehículos aéreos no tripulados) añadido
 
 ### v1.0.0 (Enero 2026)
 - MVP completo: leads, pipeline, dashboard
-- Integracion Apollo.io
+- Integración Apollo.io (enrich personas y empresas)
 - SpotterSRS con cron diario
-- Google OAuth + SSL
+- Google OAuth
+- SSL + dominio propio
 
 ---
 
-*Desarrollado por System Rapid Solutions - 2026*
+*Desarrollado por System Rapid Solutions - Enero 2026*

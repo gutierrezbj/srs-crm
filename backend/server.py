@@ -1,9 +1,5 @@
 from fastapi import FastAPI, APIRouter, HTTPException, UploadFile, File, Response, Request, Depends, BackgroundTasks
-from app.auth.router import router as auth_router, users_router
-from app.routers.oportunidades import router as oportunidades_router
 from fastapi.responses import StreamingResponse
-from app.routers.spotter import router as spotter_router
-from app.routers.features import router as features_router
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -103,8 +99,12 @@ TIPOS_SEGUIMIENTO = [
     "Otro"
 ]
 
-# Allowed users Logic moved to MongoDB
-# ALLOWED_USERS constant removed
+# Allowed users (initial, can be managed via admin panel)
+ALLOWED_USERS = {
+    "juancho@systemrapidsolutions.com": {"name": "JuanCho", "role": "admin"},
+    "andros@systemrapidsolutions.com": {"name": "Andros", "role": "user"},
+    "adriana@systemrapidsolutions.com": {"name": "Adriana", "role": "user"},
+}
 
 # Development mode - set to False for production
 DEV_MODE = os.environ.get('DEV_MODE', 'true').lower() == 'true'
@@ -242,10 +242,6 @@ class OportunidadPLACSPBase(BaseModel):
     estado_revision: str = "nueva"  # nueva, revisada, descartada
     fecha_revision: Optional[datetime] = None
     revisado_por: Optional[str] = None
-    # Asignación de oportunidad
-    asignado_a: Optional[str] = None  # user_id del usuario asignado
-    asignado_nombre: Optional[str] = None  # nombre para mostrar
-    fecha_asignacion: Optional[datetime] = None
     # Pain Score y análisis
     pain_score: Optional[int] = None  # 0-100
     nivel_urgencia: Optional[str] = None  # critico, alto, medio, bajo
@@ -264,139 +260,117 @@ class OportunidadPLACSPCreate(OportunidadPLACSPBase):
 class OportunidadPLACSP(OportunidadPLACSPBase):
     model_config = ConfigDict(extra="ignore")
     oportunidad_id: str
-    ref_code: Optional[str] = None  # Código corto de referencia: "01", "02", etc.
 
 class OportunidadSpotterImport(BaseModel):
     oportunidades: List[OportunidadPLACSPCreate]
 
 # ============== AUTH HELPERS ==============
 
-async def get_current_user(request: Request) -> UserResponse:
-    """Get current user from session token cookie or Authorization header"""
-    import logging
-    logging.error(f"DEBUG: Headers: {request.headers}")
-    logging.error(f"DEBUG: Auth Header: {request.headers.get('Authorization')}")
-    session_token = request.cookies.get("session_token")
-    
-    if not session_token:
-        # Check Authorization header
-        auth_header = request.headers.get("Authorization")
-        if auth_header and auth_header.startswith("Bearer "):
-            session_token = auth_header.split(" ")[1]
-            
-    if not session_token:
-        # DEBUG MODE: Return received headers in error
-        auth_dbg = request.headers.get("Authorization", "None")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"DEBUG INFO -> Token: None. AuthHeader: {auth_dbg}. Keys: {list(request.headers.keys())}",
-            headers={"WWW-Authenticate": "Bearer"},
+# Google OAuth token verification
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_requests
+
+async def verify_google_token(token: str) -> dict:
+    """Verify Google OAuth token and return user info"""
+    try:
+        google_client_id = os.environ.get('GOOGLE_CLIENT_ID')
+        if not google_client_id:
+            raise HTTPException(status_code=500, detail="GOOGLE_CLIENT_ID not configured")
+
+        idinfo = id_token.verify_oauth2_token(
+            token,
+            google_requests.Request(),
+            google_client_id
         )
-    
-    session = await db.user_sessions.find_one(
-        {"session_token": session_token},
-        {"_id": 0}
+        return idinfo
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=f"Invalid Google token: {str(e)}")
+
+async def get_current_user(request: Request) -> UserResponse:
+    """Return dev user - no auth required in development mode"""
+    # Dev mode: return a default admin user without authentication
+    return UserResponse(
+        user_id="dev_user",
+        email="dev@systemrapidsolutions.com",
+        name="Developer",
+        role="admin",
+        picture=None
     )
-    
-    if not session:
-        raise HTTPException(status_code=401, detail="Sesión inválida")
-    
-    expires_at = session["expires_at"]
-    if isinstance(expires_at, str):
-        expires_at = datetime.fromisoformat(expires_at)
-    if expires_at.tzinfo is None:
-        expires_at = expires_at.replace(tzinfo=timezone.utc)
-    if expires_at < datetime.now(timezone.utc):
-        raise HTTPException(status_code=401, detail="Sesión expirada")
-    
-    user = await db.users.find_one(
-        {"user_id": session["user_id"]},
-        {"_id": 0}
-    )
-    
-    if not user:
-        raise HTTPException(status_code=401, detail="Usuario no encontrado")
-    
-    return UserResponse(**user)
 
 # ============== AUTH ROUTES ==============
 
-# Google OAuth Configuration
-GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
-
-@api_router.post("/auth/google")
-async def google_auth(request: Request, response: Response):
-    """Authenticate with Google OAuth token"""
-    from google.oauth2 import id_token
-    from google.auth.transport import requests as google_requests
+@api_router.post("/auth/session")
+async def create_session(request: Request, response: Response):
+    """Exchange session_id from Emergent Auth for session data"""
+    session_id = request.headers.get("X-Session-ID")
     
-    body = await request.json()
-    token = body.get("token")
+    if not session_id:
+        raise HTTPException(status_code=400, detail="Session ID requerido")
     
-    if not token:
-        raise HTTPException(status_code=400, detail="Token requerido")
-    
-    try:
-        # Verify the token with Google
-        idinfo = id_token.verify_oauth2_token(
-            token, 
-            google_requests.Request(), 
-            GOOGLE_CLIENT_ID
+    # Exchange session_id with Emergent Auth
+    async with httpx.AsyncClient() as client:
+        auth_response = await client.get(
+            "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data",
+            headers={"X-Session-ID": session_id}
         )
         
-        email = idinfo.get("email", "").lower()
-        name = idinfo.get("name", "")
-        picture = idinfo.get("picture", "")
+        if auth_response.status_code != 200:
+            raise HTTPException(status_code=401, detail="Sesión inválida de Emergent Auth")
         
-    except ValueError as e:
-        raise HTTPException(status_code=401, detail=f"Token inválido: {str(e)}")
+        auth_data = auth_response.json()
     
-    # Validate domain (only in production)
+    email = auth_data.get("email", "").lower()
+    
+    # In DEV_MODE, allow any email. In production, restrict to @systemrapidsolutions.com
     if not DEV_MODE:
+        # Check domain restriction
         if not email.endswith("@systemrapidsolutions.com"):
             raise HTTPException(
                 status_code=403, 
                 detail="Solo cuentas @systemrapidsolutions.com permitidas"
             )
-    
-    # Look up user in MongoDB
-    user_doc = await db.users.find_one({"email": email, "activo": True})
-    
-    if not user_doc:
-        if DEV_MODE:
-            # Auto-create user in DEV_MODE
-            user_id = f"user_{uuid.uuid4().hex[:12]}"
-            user_doc = {
-                "user_id": user_id,
-                "email": email,
-                "nombre": name,
-                "picture": picture,
-                "rol": "admin",
-                "activo": True,
-                "sectores": ["all"],
-                "created_at": datetime.now(timezone.utc).isoformat(),
-                "ultimo_login": datetime.now(timezone.utc)
-            }
-            await db.users.insert_one(user_doc)
-        else:
+        
+        # Check if user is in allowed list (case insensitive)
+        allowed_user = ALLOWED_USERS.get(email)
+        if not allowed_user:
             raise HTTPException(
                 status_code=403,
                 detail="Usuario no autorizado. Contacte al administrador."
             )
+        user_role = allowed_user["role"]
+        user_name = auth_data.get("name", allowed_user["name"])
     else:
-        # Update ultimo_login and picture
+        # DEV_MODE: Allow any Google account as admin for testing
+        user_role = "admin"
+        user_name = auth_data.get("name", email.split("@")[0])
+    
+    # Create or update user
+    user_id = f"user_{uuid.uuid4().hex[:12]}"
+    existing_user = await db.users.find_one({"email": email}, {"_id": 0})
+    
+    if existing_user:
+        user_id = existing_user["user_id"]
         await db.users.update_one(
             {"email": email},
             {"$set": {
-                "ultimo_login": datetime.now(timezone.utc),
-                "picture": picture
+                "name": user_name,
+                "picture": auth_data.get("picture"),
+                "role": user_role
             }}
         )
-    
-    user_id = user_doc.get("user_id", str(user_doc.get("_id")))
+    else:
+        new_user = {
+            "user_id": user_id,
+            "email": email,
+            "name": user_name,
+            "picture": auth_data.get("picture"),
+            "role": user_role,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        await db.users.insert_one(new_user)
     
     # Create session
-    session_token = f"session_{uuid.uuid4().hex}"
+    session_token = auth_data.get("session_token", f"session_{uuid.uuid4().hex}")
     expires_at = datetime.now(timezone.utc) + timedelta(days=7)
     
     await db.user_sessions.delete_many({"user_id": user_id})
@@ -408,37 +382,205 @@ async def google_auth(request: Request, response: Response):
     })
     
     # Set cookie
-    # Set cookie
     response.set_cookie(
         key="session_token",
         value=session_token,
         httponly=True,
-        secure=False if DEV_MODE else True,  # Allow HTTP in dev
-        samesite="lax",  # Better for local dev than 'none' which requires Secure
+        secure=True,
+        samesite="none",
         max_age=7 * 24 * 60 * 60,
         path="/"
     )
     
-    # Return success response
-    return {
-        "success": True,
-        "session_token": session_token,  # Return token for localStorage usage
-        "user": {
+    user = await db.users.find_one({"user_id": user_id}, {"_id": 0})
+    return UserResponse(**user)
+
+class GoogleAuthRequest(BaseModel):
+    credential: str  # Google ID token from frontend
+
+@api_router.post("/auth/google")
+async def google_auth(request: GoogleAuthRequest, response: Response):
+    """Authenticate with Google OAuth token - for local development and production"""
+    print(f"=== Google Auth Request ===")
+    print(f"Credential length: {len(request.credential)}")
+
+    # Verify the Google token
+    try:
+        idinfo = await verify_google_token(request.credential)
+        print(f"Token verified. Email: {idinfo.get('email')}")
+    except Exception as e:
+        print(f"Token verification failed: {e}")
+        raise
+
+    email = idinfo.get("email", "").lower()
+    name = idinfo.get("name", email.split("@")[0])
+    picture = idinfo.get("picture")
+
+    # In DEV_MODE, allow any email. In production, restrict to @systemrapidsolutions.com
+    if not DEV_MODE:
+        if not email.endswith("@systemrapidsolutions.com"):
+            raise HTTPException(
+                status_code=403,
+                detail="Solo cuentas @systemrapidsolutions.com permitidas"
+            )
+
+        allowed_user = ALLOWED_USERS.get(email)
+        if not allowed_user:
+            raise HTTPException(
+                status_code=403,
+                detail="Usuario no autorizado. Contacte al administrador."
+            )
+        user_role = allowed_user["role"]
+        user_name = name or allowed_user["name"]
+    else:
+        user_role = "admin"
+        user_name = name
+
+    # Create or update user
+    existing_user = await db.users.find_one({"email": email}, {"_id": 0})
+
+    if existing_user:
+        user_id = existing_user["user_id"]
+        await db.users.update_one(
+            {"email": email},
+            {"$set": {
+                "name": user_name,
+                "picture": picture,
+                "role": user_role
+            }}
+        )
+    else:
+        user_id = f"user_{uuid.uuid4().hex[:12]}"
+        new_user = {
             "user_id": user_id,
             "email": email,
-            "name": user_doc.get("nombre", name),
-            "role": user_doc.get("rol", "viewer"),
-            "picture": picture
+            "name": user_name,
+            "picture": picture,
+            "role": user_role,
+            "created_at": datetime.now(timezone.utc).isoformat()
         }
+        await db.users.insert_one(new_user)
+
+    # Create session token
+    session_token = f"session_{uuid.uuid4().hex}"
+    expires_at = datetime.now(timezone.utc) + timedelta(days=7)
+
+    # Delete old sessions and create new one
+    await db.user_sessions.delete_many({"user_id": user_id})
+    await db.user_sessions.insert_one({
+        "user_id": user_id,
+        "session_token": session_token,
+        "expires_at": expires_at.isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat()
+    })
+
+    # Set cookie - use secure=False for localhost
+    is_localhost = os.environ.get('ENVIRONMENT', 'development') == 'development'
+    response.set_cookie(
+        key="session_token",
+        value=session_token,
+        httponly=True,
+        secure=not is_localhost,  # False for localhost, True for production
+        samesite="lax" if is_localhost else "none",  # lax for localhost, none for cross-site
+        max_age=7 * 24 * 60 * 60,
+        path="/"
+    )
+
+    user = await db.users.find_one({"user_id": user_id}, {"_id": 0})
+    return {
+        "user": UserResponse(**user),
+        "token": session_token  # Also return token for localStorage fallback
     }
-
-# Legacy endpoint - kept for backwards compatibility but commented out
-
 
 @api_router.get("/auth/me", response_model=UserResponse)
 async def get_me(current_user: UserResponse = Depends(get_current_user)):
     """Get current authenticated user"""
     return current_user
+
+@api_router.post("/auth/google-redirect")
+async def google_auth_redirect(request: Request):
+    """Handle Google OAuth redirect flow - receives form data from Google"""
+    from starlette.responses import RedirectResponse
+
+    form_data = await request.form()
+    credential = form_data.get("credential")
+
+    if not credential:
+        print("No credential in redirect form data")
+        return RedirectResponse(url="http://localhost:3001/login?error=no_credential", status_code=302)
+
+    print(f"=== Google Auth Redirect ===")
+    print(f"Credential length: {len(credential)}")
+
+    try:
+        idinfo = await verify_google_token(credential)
+        print(f"Token verified. Email: {idinfo.get('email')}")
+    except Exception as e:
+        print(f"Token verification failed: {e}")
+        return RedirectResponse(url=f"http://localhost:3001/login?error=invalid_token", status_code=302)
+
+    email = idinfo.get("email", "").lower()
+    name = idinfo.get("name", email.split("@")[0])
+    picture = idinfo.get("picture")
+
+    if not DEV_MODE:
+        if not email.endswith("@systemrapidsolutions.com"):
+            return RedirectResponse(url="http://localhost:3001/login?error=unauthorized_domain", status_code=302)
+
+        allowed_user = ALLOWED_USERS.get(email)
+        if not allowed_user:
+            return RedirectResponse(url="http://localhost:3001/login?error=unauthorized_user", status_code=302)
+        user_role = allowed_user["role"]
+        user_name = name or allowed_user["name"]
+    else:
+        user_role = "admin"
+        user_name = name
+
+    existing_user = await db.users.find_one({"email": email}, {"_id": 0})
+
+    if existing_user:
+        user_id = existing_user["user_id"]
+        await db.users.update_one(
+            {"email": email},
+            {"$set": {"name": user_name, "picture": picture, "role": user_role}}
+        )
+    else:
+        user_id = f"user_{uuid.uuid4().hex[:12]}"
+        new_user = {
+            "user_id": user_id,
+            "email": email,
+            "name": user_name,
+            "picture": picture,
+            "role": user_role,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        await db.users.insert_one(new_user)
+
+    session_token = f"session_{uuid.uuid4().hex}"
+    expires_at = datetime.now(timezone.utc) + timedelta(days=7)
+
+    await db.user_sessions.delete_many({"user_id": user_id})
+    await db.user_sessions.insert_one({
+        "user_id": user_id,
+        "session_token": session_token,
+        "expires_at": expires_at.isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat()
+    })
+
+    response = RedirectResponse(url=f"http://localhost:3001/dashboard?token={session_token}", status_code=302)
+
+    is_localhost = os.environ.get('ENVIRONMENT', 'development') == 'development'
+    response.set_cookie(
+        key="session_token",
+        value=session_token,
+        httponly=True,
+        secure=not is_localhost,
+        samesite="lax" if is_localhost else "none",
+        max_age=7 * 24 * 60 * 60,
+        path="/"
+    )
+
+    return response
 
 @api_router.post("/auth/logout")
 async def logout(request: Request, response: Response):
@@ -1595,63 +1737,10 @@ async def delete_user(user_id: str, current_user: UserResponse = Depends(get_cur
 
 # ============== OPORTUNIDADES ROUTES ==============
 
-async def get_next_ref_code() -> str:
-    """Genera el siguiente ref_code secuencial (01, 02, ... 99, 100, ...)"""
-    # Buscar el mayor ref_code existente
-    pipeline = [
-        {"$match": {"ref_code": {"$exists": True, "$ne": None}}},
-        {"$project": {"ref_num": {"$toInt": "$ref_code"}}},
-        {"$sort": {"ref_num": -1}},
-        {"$limit": 1}
-    ]
-    result = await db.oportunidades_placsp.aggregate(pipeline).to_list(1)
-
-    if result:
-        next_num = result[0]["ref_num"] + 1
-    else:
-        next_num = 1
-
-    # Formato: "01", "02", ... "99", "100", etc.
-    return str(next_num).zfill(2)
-
-@api_router.post("/oportunidades/migrar-ref-codes")
-async def migrar_ref_codes(current_user: UserResponse = Depends(get_current_user)):
-    """Asigna ref_codes a todas las oportunidades que no tienen uno"""
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Solo admin puede ejecutar migraciones")
-
-    # Obtener oportunidades sin ref_code, ordenadas por fecha de detección
-    oportunidades = await db.oportunidades_placsp.find(
-        {"$or": [{"ref_code": {"$exists": False}}, {"ref_code": None}]},
-        {"_id": 1, "oportunidad_id": 1, "fecha_deteccion": 1}
-    ).sort("fecha_deteccion", 1).to_list(10000)
-
-    if not oportunidades:
-        return {"message": "No hay oportunidades sin ref_code", "migrated": 0}
-
-    # Obtener el último ref_code existente
-    next_code = int(await get_next_ref_code())
-    migrated = 0
-
-    for op in oportunidades:
-        ref_code = str(next_code).zfill(2)
-        await db.oportunidades_placsp.update_one(
-            {"_id": op["_id"]},
-            {"$set": {"ref_code": ref_code}}
-        )
-        next_code += 1
-        migrated += 1
-
-    return {"message": f"Migración completada", "migrated": migrated}
-
 @api_router.get("/oportunidades/tipos-srs")
 async def get_tipos_srs():
-    """Get available SRS types for filtering - from actual data in DB"""
-    # Obtener tipos únicos de la base de datos
-    tipos_en_db = await db.oportunidades_placsp.distinct("tipo_srs")
-    # Filtrar valores vacíos y ordenar
-    tipos_validos = sorted([t for t in tipos_en_db if t and t.strip()])
-    return tipos_validos if tipos_validos else TIPOS_SRS
+    """Get available SRS types for filtering"""
+    return TIPOS_SRS
 
 @api_router.get("/oportunidades", response_model=List[OportunidadPLACSP])
 async def get_oportunidades(
@@ -1712,18 +1801,14 @@ async def import_oportunidades_spotter(
                 if isinstance(oportunidad_dict[key], datetime):
                     oportunidad_dict[key] = oportunidad_dict[key].isoformat()
         
-        # Generar ref_code único
-        ref_code = await get_next_ref_code()
-
         oportunidad_doc = {
             "oportunidad_id": oportunidad_id,
-            "ref_code": ref_code,
             **oportunidad_dict
         }
-
+        
         await db.oportunidades_placsp.insert_one(oportunidad_doc)
         imported += 1
-
+    
     return {
         "message": "Importación completada",
         "imported": imported,
@@ -1748,9 +1833,7 @@ async def import_oportunidades_spotter_internal(data: OportunidadSpotterImport):
             if oportunidad_dict.get(key):
                 if isinstance(oportunidad_dict[key], datetime):
                     oportunidad_dict[key] = oportunidad_dict[key].isoformat()
-        # Generar ref_code único
-        ref_code = await get_next_ref_code()
-        oportunidad_doc = {"oportunidad_id": oportunidad_id, "ref_code": ref_code, **oportunidad_dict}
+        oportunidad_doc = {"oportunidad_id": oportunidad_id, **oportunidad_dict}
         await db.oportunidades_placsp.insert_one(oportunidad_doc)
         imported += 1
     return {"message": "Importacion completada", "imported": imported, "duplicates": duplicates, "total": len(data.oportunidades)}
@@ -2079,21 +2162,15 @@ async def analizar_pliego_exhaustivo(
     """
     import asyncio
     import logging
-    import time
     logger = logging.getLogger(__name__)
-
-    start_time = time.time()
-    logger.info(f"=== INICIO análisis pliego {oportunidad_id} ===")
 
     try:
         from app.spotter.pliego_analyzer import analizar_pliego_completo
-        logger.info(f"[{time.time()-start_time:.1f}s] Módulo importado OK")
 
         # Buscar la oportunidad
         oportunidad = await db.oportunidades_placsp.find_one(
             {"oportunidad_id": oportunidad_id}
         )
-        logger.info(f"[{time.time()-start_time:.1f}s] Oportunidad encontrada: {oportunidad is not None}")
 
         if not oportunidad:
             raise HTTPException(status_code=404, detail="Oportunidad no encontrada")
@@ -2101,55 +2178,15 @@ async def analizar_pliego_exhaustivo(
         # Buscar URL del pliego
         url_pliego = None
         pliegos = oportunidad.get("pliegos", {})
-        datos_adj = oportunidad.get("datos_adjudicatario", {})
 
         # Priorizar pliego técnico, luego administrativo
-        # Buscar en pliegos y también en datos_adjudicatario (donde lo guarda el enricher)
         if pliegos.get("url_pliego_tecnico"):
             url_pliego = pliegos["url_pliego_tecnico"]
-        elif datos_adj.get("url_pliego_tecnico"):
-            url_pliego = datos_adj["url_pliego_tecnico"]
         elif pliegos.get("url_pliego_administrativo"):
             url_pliego = pliegos["url_pliego_administrativo"]
-        elif datos_adj.get("url_pliego_administrativo"):
-            url_pliego = datos_adj["url_pliego_administrativo"]
-
-        # Si no hay URL de pliego, intentar extraerla de la página de PLACSP
-        if not url_pliego and oportunidad.get("url_licitacion"):
-            logger.info(f"No hay URL de pliego guardada, extrayendo de PLACSP...")
-            try:
-                from app.spotter.adjudicatario_enricher import AdjudicatarioEnricher
-                enricher = AdjudicatarioEnricher()
-
-                # Extraer datos de la página de licitación (incluye URLs de pliegos)
-                datos_extraidos = await enricher.extraer_datos_placsp(
-                    url_licitacion=oportunidad["url_licitacion"],
-                    nombre_adjudicatario=oportunidad.get("adjudicatario", ""),
-                    nif_adjudicatario=oportunidad.get("nif", "")
-                )
-
-                # Buscar URL de pliego en los datos extraídos
-                if datos_extraidos.get("url_pliego_tecnico"):
-                    url_pliego = datos_extraidos["url_pliego_tecnico"]
-                    logger.info(f"✓ PPT extraído de PLACSP: {url_pliego[:80]}")
-                elif datos_extraidos.get("url_pliego_administrativo"):
-                    url_pliego = datos_extraidos["url_pliego_administrativo"]
-                    logger.info(f"✓ PCAP extraído de PLACSP: {url_pliego[:80]}")
-
-                # Guardar datos extraídos para futuras consultas
-                if datos_extraidos:
-                    await db.oportunidades_placsp.update_one(
-                        {"oportunidad_id": oportunidad_id},
-                        {"$set": {"datos_adjudicatario": datos_extraidos}}
-                    )
-                    logger.info(f"✓ Datos adjudicatario guardados con URLs de pliegos")
-            except Exception as e:
-                logger.warning(f"Error extrayendo datos de PLACSP: {e}")
-
-        # Último fallback: usar URL de licitación (analizará la página HTML)
-        if not url_pliego and oportunidad.get("url_licitacion"):
+        elif oportunidad.get("url_licitacion"):
+            # Fallback a URL de la licitación
             url_pliego = oportunidad["url_licitacion"]
-            logger.warning(f"Usando URL de licitación como fallback (no es el PDF del pliego)")
 
         if not url_pliego:
             raise HTTPException(
@@ -2157,12 +2194,10 @@ async def analizar_pliego_exhaustivo(
                 detail="No se encontró URL de pliego para esta oportunidad"
             )
 
-        logger.info(f"[{time.time()-start_time:.1f}s] URL pliego: {url_pliego[:100]}...")
+        logger.info(f"Iniciando análisis de pliego para {oportunidad_id}, URL: {url_pliego}")
 
-        # Ejecutar análisis con timeout global de 300 segundos (5 min)
-        # PDFs muy grandes (400+ páginas) pueden tardar 2+ min solo en extracción
+        # Ejecutar análisis con timeout global de 150 segundos
         try:
-            logger.info(f"[{time.time()-start_time:.1f}s] Iniciando analizar_pliego_completo...")
             resultado = await asyncio.wait_for(
                 analizar_pliego_completo(
                     oportunidad_id=oportunidad_id,
@@ -2170,19 +2205,16 @@ async def analizar_pliego_exhaustivo(
                     objeto=oportunidad.get("objeto", ""),
                     importe=oportunidad.get("importe", 0)
                 ),
-                timeout=300.0  # 5 minutos máximo para PDFs grandes
+                timeout=150.0  # 2.5 minutos máximo
             )
-            logger.info(f"[{time.time()-start_time:.1f}s] Análisis completado OK")
         except asyncio.TimeoutError:
-            elapsed = time.time() - start_time
-            logger.error(f"[{elapsed:.1f}s] TIMEOUT en análisis de pliego para {oportunidad_id}")
+            logger.error(f"Timeout de 150s en análisis de pliego para {oportunidad_id}")
             raise HTTPException(
                 status_code=504,
-                detail=f"El análisis tardó demasiado (>{elapsed:.0f}s). El PDF puede ser muy grande."
+                detail="El análisis tardó demasiado (>150s). Intente de nuevo más tarde."
             )
 
         # Guardar resultado en BD
-        logger.info(f"[{time.time()-start_time:.1f}s] Guardando resultado en BD...")
         await db.oportunidades_placsp.update_one(
             {"oportunidad_id": oportunidad_id},
             {
@@ -2196,9 +2228,6 @@ async def analizar_pliego_exhaustivo(
             }
         )
 
-        total_time = time.time() - start_time
-        logger.info(f"=== FIN análisis pliego {oportunidad_id} - {total_time:.1f}s total ===")
-
         return {
             "success": True,
             "oportunidad_id": oportunidad_id,
@@ -2208,8 +2237,6 @@ async def analizar_pliego_exhaustivo(
         }
 
     except ImportError as e:
-        elapsed = time.time() - start_time
-        logger.error(f"[{elapsed:.1f}s] Error importando módulo pliego_analyzer: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail=f"Error importando módulo pliego_analyzer: {str(e)}"
@@ -2217,10 +2244,6 @@ async def analizar_pliego_exhaustivo(
     except HTTPException:
         raise
     except Exception as e:
-        import traceback
-        elapsed = time.time() - start_time
-        error_traceback = traceback.format_exc()
-        logger.error(f"[{elapsed:.1f}s] Error en análisis de pliego para {oportunidad_id}: {e}\n{error_traceback}")
         raise HTTPException(
             status_code=500,
             detail=f"Error en análisis de pliego: {str(e)}"
@@ -2275,157 +2298,6 @@ async def obtener_resumen_operador(
         "certificaciones": resumen.get("certificaciones_requeridas", []),
         "alertas": resumen.get("alertas", []),
         "confianza": resumen.get("confianza_analisis", "")
-    }
-
-
-@api_router.post("/oportunidades/{oportunidad_id}/analisis-comercial")
-async def generar_analisis_comercial_endpoint(
-    oportunidad_id: str,
-    current_user: UserResponse = Depends(get_current_user)
-):
-    """
-    Genera un ANÁLISIS COMERCIAL COMPLETO orientado a la acción.
-
-    Incluye:
-    - Clasificación y scoring detallado
-    - Resumen ejecutivo (30 segundos)
-    - Información del adjudicatario
-    - Dolores principales y secundarios
-    - Servicios SRS aplicables con valor estimado
-    - Competencia y ventajas
-    - Comunicación lista para usar (WhatsApp, email, llamada)
-    - Objeciones y respuestas preparadas
-    - Siguientes pasos
-
-    Timeout máximo: 180 segundos.
-    """
-    import asyncio
-    import logging
-    logger = logging.getLogger(__name__)
-
-    try:
-        from app.spotter.pliego_analyzer import generar_analisis_comercial
-
-        # Buscar la oportunidad con todos sus datos
-        oportunidad = await db.oportunidades_placsp.find_one(
-            {"oportunidad_id": oportunidad_id}
-        )
-
-        if not oportunidad:
-            raise HTTPException(status_code=404, detail="Oportunidad no encontrada")
-
-        # Buscar URL del pliego
-        url_pliego = None
-        pliegos = oportunidad.get("pliegos", {})
-        datos_adj = oportunidad.get("datos_adjudicatario", {})
-
-        # Priorizar pliego técnico, buscar en pliegos y datos_adjudicatario
-        if pliegos.get("url_pliego_tecnico"):
-            url_pliego = pliegos["url_pliego_tecnico"]
-        elif datos_adj.get("url_pliego_tecnico"):
-            url_pliego = datos_adj["url_pliego_tecnico"]
-        elif pliegos.get("url_pliego_admin"):
-            url_pliego = pliegos["url_pliego_admin"]
-        elif datos_adj.get("url_pliego_administrativo"):
-            url_pliego = datos_adj["url_pliego_administrativo"]
-        elif oportunidad.get("url_licitacion"):
-            url_pliego = oportunidad["url_licitacion"]
-
-        if not url_pliego:
-            raise HTTPException(
-                status_code=400,
-                detail="Esta oportunidad no tiene URL de pliego disponible"
-            )
-
-        logger.info(f"Generando análisis comercial para {oportunidad_id}")
-
-        # Datos del adjudicatario
-        datos_adj = oportunidad.get("datos_adjudicatario", {})
-
-        # Ejecutar análisis con timeout
-        try:
-            resultado = await asyncio.wait_for(
-                generar_analisis_comercial(
-                    oportunidad_id=oportunidad_id,
-                    url_pliego=url_pliego,
-                    objeto=oportunidad.get("objeto", ""),
-                    importe=oportunidad.get("importe", 0),
-                    adjudicatario_nombre=oportunidad.get("adjudicatario", ""),
-                    adjudicatario_cif=oportunidad.get("nif", ""),
-                    organo_contratante=oportunidad.get("organo_contratacion", ""),
-                    fecha_adjudicacion=oportunidad.get("fecha_adjudicacion", ""),
-                ),
-                timeout=180.0  # 3 minutos máximo
-            )
-        except asyncio.TimeoutError:
-            logger.error(f"Timeout de 180s en análisis comercial para {oportunidad_id}")
-            raise HTTPException(
-                status_code=504,
-                detail="El análisis tardó demasiado (>180s). Intente de nuevo más tarde."
-            )
-
-        if resultado.get("error"):
-            raise HTTPException(
-                status_code=500,
-                detail=resultado["error"]
-            )
-
-        # Guardar resultado en BD
-        await db.oportunidades_placsp.update_one(
-            {"oportunidad_id": oportunidad_id},
-            {
-                "$set": {
-                    "analisis_comercial": resultado,
-                    "analisis_comercial_fecha": datetime.now()
-                }
-            }
-        )
-
-        return {
-            "success": True,
-            "oportunidad_id": oportunidad_id,
-            "analisis_comercial": resultado
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error en análisis comercial: {str(e)}", exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error en análisis comercial: {str(e)}"
-        )
-
-
-@api_router.get("/oportunidades/{oportunidad_id}/analisis-comercial")
-async def obtener_analisis_comercial(
-    oportunidad_id: str,
-    current_user: UserResponse = Depends(get_current_user)
-):
-    """
-    Obtiene el análisis comercial completo de una oportunidad.
-    Requiere que se haya generado previamente con POST /analisis-comercial
-    """
-    oportunidad = await db.oportunidades_placsp.find_one(
-        {"oportunidad_id": oportunidad_id},
-        {"analisis_comercial": 1, "analisis_comercial_fecha": 1}
-    )
-
-    if not oportunidad:
-        raise HTTPException(status_code=404, detail="Oportunidad no encontrada")
-
-    analisis = oportunidad.get("analisis_comercial")
-
-    if not analisis:
-        raise HTTPException(
-            status_code=400,
-            detail="Esta oportunidad no tiene análisis comercial. Ejecute primero POST /analisis-comercial"
-        )
-
-    return {
-        "oportunidad_id": oportunidad_id,
-        "fecha_analisis": oportunidad.get("analisis_comercial_fecha"),
-        "analisis_comercial": analisis
     }
 
 
@@ -2499,265 +2371,8 @@ async def enriquecer_adjudicatario_endpoint(
         )
 
 
-@api_router.post("/oportunidades/{oportunidad_id}/analisis-rapido")
-async def analisis_rapido_endpoint(
-    oportunidad_id: str,
-    current_user: UserResponse = Depends(get_current_user)
-):
-    """
-    Análisis rápido Level 1 (~5 segundos).
-
-    Extrae información básica de la página de adjudicación de PLACSP:
-    - Datos del adjudicatario y del órgano contratante
-    - URLs de pliegos (PPT, PCAP)
-    - Lista de empresas competidoras (licitadores perdedores)
-    - Detecta si hay componente IT basado en CPV y objeto
-
-    NO analiza el pliego con IA (eso es Level 2 con /analizar-pliego).
-
-    Ideal para:
-    - Triaje inicial de oportunidades
-    - Identificar prospectos (empresas que perdieron la licitación)
-    - Pre-filtrar antes del análisis profundo
-    """
-    try:
-        from app.spotter.adjudicatario_enricher import AdjudicatarioEnricher
-
-        # Obtener la oportunidad
-        oportunidad = await db.oportunidades_placsp.find_one(
-            {"oportunidad_id": oportunidad_id},
-            {"_id": 0, "adjudicatario": 1, "nif": 1, "url_licitacion": 1, "objeto": 1, "cpv": 1, "importe": 1}
-        )
-
-        if not oportunidad:
-            raise HTTPException(status_code=404, detail="Oportunidad no encontrada")
-
-        url_licitacion = oportunidad.get("url_licitacion")
-        if not url_licitacion:
-            raise HTTPException(status_code=400, detail="La oportunidad no tiene URL de licitación")
-
-        nombre = oportunidad.get("adjudicatario", "")
-        nif = oportunidad.get("nif", "")
-
-        # Extraer datos de PLACSP (rápido, ~5 segundos)
-        enricher = AdjudicatarioEnricher()
-        datos_placsp = await enricher.extraer_datos_placsp(
-            url_licitacion=url_licitacion,
-            nombre_adjudicatario=nombre,
-            nif_adjudicatario=nif
-        )
-
-        # Log de diagnóstico: qué datos tenemos de PLACSP
-        logger.info(f"PLACSP retornó {len(datos_placsp)} campos: {list(datos_placsp.keys())}")
-        logger.info(f"  - nombre_comercial: {datos_placsp.get('nombre_comercial', 'NO')}")
-        logger.info(f"  - html_adjudicacion_url: {'SÍ' if datos_placsp.get('html_adjudicacion_url') else 'NO'}")
-        logger.info(f"  - email: {datos_placsp.get('email', 'NO')}")
-
-        # Extraer competidores - el PDF del Acta de Resolución está DENTRO del HTML de adjudicación
-        empresas_competidoras = None
-        pdf_acta_url = datos_placsp.get("pdf_acta_resolucion_url")
-
-        # Si hay HTML de adjudicación, parsearlo para extraer datos detallados del adjudicatario
-        # El HTML de adjudicación contiene: email, teléfono, dirección, importes, motivación, ofertas
-        if datos_placsp.get("html_adjudicacion_url"):
-            logger.info("Parseando HTML de adjudicación para extraer datos detallados...")
-            datos_html = await enricher._parse_html_adjudicacion(datos_placsp["html_adjudicacion_url"])
-            if datos_html:
-                # Campos del adjudicatario donde el HTML tiene PRIORIDAD sobre la página principal
-                # El HTML de adjudicación es la fuente más fiable para estos datos
-                campos_prioridad_html = {
-                    'nombre_comercial', 'nif_verificado', 'telefono', 'email',
-                    'direccion', 'codigo_postal', 'localidad', 'es_pyme', 'pais_origen',
-                    'importe_sin_iva', 'importe_con_iva', 'motivacion_adjudicacion',
-                    'fecha_adjudicacion', 'numero_ofertas', 'ofertas_pymes',
-                    'precio_oferta_baja', 'precio_oferta_alta'
-                }
-
-                logger.info(f"Datos extraídos del HTML: {list(datos_html.keys())}")
-                for key, value in datos_html.items():
-                    if not value:
-                        continue
-                    # Para campos prioritarios: SIEMPRE sobrescribir si el HTML tiene un valor válido
-                    if key in campos_prioridad_html:
-                        if datos_placsp.get(key) != value:
-                            logger.info(f"HTML prioridad: {key}={str(value)[:50]}... (antes: {str(datos_placsp.get(key))[:30]})")
-                        datos_placsp[key] = value
-                    # Para otros campos: solo añadir si no existe o está vacío
-                    elif key not in datos_placsp or not datos_placsp[key]:
-                        datos_placsp[key] = value
-                        logger.debug(f"Añadido desde HTML: {key}={str(value)[:50]}...")
-
-                # PDF del Acta de Resolución
-                if datos_html.get("pdf_acta_resolucion_url"):
-                    pdf_acta_url = datos_html["pdf_acta_resolucion_url"]
-                    logger.info(f"PDF Acta encontrado en HTML: {pdf_acta_url[:80]}...")
-        else:
-            logger.warning(f"⚠️ No se encontró html_adjudicacion_url - los datos del adjudicatario pueden ser incompletos")
-
-        # Extraer competidores del PDF del Acta de Resolución (fuente principal)
-        logger.info(f"PDF Acta URL: {pdf_acta_url[:80] if pdf_acta_url else 'NO ENCONTRADO'}")
-        if pdf_acta_url:
-            logger.info(f"Extrayendo competidores del PDF del Acta: {pdf_acta_url[:80]}...")
-            empresas_competidoras = await enricher._extract_competidores_from_pdf(
-                pdf_acta_url,
-                nif
-            )
-            logger.info(f"Competidores extraídos del PDF: {len(empresas_competidoras) if empresas_competidoras else 0}")
-        else:
-            logger.warning("⚠️ No se encontró PDF del Acta de Resolución - no se pueden extraer competidores")
-
-        # Fallback: intentar extraer del HTML de adjudicación directamente
-        if not empresas_competidoras and datos_placsp.get("html_adjudicacion_url"):
-            logger.info("Intentando extraer competidores del HTML de adjudicación...")
-            empresas_competidoras = await enricher._extract_competidores_from_html(
-                datos_placsp["html_adjudicacion_url"],
-                nif
-            )
-            logger.info(f"Competidores extraídos del HTML: {len(empresas_competidoras) if empresas_competidoras else 0}")
-
-        # Detectar si hay componente IT (básico, sin IA)
-        tiene_it = False
-        objeto = oportunidad.get("objeto", "").lower()
-        cpv = datos_placsp.get("cpv", "") or oportunidad.get("cpv", "")
-
-        # CPVs de IT (72xxxxxx = servicios IT, 48xxxxxx = software)
-        if cpv and (cpv.startswith("72") or cpv.startswith("48") or cpv.startswith("64")):
-            tiene_it = True
-
-        # Keywords IT en objeto
-        keywords_it = [
-            "informátic", "informatica", "software", "hardware", "sistemas",
-            "tecnología", "tecnologia", "cloud", "nube", "servidor",
-            "telecomunicacion", "red", "redes", "ciberseguridad", "seguridad",
-            "mantenimiento", "soporte técnico", "soporte tecnico", "helpdesk",
-            "desarrollo", "aplicacion", "base de datos", "infraestructura",
-            "virtualiza", "backup", "monitoriz", "cpd", "data center",
-            "microsoft", "oracle", "sap", "vmware", "cisco", "aws", "azure"
-        ]
-        if any(kw in objeto for kw in keywords_it):
-            tiene_it = True
-
-        # Preparar respuesta
-        resultado = {
-            "oportunidad_id": oportunidad_id,
-            "nivel_analisis": "rapido",
-            "tiene_componente_it": tiene_it,
-            "url_pliego_tecnico": datos_placsp.get("url_pliego_tecnico"),
-            "url_pliego_administrativo": datos_placsp.get("url_pliego_administrativo"),
-            "empresas_competidoras": empresas_competidoras,
-            "num_competidores": len(empresas_competidoras) if empresas_competidoras else 0,
-            "datos_adjudicatario": {
-                "nombre": datos_placsp.get("nombre_comercial", nombre),
-                "nif": datos_placsp.get("nif_verificado", nif),
-                "telefono": datos_placsp.get("telefono"),
-                "email": datos_placsp.get("email"),
-                "direccion": datos_placsp.get("direccion"),
-                "localidad": datos_placsp.get("localidad"),
-                "codigo_postal": datos_placsp.get("codigo_postal"),
-                "provincia": datos_placsp.get("provincia"),
-                "es_pyme": datos_placsp.get("es_pyme"),
-                "pais_origen": datos_placsp.get("pais_origen"),
-                # Nuevos campos de importes
-                "importe_sin_iva": datos_placsp.get("importe_sin_iva"),
-                "importe_con_iva": datos_placsp.get("importe_con_iva"),
-            },
-            "datos_organo": {
-                "nombre": datos_placsp.get("organo_contratacion"),
-                "telefono": datos_placsp.get("organo_telefono"),
-                "email": datos_placsp.get("organo_email"),
-                "direccion": datos_placsp.get("organo_direccion"),
-                "localidad": datos_placsp.get("organo_localidad"),
-            },
-            # Información adicional de la adjudicación
-            "info_adjudicacion": {
-                "motivacion": datos_placsp.get("motivacion_adjudicacion"),
-                "fecha_acuerdo": datos_placsp.get("fecha_adjudicacion"),
-                "ofertas_pymes": datos_placsp.get("ofertas_pymes"),
-                "precio_oferta_baja": datos_placsp.get("precio_oferta_baja"),
-                "precio_oferta_alta": datos_placsp.get("precio_oferta_alta"),
-            },
-            "cpv": cpv,
-            "num_ofertas": datos_placsp.get("numero_ofertas"),
-            "fecha_adjudicacion": datos_placsp.get("fecha_adjudicacion"),
-        }
-
-        # Guardar en la base de datos
-        update_data = {
-            "analisis_rapido": resultado,
-            "analisis_rapido_fecha": datetime.now(timezone.utc).isoformat(),
-        }
-
-        # Guardar datos del adjudicatario si no existían
-        if not await db.oportunidades_placsp.find_one(
-            {"oportunidad_id": oportunidad_id, "datos_adjudicatario": {"$exists": True}}
-        ):
-            update_data["datos_adjudicatario"] = datos_placsp
-
-        # Guardar competidores
-        if empresas_competidoras:
-            update_data["empresas_competidoras"] = empresas_competidoras
-
-        await db.oportunidades_placsp.update_one(
-            {"oportunidad_id": oportunidad_id},
-            {"$set": update_data}
-        )
-
-        return resultado
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error en análisis rápido: {str(e)}"
-        )
-
-
 class EstadoRevisionUpdate(BaseModel):
     estado: str  # nueva, revisada, descartada
-
-
-class AsignarUsuarioUpdate(BaseModel):
-    user_id: Optional[str] = None  # None para desasignar
-    nombre: Optional[str] = None
-
-
-@api_router.patch("/oportunidades/{oportunidad_id}/asignar")
-async def asignar_oportunidad(
-    oportunidad_id: str,
-    data: AsignarUsuarioUpdate,
-    current_user: UserResponse = Depends(get_current_user)
-):
-    """Asignar o desasignar una oportunidad a un usuario"""
-    update_data = {
-        "fecha_asignacion": datetime.now(timezone.utc).isoformat() if data.user_id else None
-    }
-
-    if data.user_id:
-        # Asignar a usuario específico
-        update_data["asignado_a"] = data.user_id
-        update_data["asignado_nombre"] = data.nombre or data.user_id
-    else:
-        # Desasignar
-        update_data["asignado_a"] = None
-        update_data["asignado_nombre"] = None
-
-    result = await db.oportunidades_placsp.update_one(
-        {"oportunidad_id": oportunidad_id},
-        {"$set": update_data}
-    )
-
-    if result.matched_count == 0:
-        raise HTTPException(status_code=404, detail="Oportunidad no encontrada")
-
-    return {
-        "success": True,
-        "oportunidad_id": oportunidad_id,
-        "asignado_a": data.user_id,
-        "asignado_nombre": update_data.get("asignado_nombre")
-    }
 
 
 @api_router.patch("/oportunidades/{oportunidad_id}/estado-revision")
@@ -3084,6 +2699,301 @@ async def apollo_health_check(current_user: UserResponse = Depends(get_current_u
 
 # ============== LICITACIONES DRONES ROUTES ==============
 
+class LicitacionDronesBase(BaseModel):
+    expediente: str
+    titulo: str
+    descripcion: str
+    cpv: str
+    presupuesto: float
+    organo_contratacion: str
+    fecha_publicacion: str
+    fecha_limite: Optional[str] = None
+    dias_restantes: Optional[int] = None
+    url_licitacion: str
+    url_pliego: Optional[str] = None
+    score: int
+    relevante: bool
+    cpv_matches: List[Dict[str, Any]] = []
+    keywords_detectados: List[str] = []
+    categoria_principal: Optional[str] = None
+    estado: str = "nueva"
+    fecha_deteccion: str
+    notas: str = ""
+
+class LicitacionDronesCreate(LicitacionDronesBase):
+    pass
+
+class LicitacionDrones(LicitacionDronesBase):
+    model_config = ConfigDict(extra="ignore")
+    licitacion_id: str
+
+class LicitacionDronesImport(BaseModel):
+    licitaciones: List[LicitacionDronesCreate]
+
+class LicitacionDronesEstadoUpdate(BaseModel):
+    estado: str  # nueva, vista, descartada, en_seguimiento
+
+@api_router.get("/licitaciones-drones", response_model=List[LicitacionDrones])
+async def get_licitaciones_drones(
+    score_min: Optional[int] = None,
+    dias_restantes: Optional[int] = None,
+    categoria: Optional[str] = None,
+    estado: Optional[str] = None,
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """Obtener lista de licitaciones de drones detectadas"""
+    query = {}
+
+    if score_min is not None:
+        query["score"] = {"$gte": score_min}
+
+    if dias_restantes is not None:
+        query["dias_restantes"] = {"$lte": dias_restantes, "$gte": 0}
+
+    if categoria:
+        query["categoria_principal"] = {"$regex": categoria, "$options": "i"}
+
+    if estado:
+        query["estado"] = estado
+
+    licitaciones = await db.licitaciones_drones.find(
+        query, {"_id": 0}
+    ).sort([("score", -1), ("fecha_limite", 1)]).to_list(500)
+
+    # Recalcular dias_restantes al vuelo
+    for lic in licitaciones:
+        if lic.get("fecha_limite"):
+            try:
+                for fmt in ["%Y-%m-%d", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M:%S.%f"]:
+                    try:
+                        fecha_limite = datetime.strptime(
+                            lic["fecha_limite"].replace("+00:00", "").replace("Z", ""),
+                            fmt.replace("Z", "")
+                        )
+                        break
+                    except ValueError:
+                        continue
+                else:
+                    continue
+                hoy = datetime.now()
+                lic["dias_restantes"] = max(0, (fecha_limite - hoy).days)
+            except:
+                pass
+
+    return licitaciones
+
+@api_router.get("/licitaciones-drones/stats")
+async def get_licitaciones_drones_stats(current_user: UserResponse = Depends(get_current_user)):
+    """Estadisticas de licitaciones de drones"""
+    licitaciones = await db.licitaciones_drones.find({}, {"_id": 0}).to_list(1000)
+
+    total = len(licitaciones)
+    por_estado = {}
+    por_categoria = {}
+    por_score = {"alta": 0, "media": 0, "baja": 0}
+    valor_total = 0
+    urgentes = 0  # < 15 dias
+
+    for lic in licitaciones:
+        # Por estado
+        estado = lic.get("estado", "nueva")
+        por_estado[estado] = por_estado.get(estado, 0) + 1
+
+        # Por categoria
+        cat = lic.get("categoria_principal", "Sin categoria")
+        por_categoria[cat] = por_categoria.get(cat, 0) + 1
+
+        # Por score
+        score = lic.get("score", 0)
+        if score >= 80:
+            por_score["alta"] += 1
+        elif score >= 60:
+            por_score["media"] += 1
+        else:
+            por_score["baja"] += 1
+
+        # Valor total
+        valor_total += lic.get("presupuesto", 0)
+
+        # Urgentes
+        dias = lic.get("dias_restantes")
+        if dias is not None and dias <= 15:
+            urgentes += 1
+
+    return {
+        "total": total,
+        "por_estado": por_estado,
+        "por_categoria": por_categoria,
+        "por_score": por_score,
+        "valor_total": valor_total,
+        "urgentes": urgentes
+    }
+
+@api_router.get("/licitaciones-drones/{licitacion_id}", response_model=LicitacionDrones)
+async def get_licitacion_drones(
+    licitacion_id: str,
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """Obtener una licitacion de drones por ID"""
+    licitacion = await db.licitaciones_drones.find_one(
+        {"licitacion_id": licitacion_id}, {"_id": 0}
+    )
+
+    if not licitacion:
+        raise HTTPException(status_code=404, detail="Licitacion no encontrada")
+
+    return licitacion
+
+@api_router.patch("/licitaciones-drones/{licitacion_id}/estado")
+async def update_licitacion_drones_estado(
+    licitacion_id: str,
+    estado_update: LicitacionDronesEstadoUpdate,
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """Actualizar estado de una licitacion de drones"""
+    estados_validos = ["nueva", "vista", "descartada", "en_seguimiento"]
+
+    if estado_update.estado not in estados_validos:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Estado invalido. Usar: {estados_validos}"
+        )
+
+    result = await db.licitaciones_drones.update_one(
+        {"licitacion_id": licitacion_id},
+        {"$set": {
+            "estado": estado_update.estado,
+            "fecha_actualizacion": datetime.now(timezone.utc).isoformat()
+        }}
+    )
+
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Licitacion no encontrada")
+
+    return {
+        "message": "Estado actualizado",
+        "licitacion_id": licitacion_id,
+        "estado": estado_update.estado
+    }
+
+@api_router.patch("/licitaciones-drones/{licitacion_id}/notas")
+async def update_licitacion_drones_notas(
+    licitacion_id: str,
+    notas: str,
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """Actualizar notas de una licitacion de drones"""
+    result = await db.licitaciones_drones.update_one(
+        {"licitacion_id": licitacion_id},
+        {"$set": {"notas": notas}}
+    )
+
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Licitacion no encontrada")
+
+    return {"message": "Notas actualizadas", "licitacion_id": licitacion_id}
+
+@api_router.post("/licitaciones-drones/importar")
+async def importar_licitaciones_drones(
+    data: LicitacionDronesImport,
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """Importar licitaciones desde el spotter de drones"""
+    imported = 0
+    duplicates = 0
+    errors = 0
+
+    for licitacion in data.licitaciones:
+        try:
+            # Verificar si ya existe por expediente
+            existing = await db.licitaciones_drones.find_one(
+                {"expediente": licitacion.expediente}
+            )
+
+            if existing:
+                # Actualizar score y datos si es mas reciente
+                await db.licitaciones_drones.update_one(
+                    {"expediente": licitacion.expediente},
+                    {"$set": {
+                        "score": licitacion.score,
+                        "dias_restantes": licitacion.dias_restantes,
+                        "fecha_actualizacion": datetime.now(timezone.utc).isoformat()
+                    }}
+                )
+                duplicates += 1
+                continue
+
+            # Crear nueva licitacion
+            licitacion_id = f"licdron_{uuid.uuid4().hex[:12]}"
+            licitacion_doc = licitacion.model_dump()
+            licitacion_doc["licitacion_id"] = licitacion_id
+            licitacion_doc["fecha_creacion"] = datetime.now(timezone.utc).isoformat()
+
+            await db.licitaciones_drones.insert_one(licitacion_doc)
+            imported += 1
+
+        except Exception as e:
+            logging.error(f"Error importando licitacion {licitacion.expediente}: {e}")
+            errors += 1
+
+    return {
+        "message": "Importacion completada",
+        "imported": imported,
+        "duplicates": duplicates,
+        "errors": errors,
+        "total": len(data.licitaciones)
+    }
+
+@api_router.post("/licitaciones-drones/importar-interno")
+async def importar_licitaciones_drones_interno(data: LicitacionDronesImport):
+    """Endpoint interno para importar desde cron (sin auth)"""
+    imported = 0
+    duplicates = 0
+
+    for licitacion in data.licitaciones:
+        existing = await db.licitaciones_drones.find_one(
+            {"expediente": licitacion.expediente}
+        )
+
+        if existing:
+            await db.licitaciones_drones.update_one(
+                {"expediente": licitacion.expediente},
+                {"$set": {
+                    "score": licitacion.score,
+                    "dias_restantes": licitacion.dias_restantes,
+                    "fecha_actualizacion": datetime.now(timezone.utc).isoformat()
+                }}
+            )
+            duplicates += 1
+        else:
+            licitacion_id = f"licdron_{uuid.uuid4().hex[:12]}"
+            licitacion_doc = licitacion.model_dump()
+            licitacion_doc["licitacion_id"] = licitacion_id
+            licitacion_doc["fecha_creacion"] = datetime.now(timezone.utc).isoformat()
+            await db.licitaciones_drones.insert_one(licitacion_doc)
+            imported += 1
+
+    return {
+        "message": "Importacion completada",
+        "imported": imported,
+        "duplicates": duplicates,
+        "total": len(data.licitaciones)
+    }
+
+@api_router.delete("/licitaciones-drones/{licitacion_id}")
+async def delete_licitacion_drones(
+    licitacion_id: str,
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """Eliminar una licitacion de drones"""
+    result = await db.licitaciones_drones.delete_one({"licitacion_id": licitacion_id})
+
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Licitacion no encontrada")
+
+    return {"message": "Licitacion eliminada", "licitacion_id": licitacion_id}
+
+
 @api_router.get("/")
 async def root():
     return {"message": "System Rapid Solutions CRM API", "version": "1.1.0"}
@@ -3136,17 +3046,14 @@ async def analizar_licitaciones_batch(
 
 
 # Include the router
-app.include_router(auth_router)
-app.include_router(oportunidades_router)
-app.include_router(spotter_router)
-app.include_router(features_router)
-app.include_router(users_router)
 app.include_router(api_router)
 
+# CORS configuration - must specify exact origins when using credentials
+cors_origins = os.environ.get('CORS_ORIGINS', 'http://localhost:3001').split(',')
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
+    allow_origins=cors_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
