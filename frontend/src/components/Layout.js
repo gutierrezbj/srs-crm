@@ -13,9 +13,7 @@ import {
   Moon,
   Shield,
   BarChart3,
-  Target,
-  Plane,
-  Server
+  Target
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -30,12 +28,6 @@ const navItems = [
   { name: "Leads", path: "/leads", icon: Users },
   { name: "Pipeline", path: "/pipeline", icon: Kanban },
   { name: "Oportunidades", path: "/oportunidades", icon: Target },
-
-  { name: "Analizar Drones", path: "/analizar-drones", icon: Plane },
-
-  { name: "Licit. Drones", path: "/licitaciones-drones", icon: Plane },
-  { name: "Licitaciones IT", path: "/licitaciones-it", icon: Server },
-
   { name: "Reportes", path: "/reports", icon: BarChart3 },
 ];
 
@@ -75,8 +67,8 @@ export default function Layout({ children, user }) {
         }}
         data-testid={`nav-${item.name.toLowerCase()}`}
         className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 group ${isActive
-          ? "bg-gradient-to-r from-cyan-400/10 to-blue-600/10 text-cyan-400 border-l-2 border-cyan-400"
-          : "theme-text-secondary hover:text-cyan-500 hover:bg-cyan-400/10"
+            ? "bg-gradient-to-r from-cyan-400/10 to-blue-600/10 text-cyan-400 border-l-2 border-cyan-400"
+            : "theme-text-secondary hover:text-cyan-500 hover:bg-cyan-400/10"
           }`}
       >
         <Icon className={`w-5 h-5 ${isActive ? "text-cyan-400" : "group-hover:text-cyan-500"}`} />

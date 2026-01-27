@@ -1,0 +1,192 @@
+{
+  "meta": {
+    "generado": "2026-01-27T13:17:37.617938",
+    "total": 5,
+    "importe_total": 8322708.8,
+    "criticos": 2,
+    "altos": 0
+  },
+  "oportunidades": [
+    {
+      "id": "PLACSP-2026/DIGIT/0015",
+      "empresa": "EVERIS SPAIN SLU",
+      "nif": "B82387770",
+      "es_pyme": false,
+      "contrato": {
+        "expediente": "2026/DIGIT/0015",
+        "objeto": "Servicios de transformación digital urgente: migración cloud, implementación Microsoft 365 y ciberseguridad - Plazo improrrogable",
+        "importe": 890000.0,
+        "fecha_adjudicacion": "2026-01-10",
+        "organo": "Consejería de Economía Digital - Junta de Extremadura",
+        "cpv": "72200000"
+      },
+      "analisis": {
+        "score": 100,
+        "nivel_dolor": "CRITICO",
+        "dias_restantes": 27,
+        "tipo_oportunidad": "☁️ Cloud & Virtualización",
+        "keywords": [
+          "cloud",
+          "migración cloud",
+          "ciberseguridad",
+          "microsoft 365",
+          "transformación digital"
+        ]
+      },
+      "documentacion": {
+        "url_licitacion": "https://contrataciondelestado.es/wps/poc?uri=deeplink&idEvl=TEST003",
+        "url_pliego_tecnico": null,
+        "url_pliego_admin": null
+      },
+      "accion": {
+        "prioridad": "URGENTE",
+        "siguiente_paso": "Contactar"
+      }
+    },
+    {
+      "id": "PLACSP-ECON/000161/2022",
+      "empresa": "DXC TECHNOLOGY SERVICIOS ESPAÑA S.L.U.",
+      "nif": "B87615100",
+      "es_pyme": false,
+      "contrato": {
+        "expediente": "ECON/000161/2022",
+        "objeto": "Acondicionamiento audiovisual y de comunicaciones de las Salas de Vistas de la Comunidad de Madrid, en el marco del Plan de Recuperación, Transformación y Resiliencia - Next Generation EU",
+        "importe": 4880208.8,
+        "fecha_adjudicacion": "2023-11-03",
+        "organo": "Agencia para la Administración Digital de la Comunidad de Madrid",
+        "cpv": "32321300"
+      },
+      "analisis": {
+        "score": 93,
+        "nivel_dolor": "CRITICO",
+        "dias_restantes": -277,
+        "tipo_oportunidad": "📋 Consultoría Técnica",
+        "keywords": [
+          "salas de vistas",
+          "acondicionamiento audiovisual",
+          "audiovisual y de comunicaciones",
+          "next generation",
+          "plan de recuperación",
+          "transformación y resiliencia"
+        ]
+      },
+      "documentacion": {
+        "url_licitacion": "https://contrataciondelestado.es/wps/poc?uri=deeplink&idEvl=TEST006",
+        "url_pliego_tecnico": "https://comunidad.madrid/contratacion/ppt_econ_000161_2022.pdf",
+        "url_pliego_admin": null
+      },
+      "accion": {
+        "prioridad": "URGENTE",
+        "siguiente_paso": "Contactar"
+      }
+    },
+    {
+      "id": "PLACSP-2026/INF/0089",
+      "empresa": "INSTALACIONES ELECTRICAS MERIDA SL",
+      "nif": "B06987654",
+      "es_pyme": true,
+      "contrato": {
+        "expediente": "2026/INF/0089",
+        "objeto": "Instalación de red de datos y cableado estructurado para 3 centros educativos: 450 puntos de red Cat6, wifi y rack de comunicaciones",
+        "importe": 127500.0,
+        "fecha_adjudicacion": "2026-01-08",
+        "organo": "Ayuntamiento de Mérida - Concejalía de Educación",
+        "cpv": "45314320"
+      },
+      "analisis": {
+        "score": 79,
+        "nivel_dolor": "MEDIO",
+        "dias_restantes": 70,
+        "tipo_oportunidad": "🔌 Cableado Estructurado",
+        "keywords": [
+          "cableado estructurado",
+          "cableado",
+          "cat6",
+          "puntos de red",
+          "rack",
+          "rack de comunicaciones",
+          "red de datos",
+          "wifi"
+        ]
+      },
+      "documentacion": {
+        "url_licitacion": "https://contrataciondelestado.es/wps/poc?uri=deeplink&idEvl=TEST004",
+        "url_pliego_tecnico": null,
+        "url_pliego_admin": null
+      },
+      "accion": {
+        "prioridad": "NORMAL",
+        "siguiente_paso": "Estudiar pliego"
+      }
+    },
+    {
+      "id": "PLACSP-2025/OBR/1847",
+      "empresa": "CONSTRUCCIONES GARCIA-MONTERO SA",
+      "nif": "A06123456",
+      "es_pyme": false,
+      "contrato": {
+        "expediente": "2025/OBR/1847",
+        "objeto": "Obras de construcción de nuevo edificio administrativo con instalación completa de cableado estructurado Cat6A, fibra óptica y centro de proceso de datos",
+        "importe": 2340000.0,
+        "fecha_adjudicacion": "2025-11-20",
+        "organo": "Diputación Provincial de Badajoz",
+        "cpv": "45210000"
+      },
+      "analisis": {
+        "score": 60,
+        "nivel_dolor": "BAJO",
+        "dias_restantes": 471,
+        "tipo_oportunidad": "🔌 Cableado Estructurado",
+        "keywords": [
+          "cableado estructurado",
+          "cableado",
+          "cat6",
+          "cat6a",
+          "fibra óptica"
+        ]
+      },
+      "documentacion": {
+        "url_licitacion": "https://contrataciondelestado.es/wps/poc?uri=deeplink&idEvl=TEST002",
+        "url_pliego_tecnico": "https://contrataciondelestado.es/docs/PPT_2025_1847.pdf",
+        "url_pliego_admin": null
+      },
+      "accion": {
+        "prioridad": "NORMAL",
+        "siguiente_paso": "Estudiar pliego"
+      }
+    },
+    {
+      "id": "PLACSP-2026/SERV/0042",
+      "empresa": "Soluciones Informáticas del Sur SL",
+      "nif": "B41234567",
+      "es_pyme": true,
+      "contrato": {
+        "expediente": "2026/SERV/0042",
+        "objeto": "Servicio de soporte técnico helpdesk y mantenimiento de sistemas informáticos para el Ayuntamiento",
+        "importe": 85000.0,
+        "fecha_adjudicacion": "2026-01-05",
+        "organo": "Ayuntamiento de Villanueva del Fresno",
+        "cpv": "72500000"
+      },
+      "analisis": {
+        "score": 36,
+        "nivel_dolor": "BAJO",
+        "dias_restantes": 157,
+        "tipo_oportunidad": "🔧 Soporte IT / Helpdesk",
+        "keywords": [
+          "soporte técnico",
+          "helpdesk"
+        ]
+      },
+      "documentacion": {
+        "url_licitacion": "https://contrataciondelestado.es/wps/poc?uri=deeplink&idEvl=TEST001",
+        "url_pliego_tecnico": null,
+        "url_pliego_admin": null
+      },
+      "accion": {
+        "prioridad": "NORMAL",
+        "siguiente_paso": "Estudiar pliego"
+      }
+    }
+  ]
+}

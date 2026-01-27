@@ -1,0 +1,169 @@
+
+██████████████████████████████████████████████████████████████████████
+█  DETECTOR DE DOLOR - OPORTUNIDADES DE SUBCONTRATACIÓN
+██████████████████████████████████████████████████████████████████████
+   Generado: 2026-01-27 13:17
+   Total oportunidades: 5
+
+   DISTRIBUCIÓN POR URGENCIA:
+   🔴 CRÍTICO: 2
+   🟡 MEDIO: 1
+   🟢 BAJO: 2
+
+   💰 VALOR TOTAL EN CONTRATOS: 8,322,709 EUR
+
+======================================================================
+
+┌────────────────────────────────────────────────────────────────────┐
+│ [1] SCORE: 100/100  🔴 CRÍTICO
+├────────────────────────────────────────────────────────────────────┤
+│ 📋 Servicios de transformación digital urgente: migración cloud, im
+│    plementación Microsoft 365 y ciberseguridad - Plazo improrrogabl
+│
+│ 🏢 ADJUDICATARIO: EVERIS SPAIN SLU
+│    NIF: B82387770
+│
+│ 💶 IMPORTE: 890,000 EUR
+│ 📅 ADJUDICADO: 2026-01-10
+│ ⏱️  DÍAS RESTANTES: 27
+│ 🏁 FIN CONTRATO: 2026-02-24
+│
+│ 🏛️  ÓRGANO: Consejería de Economía Digital - Junta de Extremadura
+│ 📁 EXPEDIENTE: 2026/DIGIT/0015
+│ 🏷️  CPV: 72200000 (Programación software)
+│ 🎯 TIPO: ☁️ Cloud & Virtualización
+│ 🔍 KEYWORDS: migración cloud(10), ciberseguridad(9), microsoft 365(8), cloud(7), transformación digital(6)
+│
+│ 🚨 INDICADORES DE DOLOR:
+│    • ⚠️ Solo 27 días para fin de contrato
+│    • Urgencia detectada: 'urgente'
+│    • Urgencia detectada: 'plazo improrrogable'
+│    • Alta complejidad técnica
+│    • ☁️ Pilar 2 SRS: Cloud & Virtualización
+│
+│ 📎 DOCUMENTACIÓN:
+│    Licitación: https://contrataciondelestado.es/wps/poc?uri=deeplink&idEvl=TEST003
+└────────────────────────────────────────────────────────────────────┘
+
+┌────────────────────────────────────────────────────────────────────┐
+│ [2] SCORE: 93/100  🔴 CRÍTICO
+├────────────────────────────────────────────────────────────────────┤
+│ 📋 Acondicionamiento audiovisual y de comunicaciones de las Salas d
+│    e Vistas de la Comunidad de Madrid, en el marco del Plan de Recu
+│
+│ 🏢 ADJUDICATARIO: DXC TECHNOLOGY SERVICIOS ESPAÑA S.L.U.
+│    NIF: B87615100
+│
+│ 💶 IMPORTE: 4,880,209 EUR
+│ 📅 ADJUDICADO: 2023-11-03
+│ ⏱️  DÍAS RESTANTES: -277
+│ 🏁 FIN CONTRATO: 2025-04-26
+│
+│ 🏛️  ÓRGANO: Agencia para la Administración Digital de la Comunidad de Ma
+│ 📁 EXPEDIENTE: ECON/000161/2022
+│ 🏷️  CPV: 32321300 (Proyección audiovisual)
+│ 🎯 TIPO: 📋 Consultoría Técnica
+│ 🔍 KEYWORDS: salas de vistas(5), acondicionamiento audiovisual(5), audiovisual y de comunicaciones(5), next generation(5), plan de recuperación(5)
+│
+│ 🚨 INDICADORES DE DOLOR:
+│    • ⚠️ Solo -277 días para fin de contrato
+│    • Alta complejidad técnica
+│
+│ 📎 DOCUMENTACIÓN:
+│    Licitación: https://contrataciondelestado.es/wps/poc?uri=deeplink&idEvl=TEST006
+│    Pliego Técnico: https://comunidad.madrid/contratacion/ppt_econ_000161_2022.pdf
+└────────────────────────────────────────────────────────────────────┘
+
+┌────────────────────────────────────────────────────────────────────┐
+│ [3] SCORE: 79/100  🟡 MEDIO
+├────────────────────────────────────────────────────────────────────┤
+│ 📋 Instalación de red de datos y cableado estructurado para 3 centr
+│    os educativos: 450 puntos de red Cat6, wifi y rack de comunicaci
+│
+│ 🏢 ADJUDICATARIO: INSTALACIONES ELECTRICAS MERIDA SL (PYME)
+│    NIF: B06987654
+│
+│ 💶 IMPORTE: 127,500 EUR
+│ 📅 ADJUDICADO: 2026-01-08
+│ ⏱️  DÍAS RESTANTES: 70
+│ 🏁 FIN CONTRATO: 2026-04-08
+│
+│ 🏛️  ÓRGANO: Ayuntamiento de Mérida - Concejalía de Educación
+│ 📁 EXPEDIENTE: 2026/INF/0089
+│ 🏷️  CPV: 45314320 (Instalación telecomunicaciones)
+│ 🎯 TIPO: 🔌 Cableado Estructurado
+│ 🔍 KEYWORDS: cableado estructurado(10), cat6(10), puntos de red(10), rack de comunicaciones(10), red de datos(10)
+│
+│ 🚨 INDICADORES DE DOLOR:
+│    • Plazo moderado: 70 días
+│    • Alta complejidad técnica
+│    • 🔌 Pilar 1 SRS: Cableado Estructurado
+│
+│ 📎 DOCUMENTACIÓN:
+│    Licitación: https://contrataciondelestado.es/wps/poc?uri=deeplink&idEvl=TEST004
+└────────────────────────────────────────────────────────────────────┘
+
+┌────────────────────────────────────────────────────────────────────┐
+│ [4] SCORE: 60/100  🟢 BAJO
+├────────────────────────────────────────────────────────────────────┤
+│ 📋 Obras de construcción de nuevo edificio administrativo con insta
+│    lación completa de cableado estructurado Cat6A, fibra óptica y c
+│
+│ 🏢 ADJUDICATARIO: CONSTRUCCIONES GARCIA-MONTERO SA
+│    NIF: A06123456
+│
+│ 💶 IMPORTE: 2,340,000 EUR
+│ 📅 ADJUDICADO: 2025-11-20
+│ ⏱️  DÍAS RESTANTES: 471
+│ 🏁 FIN CONTRATO: 2027-05-14
+│
+│ 🏛️  ÓRGANO: Diputación Provincial de Badajoz
+│ 📁 EXPEDIENTE: 2025/OBR/1847
+│ 🏷️  CPV: 45210000 (Construcción edificios)
+│ 🎯 TIPO: 🔌 Cableado Estructurado
+│ 🔍 KEYWORDS: cableado estructurado(10), cat6(10), cat6a(10), fibra óptica(10), cableado(7)
+│
+│ 🚨 INDICADORES DE DOLOR:
+│    • Alta complejidad técnica
+│    • 🔌 Pilar 1 SRS: Cableado Estructurado
+│
+│ 📎 DOCUMENTACIÓN:
+│    Licitación: https://contrataciondelestado.es/wps/poc?uri=deeplink&idEvl=TEST002
+│    Pliego Técnico: https://contrataciondelestado.es/docs/PPT_2025_1847.pdf
+└────────────────────────────────────────────────────────────────────┘
+
+┌────────────────────────────────────────────────────────────────────┐
+│ [5] SCORE: 36/100  🟢 BAJO
+├────────────────────────────────────────────────────────────────────┤
+│ 📋 Servicio de soporte técnico helpdesk y mantenimiento de sistemas
+│     informáticos para el Ayuntamiento
+│
+│ 🏢 ADJUDICATARIO: Soluciones Informáticas del Sur SL (PYME)
+│    NIF: B41234567
+│
+│ 💶 IMPORTE: 85,000 EUR
+│ 📅 ADJUDICADO: 2026-01-05
+│ ⏱️  DÍAS RESTANTES: 157
+│ 🏁 FIN CONTRATO: 2026-07-04
+│
+│ 🏛️  ÓRGANO: Ayuntamiento de Villanueva del Fresno
+│ 📁 EXPEDIENTE: 2026/SERV/0042
+│ 🏷️  CPV: 72500000 (Servicios informáticos)
+│ 🎯 TIPO: 🔧 Soporte IT / Helpdesk
+│ 🔍 KEYWORDS: soporte técnico(10), helpdesk(10)
+│
+│ 🚨 INDICADORES DE DOLOR:
+│    • Complejidad técnica media
+│    • 🔧 Pilar 1 SRS: Soporte IT / Helpdesk
+│
+│ 📎 DOCUMENTACIÓN:
+│    Licitación: https://contrataciondelestado.es/wps/poc?uri=deeplink&idEvl=TEST001
+└────────────────────────────────────────────────────────────────────┘
+
+======================================================================
+🎯 ACCIONES RECOMENDADAS
+======================================================================
+
+🔴 CONTACTAR HOY (2 oportunidades críticas):
+   → EVERIS SPAIN SLU: Servicios de transformación digital urgente: migra...
+   → DXC TECHNOLOGY SERVICIOS ESPAÑA S.L.U.: Acondicionamiento audiovisual y de comunicaciones ...

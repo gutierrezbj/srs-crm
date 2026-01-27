@@ -33,21 +33,6 @@ from typing import List, Optional, Dict
 import re
 import json
 from enum import Enum
-import os
-from pathlib import Path
-from dotenv import load_dotenv
-from pymongo import MongoClient
-
-# Load environment variables
-ROOT_DIR = Path(__file__).parent.parent.parent
-load_dotenv(ROOT_DIR / '.env')
-
-def get_mongodb_client():
-    """Get MongoDB client using environment variable"""
-    mongo_url = os.environ.get('MONGO_URL')
-    if not mongo_url:
-        raise ValueError("MONGO_URL environment variable not set")
-    return MongoClient(mongo_url)
 
 # ============================================================================
 # CONFIGURACIÓN
@@ -73,7 +58,6 @@ class TipoOportunidad(Enum):
     COMUNICACIONES_UC = "📞 Comunicaciones Unificadas"         # Pilar 4
     HEALTHCARE_IT = "🏥 Healthcare IT (RIS/PACS)"              # Pilar 5
     FOTOVOLTAICA_ENERGIA = "☀️ Fotovoltaica / Energía"         # Pilar 6
-    DRONES_CARTOGRAFIA = "🚁 Drones / Cartografía"             # Pilar 7 - LiDAR, fotogrametría, topografía
     # Diferenciales
     SOPORTE_INTERNACIONAL = "🌍 Soporte Internacional"         # Diferencial único
     # Genéricos
@@ -918,25 +902,6 @@ def calcular_dolor(
                         "multisede", "múltiples sedes", "sedes internacionales",
                         "latam", "latinoamérica", "latinoamerica", "worldwide"]
 
-    # PILAR 7: Drones / Cartografía (LiDAR, fotogrametría, topografía aérea)
-    # Keywords que indican captura/vuelo (contexto SRS)
-    kw_drones_captura = ["vuelo", "vuelos", "dron", "drones", "rpas", "uav",
-                         "fotogrametría", "fotogrametria", "ortofoto", "ortofotos",
-                         "topografía aérea", "topografia aerea", "levantamiento aéreo",
-                         "captura aérea", "captura aerea", "escáner láser", "escaner laser"]
-    # Keywords que pueden ser LiDAR de captura o LiDAR de procesamiento
-    kw_lidar_contexto = ["lidar", "nube de puntos", "nubes de puntos", "laser escáner",
-                         "mdt", "mds", "modelo digital", "punto kilométrico"]
-    # Keywords que confirman contexto de cartografía/obra (no solo datos)
-    kw_contexto_cartografia = ["cartografía", "cartografia", "cartográfico", "cartografico",
-                               "seguimiento de obra", "control de obra", "avance de obra",
-                               "gemelo digital", "as-built", "asbuilt", "volumetría", "volumetria",
-                               "cubicación", "cubicacion", "estereoscop", "restitución", "restitucion"]
-    # Keywords que indican que es solo procesamiento/almacenamiento de datos (NO es SRS drones)
-    kw_solo_datos = ["espacio de datos", "data space", "almacenamiento de datos",
-                     "procesamiento de datos", "gestión de datos", "plataforma de datos",
-                     "lago de datos", "data lake", "big data", "interoperabilidad"]
-
     # ═══════════════════════════════════════════════════════════════
     # CLASIFICACIÓN POR PRIORIDAD (usando validación de palabra completa)
     # ═══════════════════════════════════════════════════════════════
@@ -944,20 +909,6 @@ def calcular_dolor(
     tiene_soporte = tiene_keyword(objeto_lower, kw_soporte)
     tiene_cableado = tiene_keyword(objeto_lower, kw_cableado)
     tiene_cpd = tiene_keyword(objeto_lower, kw_cpd)
-
-    # Detección inteligente de Drones/Cartografía
-    tiene_drones_captura = tiene_keyword(objeto_lower, kw_drones_captura)
-    tiene_lidar = tiene_keyword(objeto_lower, kw_lidar_contexto)
-    tiene_contexto_cartografia = tiene_keyword(objeto_lower, kw_contexto_cartografia)
-    tiene_solo_datos = tiene_keyword(objeto_lower, kw_solo_datos)
-
-    # LiDAR + contexto de vuelo/cartografía = Drones/Cartografía
-    # LiDAR + contexto de datos/almacenamiento = NO es Drones (es IT)
-    es_drones_cartografia = (
-        tiene_drones_captura or  # Keywords claras de vuelo/captura
-        tiene_contexto_cartografia or  # Keywords de cartografía/obra
-        (tiene_lidar and not tiene_solo_datos)  # LiDAR sin contexto de "solo datos"
-    )
     tiene_cloud = tiene_keyword(objeto_lower, kw_cloud)
     tiene_ciber = tiene_keyword(objeto_lower, kw_ciber)
     tiene_uc = tiene_keyword(objeto_lower, kw_uc)
@@ -971,9 +922,6 @@ def calcular_dolor(
     if tiene_fotovoltaica or es_cpv_fotovoltaica:
         tipo = TipoOportunidad.FOTOVOLTAICA_ENERGIA
         indicadores.append("☀️ Pilar 6 SRS: Fotovoltaica / Energía")
-    elif es_drones_cartografia:
-        tipo = TipoOportunidad.DRONES_CARTOGRAFIA
-        indicadores.append("🚁 Pilar 7 SRS: Drones / Cartografía")
     elif tiene_health:
         tipo = TipoOportunidad.HEALTHCARE_IT
         indicadores.append("🏥 Pilar SRS: Healthcare IT")
@@ -1803,75 +1751,6 @@ def generar_feed_ejemplo() -> str:
 
 
 # ============================================================================
-# MONGODB PERSISTENCE
-# ============================================================================
-
-def insertar_oportunidades_mongodb(adjudicaciones: List[Adjudicacion]) -> dict:
-    """
-    Inserta oportunidades detectadas en MongoDB.
-    Returns dict with inserted/duplicates counts.
-    """
-    if not adjudicaciones:
-        return {"inserted": 0, "duplicates": 0, "total": 0}
-    
-    try:
-        client = get_mongodb_client()
-        db = client[os.environ.get('DB_NAME', 'srs_crm')]
-        collection = db.oportunidades_placsp
-        
-        inserted = 0
-        duplicates = 0
-        
-        for adj in adjudicaciones:
-            # Check for duplicate by expediente
-            existing = collection.find_one({"expediente": adj.expediente})
-            if existing:
-                duplicates += 1
-                print(f"  ⏭️  Duplicado: {adj.expediente}")
-                continue
-            
-            # Convert Adjudicacion to document matching API schema
-            doc = {
-                "oportunidad_id": f"opp_{adj.expediente.replace('/', '_')}_{datetime.now().strftime('%Y%m%d%H%M%S')}",
-                "expediente": adj.expediente,
-                "adjudicatario": adj.adjudicatario,
-                "nif": adj.nif_adjudicatario or "",
-                "importe": adj.importe,
-                "objeto": adj.objeto,
-                "cpv": adj.cpv,
-                "score": adj.score_total(),
-                "tipo_srs": adj.dolor.tipo_oportunidad.value,
-                "keywords": list(adj.keywords_encontradas.keys()) if adj.keywords_encontradas else [],
-                "indicadores_dolor": adj.dolor.indicadores_urgencia or [],
-                "fecha_adjudicacion": datetime.fromisoformat(adj.fecha_adjudicacion) if adj.fecha_adjudicacion else datetime.now(),
-                "fecha_fin_contrato": datetime.fromisoformat(adj.dolor.fecha_fin_contrato) if adj.dolor.fecha_fin_contrato else None,
-                "dias_restantes": adj.dolor.dias_hasta_fin,
-                "url_licitacion": adj.url,
-                "url_pliego": adj.pliegos.url_pliego_tecnico,
-                "organo_contratacion": adj.organo_contratacion,
-                "es_pyme": adj.es_pyme,
-                "convertido_lead": False,
-                "fecha_deteccion": datetime.now(),
-                "estado_revision": "nueva",
-                "fecha_revision": None,
-                "revisado_por": None,
-                "pain_score": adj.dolor.score_dolor,
-                "nivel_urgencia": adj.dolor.nivel.name.lower(),
-            }
-            
-            collection.insert_one(doc)
-            inserted += 1
-            print(f"  ✅ Insertado: {adj.expediente} (Score: {adj.score_total()})")
-        
-        client.close()
-        return {"inserted": inserted, "duplicates": duplicates, "total": len(adjudicaciones)}
-        
-    except Exception as e:
-        print(f"❌ Error insertando en MongoDB: {e}")
-        return {"inserted": 0, "duplicates": 0, "total": len(adjudicaciones), "error": str(e)}
-
-
-# ============================================================================
 # MAIN
 # ============================================================================
 
@@ -1902,36 +1781,33 @@ def main():
     reporte = generar_reporte_dolor(adjudicaciones)
     print(reporte)
     
-    # ========== INSERTAR EN MONGODB ==========
-    print("\n💾 Guardando en MongoDB...")
-    result = insertar_oportunidades_mongodb(adjudicaciones)
-    print(f"   📊 Insertados: {result.get('inserted', 0)}")
-    print(f"   ⏭️  Duplicados: {result.get('duplicates', 0)}")
-    if result.get('error'):
-        print(f"   ❌ Error: {result['error']}")
+    # Guardar outputs
+    import os
+    os.makedirs("/home/claude/placsp_detector/output", exist_ok=True)
     
-    # Guardar outputs locales (opcional, para backup)
-    output_dir = ROOT_DIR / "output"
-    os.makedirs(output_dir, exist_ok=True)
-    
-    # JSON para CRM (backup)
+    # JSON para CRM
     json_crm = generar_json_crm(adjudicaciones)
-    with open(output_dir / "oportunidades_crm.json", "w", encoding="utf-8") as f:
+    with open("/home/claude/placsp_detector/output/oportunidades_crm.json", "w", encoding="utf-8") as f:
         f.write(json_crm)
     
+    # Fichas comerciales individuales
+    for adj in adjudicaciones:
+        if adj.dolor.nivel in [NivelDolor.CRITICO, NivelDolor.ALTO]:
+            ficha = generar_ficha_comercial(adj)
+            filename = f"/home/claude/placsp_detector/output/ficha_{adj.expediente.replace('/', '_')}.txt"
+            with open(filename, "w", encoding="utf-8") as f:
+                f.write(ficha)
+    
     # Reporte completo
-    with open(output_dir / "reporte_dolor.txt", "w", encoding="utf-8") as f:
+    with open("/home/claude/placsp_detector/output/reporte_dolor.txt", "w", encoding="utf-8") as f:
         f.write(reporte)
     
     print(f"""
     ════════════════════════════════════════════
     📁 ARCHIVOS GENERADOS:
-       • output/oportunidades_crm.json (backup)
-       • output/reporte_dolor.txt
-    
-    💾 MONGODB:
-       • {result.get('inserted', 0)} oportunidades insertadas
-       • {result.get('duplicates', 0)} duplicados omitidos
+       • output/oportunidades_crm.json (para CRM)
+       • output/reporte_dolor.txt (reporte completo)
+       • output/ficha_*.txt (fichas comerciales)
     ════════════════════════════════════════════
     """)
 

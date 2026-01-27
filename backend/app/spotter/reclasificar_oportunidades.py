@@ -63,7 +63,7 @@ Fecha: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
     try:
         # Obtener todas las oportunidades
-        oportunidades = await db.oportunidades.find(
+        oportunidades = await db.oportunidades_placsp.find(
             {},
             {"_id": 0}
         ).to_list(10000)
@@ -130,7 +130,7 @@ Fecha: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
                     # Aplicar cambio si no es dry run
                     if not dry_run:
-                        await db.oportunidades.update_one(
+                        await db.oportunidades_placsp.update_one(
                             {"oportunidad_id": oportunidad_id},
                             {"$set": {
                                 "tipo_srs": nuevo_tipo,
