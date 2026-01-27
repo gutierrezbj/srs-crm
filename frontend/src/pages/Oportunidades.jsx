@@ -32,7 +32,9 @@ import {
     Eye,
     EyeOff,
     Sparkles,
-    Ban
+    Ban,
+    Users,
+    Trophy
 } from "lucide-react";
 import {
     Tooltip,
@@ -137,10 +139,13 @@ export default function Oportunidades({ user }) {
     const [reclassifying, setReclassifying] = useState(false);
     const [analyzingPain, setAnalyzingPain] = useState({});
     const [analyzingBatch, setAnalyzingBatch] = useState(false);
-    const [analyzingPliego, setAnalyzingPliego] = useState({});
     const [resumenOperadorOpen, setResumenOperadorOpen] = useState(false);
     const [resumenOperador, setResumenOperador] = useState(null);
     const [loadingResumen, setLoadingResumen] = useState(false);
+    const [enrichingAdjudicatario, setEnrichingAdjudicatario] = useState(false);
+    const [analyzingPliego, setAnalyzingPliego] = useState({});
+    const [analisisPliego, setAnalisisPliego] = useState(null);
+    const [searchQuery, setSearchQuery] = useState("");
 
     const fetchOportunidades = useCallback(async () => {
         try {
@@ -319,7 +324,7 @@ export default function Oportunidades({ user }) {
             const response = await axios.post(
                 `${API}/oportunidades/${oportunidadId}/analizar-pliego`,
                 {},
-                { withCredentials: true, timeout: 120000 } // 2 min timeout
+                { withCredentials: true, timeout: 180000 } // 3 min timeout para análisis largos
             );
 
             if (response.data.success) {
@@ -336,6 +341,7 @@ export default function Oportunidades({ user }) {
                 setResumenOperador({
                     ...analisis.resumen_operador,
                     oportunidad_id: oportunidadId,
+                    ref_code: oportunidad?.ref_code,
                     organismo: oportunidad?.adjudicatario || oportunidad?.organo_contratacion || "Organismo",
                     objeto: oportunidad?.objeto || "",
                     importe: oportunidad?.importe || analisis.importe,
@@ -346,13 +352,22 @@ export default function Oportunidades({ user }) {
                     email_contacto: analisis.email_contacto,
                     telefono_contacto: analisis.telefono_contacto,
                     resumen_it: analisis.resumen_it,
-                    tiene_it: analisis.tiene_it
+                    tiene_it: analisis.tiene_it,
+                    // Datos enriquecidos (si ya existen)
+                    datos_adjudicatario: oportunidad?.datos_adjudicatario,
+                    // Incluir análisis completo para mostrar componentes IT y pain score
+                    analisis_pliego: analisis
                 });
                 setResumenOperadorOpen(true);
 
+                // Desactivar spinner ANTES de refrescar para evitar race condition
+                setAnalyzingPliego(prev => ({ ...prev, [oportunidadId]: false }));
+
+                // Refrescar lista en background (sin bloquear)
                 fetchOportunidades();
             } else {
                 toast.error("Error en análisis de pliego");
+                setAnalyzingPliego(prev => ({ ...prev, [oportunidadId]: false }));
             }
         } catch (error) {
             if (error.code === 'ECONNABORTED') {
@@ -361,7 +376,6 @@ export default function Oportunidades({ user }) {
                 toast.error(error.response?.data?.detail || "Error al analizar pliego");
             }
             console.error("Error analyzing pliego:", error);
-        } finally {
             setAnalyzingPliego(prev => ({ ...prev, [oportunidadId]: false }));
         }
     };
@@ -398,6 +412,7 @@ export default function Oportunidades({ user }) {
             setResumenOperador({
                 ...oportunidad.analisis_pliego.resumen_operador,
                 oportunidad_id: oportunidad.oportunidad_id,
+                ref_code: oportunidad.ref_code,
                 organismo: oportunidad.adjudicatario || oportunidad.organo_contratacion || "Organismo",
                 objeto: oportunidad.objeto,
                 importe: oportunidad.importe,
@@ -408,7 +423,9 @@ export default function Oportunidades({ user }) {
                 email_contacto: oportunidad.analisis_pliego.email_contacto,
                 telefono_contacto: oportunidad.analisis_pliego.telefono_contacto,
                 resumen_it: oportunidad.analisis_pliego.resumen_it,
-                tiene_it: oportunidad.analisis_pliego.tiene_it
+                tiene_it: oportunidad.analisis_pliego.tiene_it,
+                // Datos enriquecidos del adjudicatario
+                datos_adjudicatario: oportunidad.datos_adjudicatario
             });
             setResumenOperadorOpen(true);
             return;
@@ -431,6 +448,88 @@ export default function Oportunidades({ user }) {
             }
         } finally {
             setLoadingResumen(false);
+        }
+    };
+
+    const handleEnrichAdjudicatario = async (oportunidadId) => {
+        // Verificar si tenemos NIF antes de hacer la llamada
+        if (!resumenOperador.nif) {
+            toast.warning("Esta oportunidad no tiene NIF del adjudicatario. No es posible enriquecer los datos.", { duration: 5000 });
+            return;
+        }
+
+        setEnrichingAdjudicatario(true);
+        toast.info("Buscando datos del adjudicatario... Esto puede tardar unos segundos.", { duration: 3000 });
+
+        try {
+            const response = await axios.post(
+                `${API}/oportunidades/${oportunidadId}/enriquecer-adjudicatario`,
+                {},
+                { withCredentials: true, timeout: 90000 } // Aumentar timeout a 90s
+            );
+
+            if (response.data.success) {
+                const datos = response.data.datos_adjudicatario;
+                const confianza = datos.confianza || "baja";
+
+                toast.success(
+                    `Datos obtenidos (confianza: ${confianza}). Fuente: ${datos.fuente || "N/A"}`,
+                    { duration: 4000 }
+                );
+
+                // Actualizar el resumenOperador con los nuevos datos
+                setResumenOperador(prev => ({
+                    ...prev,
+                    datos_adjudicatario: datos,
+                    telefono_contacto: datos.telefono || prev?.telefono_contacto,
+                    email_contacto: datos.email || prev?.email_contacto
+                }));
+
+                // Refrescar oportunidades para que se guarden los datos
+                fetchOportunidades();
+            } else {
+                toast.error("No se pudieron obtener datos adicionales");
+            }
+        } catch (error) {
+            const errorMsg = error.response?.data?.detail || "Error al buscar datos del adjudicatario";
+            if (errorMsg.includes("NIF")) {
+                toast.warning("No hay NIF disponible para buscar datos del adjudicatario", { duration: 5000 });
+            } else {
+                toast.error(errorMsg);
+            }
+            console.error("Error enriching adjudicatario:", error);
+        } finally {
+            setEnrichingAdjudicatario(false);
+        }
+    };
+
+    const handleCreateLeadFromCompetidor = async (empresa) => {
+        try {
+            // Crear un lead directamente desde la empresa competidora
+            const leadData = {
+                nombre_empresa: empresa.nombre,
+                nif: empresa.nif,
+                fuente: "Licitación",
+                notas: `Empresa que participó en licitación (puntuación: ${empresa.puntuacion || 'N/A'} pts). Posible cliente potencial - no ganaron la adjudicación.`,
+                stage: "nuevo"
+            };
+
+            const response = await axios.post(
+                `${API}/leads`,
+                leadData,
+                { withCredentials: true }
+            );
+
+            if (response.data) {
+                toast.success(`Lead creado: ${empresa.nombre}`, { duration: 3000 });
+            }
+        } catch (error) {
+            if (error.response?.status === 400 && error.response?.data?.detail?.includes("ya existe")) {
+                toast.info(`Ya existe un lead para ${empresa.nombre}`);
+            } else {
+                toast.error(error.response?.data?.detail || "Error al crear lead");
+            }
+            console.error("Error creating lead from competidor:", error);
         }
     };
 
@@ -466,15 +565,37 @@ export default function Oportunidades({ user }) {
     const clearFilters = () => {
         setTipoSrsFilter("all");
         setEstadoRevisionFilter("all");
+        setSearchQuery("");
     };
 
-    const hasFilters = tipoSrsFilter !== "all" || estadoRevisionFilter !== "all";
+    const hasFilters = tipoSrsFilter !== "all" || estadoRevisionFilter !== "all" || searchQuery !== "";
 
-    // Filtrar oportunidades por estado de revisión (cliente-side)
+    // Filtrar oportunidades por estado de revisión y búsqueda (cliente-side)
     const filteredOportunidades = oportunidades.filter(o => {
-        if (estadoRevisionFilter === "all") return true;
-        const estado = o.estado_revision || "nueva";
-        return estado === estadoRevisionFilter;
+        // Filtro por estado
+        if (estadoRevisionFilter !== "all") {
+            const estado = o.estado_revision || "nueva";
+            if (estado !== estadoRevisionFilter) return false;
+        }
+
+        // Filtro por búsqueda (ref_code, adjudicatario, objeto, NIF)
+        if (searchQuery) {
+            const query = searchQuery.toLowerCase().trim();
+            const refCode = (o.ref_code || "").toLowerCase();
+            const adjudicatario = (o.adjudicatario || "").toLowerCase();
+            const objeto = (o.objeto || "").toLowerCase();
+            const nif = (o.nif || "").toLowerCase();
+
+            // Buscar coincidencia en cualquiera de los campos
+            if (!refCode.includes(query) &&
+                !adjudicatario.includes(query) &&
+                !objeto.includes(query) &&
+                !nif.includes(query)) {
+                return false;
+            }
+        }
+
+        return true;
     });
 
     // Stats (sobre datos filtrados)
@@ -626,10 +747,19 @@ export default function Oportunidades({ user }) {
             <Card className="theme-bg-secondary p-4" style={{ border: '1px solid var(--theme-border)' }}>
                 <div className="flex flex-col sm:flex-row gap-4 items-center">
                     <div className="flex items-center gap-2 flex-1">
-                        <Filter className="w-4 h-4 theme-text-muted" />
-                        <span className="theme-text-secondary text-sm">Filtrar por:</span>
+                        <div className="relative w-full max-w-xs">
+                            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 theme-text-muted" />
+                            <Input
+                                placeholder="Buscar por ref, empresa, NIF..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="pl-9 theme-bg-tertiary w-full"
+                                style={{ borderColor: 'var(--theme-border)' }}
+                            />
+                        </div>
                     </div>
-                    <div className="flex gap-2 flex-wrap">
+                    <div className="flex gap-2 flex-wrap items-center">
+                        <Filter className="w-4 h-4 theme-text-muted" />
                         <Select value={tipoSrsFilter} onValueChange={setTipoSrsFilter}>
                             <SelectTrigger
                                 className="w-[200px] theme-bg-tertiary"
@@ -711,6 +841,7 @@ export default function Oportunidades({ user }) {
                         <Table>
                             <TableHeader>
                                 <TableRow className="border-b" style={{ borderColor: 'var(--theme-border)' }}>
+                                    <TableHead className="theme-text-secondary font-semibold w-12">Ref</TableHead>
                                     <TableHead className="theme-text-secondary font-semibold">
                                         <div className="flex items-center gap-1">
                                             Score
@@ -742,6 +873,9 @@ export default function Oportunidades({ user }) {
                                         style={{ borderColor: 'var(--theme-border)' }}
                                         data-testid={`oportunidad-row-${oportunidad.oportunidad_id}`}
                                     >
+                                        <TableCell className="font-mono text-sm theme-text-secondary">
+                                            {oportunidad.ref_code || "-"}
+                                        </TableCell>
                                         <TableCell>
                                             <Badge
                                                 className={`${getScoreBadgeClass(oportunidad.score)} shadow-lg font-bold px-3 py-1`}
@@ -1004,11 +1138,16 @@ export default function Oportunidades({ user }) {
 
             {/* Resumen Operador Dialog */}
             <Dialog open={resumenOperadorOpen} onOpenChange={setResumenOperadorOpen}>
-                <DialogContent className="bg-slate-900 border-white/10 max-w-3xl max-h-[90vh] overflow-y-auto">
+                <DialogContent className="bg-slate-900 border-white/10 max-w-xl sm:max-w-2xl md:max-w-3xl w-[95vw] max-h-[90vh] overflow-y-auto overflow-x-hidden p-4 sm:p-6">
                     <DialogHeader>
                         <DialogTitle className="text-white flex items-center gap-2">
                             <Lightbulb className="w-5 h-5 text-yellow-400" />
                             Resumen para el Operador
+                            {resumenOperador?.ref_code && (
+                                <Badge variant="outline" className="ml-2 font-mono text-xs bg-slate-700/50 text-slate-300 border-slate-600">
+                                    #{resumenOperador.ref_code}
+                                </Badge>
+                            )}
                         </DialogTitle>
                         <DialogDescription className="text-slate-400">
                             Información clave para preparar el contacto comercial
@@ -1018,15 +1157,8 @@ export default function Oportunidades({ user }) {
                     {resumenOperador && (
                         <div className="space-y-6 mt-4">
                             {/* Header con nivel de oportunidad */}
-                            <div className="flex items-center justify-between p-4 rounded-lg bg-slate-800/50">
-                                <div className="flex-1 min-w-0">
-                                    <p className="text-white font-semibold text-lg">{resumenOperador.organismo || resumenOperador.empresa || "Organismo"}</p>
-                                    <p className="text-slate-400 text-sm truncate">{resumenOperador.objeto?.substring(0, 150)}...</p>
-                                    {resumenOperador.importe > 0 && (
-                                        <p className="text-cyan-400 font-medium mt-1">{formatCurrency(resumenOperador.importe)}</p>
-                                    )}
-                                </div>
-                                <div className="flex flex-col items-end gap-2">
+                            <div className="p-4 rounded-lg bg-slate-800/50 overflow-hidden">
+                                <div className="flex items-center gap-2 mb-2 flex-wrap">
                                     <Badge className={getNivelOportunidadBadge(resumenOperador.nivel_oportunidad).color}>
                                         {resumenOperador.nivel_oportunidad?.toUpperCase()}
                                     </Badge>
@@ -1037,170 +1169,470 @@ export default function Oportunidades({ user }) {
                                         </Badge>
                                     )}
                                 </div>
+                                <p className="text-white font-semibold text-lg break-words">{resumenOperador.organismo || resumenOperador.empresa || "Organismo"}</p>
+                                <p className="text-slate-400 text-sm break-words mt-1">{resumenOperador.objeto}</p>
+                                {resumenOperador.importe > 0 && (
+                                    <p className="text-cyan-400 font-medium mt-2">{formatCurrency(resumenOperador.importe)}</p>
+                                )}
                             </div>
 
                             {/* Datos del Adjudicatario para Contacto */}
-                            <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20">
-                                <h3 className="text-blue-400 font-semibold flex items-center gap-2 mb-3">
-                                    <Building2 className="w-4 h-4" />
-                                    Datos del Adjudicatario
-                                </h3>
-                                <div className="grid grid-cols-2 gap-4">
+                            <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20 overflow-hidden">
+                                <div className="flex flex-col gap-2 mb-3">
+                                    <h3 className="text-blue-400 font-semibold flex items-center gap-2">
+                                        <Building2 className="w-4 h-4" />
+                                        Datos del Adjudicatario
+                                    </h3>
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="text-blue-400 border-blue-500/30 hover:bg-blue-500/20 w-full"
+                                        onClick={() => handleEnrichAdjudicatario(resumenOperador.oportunidad_id)}
+                                        disabled={enrichingAdjudicatario || !resumenOperador.oportunidad_id}
+                                    >
+                                        {enrichingAdjudicatario ? (
+                                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                        ) : (
+                                            <Search className="w-4 h-4 mr-2" />
+                                        )}
+                                        {resumenOperador.datos_adjudicatario?.telefono ? "Actualizar datos" : "Buscar datos"}
+                                    </Button>
+                                </div>
+                                <div className="space-y-3">
                                     <div>
                                         <p className="text-slate-400 text-xs mb-1">Empresa</p>
-                                        <p className="text-white font-medium">{resumenOperador.adjudicatario || resumenOperador.organismo || "-"}</p>
+                                        <p className="text-white font-medium">
+                                            {(() => {
+                                                const nombreComercial = resumenOperador.datos_adjudicatario?.nombre_comercial;
+                                                // Ignorar valores placeholder inválidos
+                                                const esValido = nombreComercial &&
+                                                    !nombreComercial.toLowerCase().includes('the bid') &&
+                                                    !nombreComercial.toLowerCase().includes('file number') &&
+                                                    nombreComercial.length > 2;
+                                                return esValido ? nombreComercial : (resumenOperador.adjudicatario || resumenOperador.organismo || "-");
+                                            })()}
+                                        </p>
                                     </div>
                                     <div>
                                         <p className="text-slate-400 text-xs mb-1">NIF</p>
                                         <p className="text-white font-medium">{resumenOperador.nif || "-"}</p>
                                     </div>
-                                    {resumenOperador.email_contacto && (
+                                    {(resumenOperador.datos_adjudicatario?.email || resumenOperador.email_contacto) && (
                                         <div>
                                             <p className="text-slate-400 text-xs mb-1">Email</p>
-                                            <a href={`mailto:${resumenOperador.email_contacto}`} className="text-blue-400 hover:underline flex items-center gap-1">
+                                            <a
+                                                href={`mailto:${resumenOperador.datos_adjudicatario?.email || resumenOperador.email_contacto}`}
+                                                className="text-blue-400 hover:underline flex items-center gap-1"
+                                            >
                                                 <Mail className="w-3 h-3" />
-                                                {resumenOperador.email_contacto}
+                                                {resumenOperador.datos_adjudicatario?.email || resumenOperador.email_contacto}
                                             </a>
                                         </div>
                                     )}
-                                    {resumenOperador.telefono_contacto && (
+                                    {(resumenOperador.datos_adjudicatario?.telefono || resumenOperador.telefono_contacto) && (
                                         <div>
                                             <p className="text-slate-400 text-xs mb-1">Teléfono</p>
-                                            <a href={`tel:${resumenOperador.telefono_contacto}`} className="text-blue-400 hover:underline flex items-center gap-1">
+                                            <a
+                                                href={`tel:${resumenOperador.datos_adjudicatario?.telefono || resumenOperador.telefono_contacto}`}
+                                                className="text-blue-400 hover:underline flex items-center gap-1"
+                                            >
                                                 <Phone className="w-3 h-3" />
-                                                {resumenOperador.telefono_contacto}
+                                                {resumenOperador.datos_adjudicatario?.telefono || resumenOperador.telefono_contacto}
                                             </a>
                                         </div>
                                     )}
+                                    {resumenOperador.datos_adjudicatario?.web && (
+                                        <div>
+                                            <p className="text-slate-400 text-xs mb-1">Web</p>
+                                            <a
+                                                href={resumenOperador.datos_adjudicatario.web.startsWith('http') ? resumenOperador.datos_adjudicatario.web : `https://${resumenOperador.datos_adjudicatario.web}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-blue-400 hover:underline flex items-center gap-1"
+                                            >
+                                                <ExternalLink className="w-3 h-3" />
+                                                {resumenOperador.datos_adjudicatario.web}
+                                            </a>
+                                        </div>
+                                    )}
+                                    {resumenOperador.datos_adjudicatario?.direccion && (
+                                        <div className="col-span-2">
+                                            <p className="text-slate-400 text-xs mb-1">Dirección</p>
+                                            <p className="text-slate-300 text-sm">
+                                                {resumenOperador.datos_adjudicatario.direccion}
+                                                {resumenOperador.datos_adjudicatario.localidad && `, ${resumenOperador.datos_adjudicatario.localidad}`}
+                                                {resumenOperador.datos_adjudicatario.provincia && ` (${resumenOperador.datos_adjudicatario.provincia})`}
+                                            </p>
+                                        </div>
+                                    )}
                                 </div>
-                                {resumenOperador.organo_contratacion && (
+                                {resumenOperador.datos_adjudicatario?.actividad && (
                                     <div className="mt-3 pt-3 border-t border-blue-500/20">
-                                        <p className="text-slate-400 text-xs mb-1">Órgano de Contratación</p>
-                                        <p className="text-slate-300 text-sm">{resumenOperador.organo_contratacion}</p>
+                                        <p className="text-slate-400 text-xs mb-1">Actividad</p>
+                                        <p className="text-slate-300 text-sm">{resumenOperador.datos_adjudicatario.actividad}</p>
+                                    </div>
+                                )}
+                                {resumenOperador.datos_adjudicatario?.lugar_ejecucion && (
+                                    <div className="mt-3 pt-3 border-t border-blue-500/20">
+                                        <p className="text-slate-400 text-xs mb-1">Lugar de Ejecución</p>
+                                        <p className="text-slate-300 text-sm">{resumenOperador.datos_adjudicatario.lugar_ejecucion}</p>
+                                    </div>
+                                )}
+                                {resumenOperador.datos_adjudicatario?.es_pyme !== undefined && (
+                                    <div className="mt-2">
+                                        <Badge className={resumenOperador.datos_adjudicatario.es_pyme ? "bg-green-500/20 text-green-400" : "bg-slate-500/20 text-slate-400"}>
+                                            {resumenOperador.datos_adjudicatario.es_pyme ? "PYME" : "Gran Empresa"}
+                                        </Badge>
+                                    </div>
+                                )}
+                                {resumenOperador.datos_adjudicatario?.fuente && (
+                                    <div className="mt-2 flex justify-end">
+                                        <span className="text-xs text-slate-500">
+                                            Fuente: {resumenOperador.datos_adjudicatario.fuente} | Confianza: {resumenOperador.datos_adjudicatario.confianza}
+                                        </span>
                                     </div>
                                 )}
                             </div>
 
-                            {/* Resumen IT */}
-                            {resumenOperador.resumen_it && (
-                                <div className="p-4 rounded-lg bg-cyan-500/10 border border-cyan-500/20">
-                                    <h3 className="text-cyan-400 font-semibold flex items-center gap-2 mb-2">
+                            {/* Datos del Órgano Contratante (EL CLIENTE) */}
+                            {(resumenOperador.organo_contratacion || resumenOperador.datos_adjudicatario?.organo_contratacion) && (
+                                <div className="p-4 rounded-lg bg-green-500/10 border border-green-500/20 overflow-hidden">
+                                    <h3 className="text-green-400 font-semibold flex items-center gap-2 mb-3">
+                                        <Target className="w-4 h-4" />
+                                        Órgano Contratante (Cliente)
+                                    </h3>
+                                    <div className="space-y-3">
+                                        <div>
+                                            <p className="text-slate-400 text-xs mb-1">Entidad</p>
+                                            <p className="text-white font-medium break-words">
+                                                {resumenOperador.datos_adjudicatario?.organo_contratacion || resumenOperador.organo_contratacion}
+                                            </p>
+                                        </div>
+                                        {resumenOperador.datos_adjudicatario?.organo_email && (
+                                            <div>
+                                                <p className="text-slate-400 text-xs mb-1">Email</p>
+                                                <a
+                                                    href={`mailto:${resumenOperador.datos_adjudicatario.organo_email}`}
+                                                    className="text-green-400 hover:underline flex items-center gap-1 break-all"
+                                                >
+                                                    <Mail className="w-3 h-3 flex-shrink-0" />
+                                                    {resumenOperador.datos_adjudicatario.organo_email}
+                                                </a>
+                                            </div>
+                                        )}
+                                        {resumenOperador.datos_adjudicatario?.organo_telefono && (
+                                            <div>
+                                                <p className="text-slate-400 text-xs mb-1">Teléfono</p>
+                                                <a
+                                                    href={`tel:${resumenOperador.datos_adjudicatario.organo_telefono}`}
+                                                    className="text-green-400 hover:underline flex items-center gap-1"
+                                                >
+                                                    <Phone className="w-3 h-3 flex-shrink-0" />
+                                                    {resumenOperador.datos_adjudicatario.organo_telefono}
+                                                </a>
+                                            </div>
+                                        )}
+                                        {resumenOperador.datos_adjudicatario?.organo_web && (
+                                            <div>
+                                                <p className="text-slate-400 text-xs mb-1">Web</p>
+                                                <a
+                                                    href={resumenOperador.datos_adjudicatario.organo_web.startsWith('http') ? resumenOperador.datos_adjudicatario.organo_web : `https://${resumenOperador.datos_adjudicatario.organo_web}`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="text-green-400 hover:underline flex items-center gap-1 break-all"
+                                                >
+                                                    <ExternalLink className="w-3 h-3 flex-shrink-0" />
+                                                    {resumenOperador.datos_adjudicatario.organo_web}
+                                                </a>
+                                            </div>
+                                        )}
+                                    </div>
+                                    {resumenOperador.datos_adjudicatario?.financiacion_ue && (
+                                        <div className="mt-3 pt-3 border-t border-green-500/20">
+                                            <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30">
+                                                <Euro className="w-3 h-3 mr-1" />
+                                                {resumenOperador.datos_adjudicatario.financiacion_ue}
+                                            </Badge>
+                                            {resumenOperador.datos_adjudicatario.programa_financiacion && (
+                                                <p className="text-slate-400 text-xs mt-1">{resumenOperador.datos_adjudicatario.programa_financiacion}</p>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Datos del Contrato */}
+                            {(resumenOperador.datos_adjudicatario?.importe_adjudicacion || resumenOperador.datos_adjudicatario?.fecha_adjudicacion) && (
+                                <div className="p-4 rounded-lg bg-slate-800/50 overflow-hidden">
+                                    <h3 className="text-slate-300 font-semibold flex items-center gap-2 mb-3">
+                                        <FileText className="w-4 h-4" />
+                                        Datos del Contrato
+                                    </h3>
+                                    <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+                                        {resumenOperador.datos_adjudicatario?.importe_adjudicacion && (
+                                            <div>
+                                                <p className="text-slate-400 text-xs mb-1">Importe</p>
+                                                <p className="text-cyan-400 font-medium">{resumenOperador.datos_adjudicatario.importe_adjudicacion}</p>
+                                            </div>
+                                        )}
+                                        {resumenOperador.datos_adjudicatario?.fecha_adjudicacion && (
+                                            <div>
+                                                <p className="text-slate-400 text-xs mb-1">Fecha</p>
+                                                <p className="text-slate-300">{resumenOperador.datos_adjudicatario.fecha_adjudicacion}</p>
+                                            </div>
+                                        )}
+                                        {resumenOperador.datos_adjudicatario?.duracion_contrato && (
+                                            <div>
+                                                <p className="text-slate-400 text-xs mb-1">Duración</p>
+                                                <p className="text-slate-300">{resumenOperador.datos_adjudicatario.duracion_contrato}</p>
+                                            </div>
+                                        )}
+                                        {resumenOperador.datos_adjudicatario?.numero_ofertas && (
+                                            <div>
+                                                <p className="text-slate-400 text-xs mb-1">Ofertas</p>
+                                                <p className="text-slate-300">{resumenOperador.datos_adjudicatario.numero_ofertas}</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Botón Analizar Pliego - SIEMPRE visible */}
+                            <div className="p-4 rounded-lg bg-slate-800/50">
+                                <h3 className="text-slate-300 font-semibold flex items-center gap-2">
+                                    <Brain className="w-4 h-4 text-green-400" />
+                                    Análisis de Pliego con IA
+                                </h3>
+                                <p className="text-slate-500 text-xs mt-1 mb-3">
+                                    Detecta oportunidades IT y servicios donde SRS puede ayudar
+                                </p>
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="text-green-400 border-green-500/30 hover:bg-green-500/20 w-full"
+                                    onClick={() => handleAnalyzePliego(resumenOperador.oportunidad_id)}
+                                    disabled={analyzingPliego[resumenOperador.oportunidad_id] || !resumenOperador.oportunidad_id}
+                                >
+                                    {analyzingPliego[resumenOperador.oportunidad_id] ? (
+                                        <>
+                                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                            Analizando...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Sparkles className="w-4 h-4 mr-2" />
+                                            Analizar Pliego
+                                        </>
+                                    )}
+                                </Button>
+                            </div>
+
+                            {/* Documentos Disponibles (si existen) */}
+                            {(resumenOperador.datos_adjudicatario?.documentos?.length > 0 ||
+                              resumenOperador.pliegos?.url_pliego_tecnico ||
+                              (analisisPliego || resumenOperador.analisis_pliego)?.metadata?.url_pliego) && (
+                                <div className="p-4 rounded-lg bg-slate-800/50">
+                                    <h3 className="text-slate-300 font-semibold flex items-center gap-2 mb-3">
+                                        <FileText className="w-4 h-4" />
+                                        Documentos Disponibles
+                                    </h3>
+                                    <div className="flex flex-wrap gap-2">
+                                        {/* Pliego Técnico Analizado (destacado) */}
+                                        {(resumenOperador.pliegos?.url_pliego_tecnico ||
+                                          (analisisPliego || resumenOperador.analisis_pliego)?.metadata?.url_pliego) && (
+                                            <a
+                                                href={resumenOperador.pliegos?.url_pliego_tecnico ||
+                                                      (analisisPliego || resumenOperador.analisis_pliego)?.metadata?.url_pliego}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-xs px-2 py-1 bg-emerald-700 text-emerald-100 rounded hover:bg-emerald-600 flex items-center gap-1 font-medium"
+                                            >
+                                                <FileText className="w-3 h-3" />
+                                                Pliego Técnico (PDF)
+                                            </a>
+                                        )}
+                                        {/* Otros documentos */}
+                                        {resumenOperador.datos_adjudicatario?.documentos?.slice(0, 8).map((doc, idx) => (
+                                            <a
+                                                key={idx}
+                                                href={doc.url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-xs px-2 py-1 bg-slate-700 text-slate-300 rounded hover:bg-slate-600 flex items-center gap-1"
+                                            >
+                                                <FileText className="w-3 h-3" />
+                                                {doc.titulo} ({doc.tipo?.toUpperCase() || "DOC"})
+                                            </a>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Resultado del Análisis de Pliego */}
+                            {(analisisPliego || resumenOperador.analisis_pliego) && (
+                                <div className="p-4 rounded-lg bg-green-500/10 border border-green-500/20">
+                                    <h3 className="text-green-400 font-semibold flex items-center gap-2 mb-3">
+                                        <Brain className="w-4 h-4" />
+                                        Oportunidades para SRS
+                                        <Badge className="bg-green-500/20 text-green-300 text-xs ml-2">
+                                            Pain Score: {(analisisPliego || resumenOperador.analisis_pliego)?.pain_score || 0}/100
+                                        </Badge>
+                                    </h3>
+
+                                    {/* Componentes IT detectados */}
+                                    {((analisisPliego || resumenOperador.analisis_pliego)?.componentes_it?.length > 0 ||
+                                      (analisisPliego || resumenOperador.analisis_pliego)?.resumen_operador?.componentes_it?.length > 0) && (
+                                        <div className="mb-4">
+                                            <p className="text-slate-400 text-xs mb-2">Servicios IT donde SRS puede ayudar:</p>
+                                            <div className="space-y-2">
+                                                {((analisisPliego || resumenOperador.analisis_pliego)?.componentes_it ||
+                                                  (analisisPliego || resumenOperador.analisis_pliego)?.resumen_operador?.componentes_it || []).slice(0, 5).map((comp, idx) => (
+                                                    <div key={idx} className="p-2 bg-slate-800/50 rounded">
+                                                        <div className="flex items-center gap-2">
+                                                            <Badge className={`text-xs ${
+                                                                comp.urgencia === 'critica' ? 'bg-red-500/20 text-red-300' :
+                                                                comp.urgencia === 'alta' ? 'bg-orange-500/20 text-orange-300' :
+                                                                'bg-slate-500/20 text-slate-300'
+                                                            }`}>
+                                                                {comp.tipo}
+                                                            </Badge>
+                                                            <span className="text-white text-sm font-medium">{comp.nombre}</span>
+                                                        </div>
+                                                        {comp.descripcion && (
+                                                            <p className="text-slate-400 text-xs mt-1">{comp.descripcion}</p>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Tecnologías mencionadas */}
+                                    {((analisisPliego || resumenOperador.analisis_pliego)?.resumen_operador?.tecnologias_mencionadas?.length > 0) && (
+                                        <div className="mb-3">
+                                            <p className="text-slate-400 text-xs mb-1">Tecnologías detectadas:</p>
+                                            <div className="flex flex-wrap gap-1">
+                                                {(analisisPliego || resumenOperador.analisis_pliego).resumen_operador.tecnologias_mencionadas.map((tech, idx) => (
+                                                    <Badge key={idx} variant="outline" className="text-green-300 border-green-500/30 text-xs">
+                                                        {tech}
+                                                    </Badge>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Alertas importantes */}
+                                    {((analisisPliego || resumenOperador.analisis_pliego)?.resumen_operador?.alertas?.length > 0) && (
+                                        <div className="mt-3 p-2 bg-yellow-500/10 rounded border border-yellow-500/20">
+                                            <p className="text-yellow-400 text-xs font-medium mb-1">Alertas:</p>
+                                            {(analisisPliego || resumenOperador.analisis_pliego).resumen_operador.alertas.slice(0, 3).map((alerta, idx) => (
+                                                <p key={idx} className="text-yellow-200 text-xs">• {alerta}</p>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Empresas Competidoras (otras que licitaron) */}
+                            {resumenOperador.datos_adjudicatario?.empresas_competidoras?.length > 0 && (
+                                <div className="p-4 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                                    <h3 className="text-amber-400 font-semibold flex items-center gap-2 mb-3">
+                                        <Users className="w-4 h-4" />
+                                        Otras Empresas que Licitaron
+                                        <Badge className="bg-amber-500/20 text-amber-300 text-xs ml-2">
+                                            {resumenOperador.datos_adjudicatario.empresas_competidoras.length} empresas
+                                        </Badge>
+                                    </h3>
+                                    <p className="text-slate-400 text-xs mb-3">
+                                        Estas empresas participaron en la licitación pero no ganaron. Son posibles clientes potenciales.
+                                    </p>
+                                    <div className="space-y-2">
+                                        {resumenOperador.datos_adjudicatario.empresas_competidoras.map((empresa, idx) => (
+                                            <div
+                                                key={idx}
+                                                className="flex items-center justify-between p-3 rounded-lg bg-slate-800/50 hover:bg-slate-800 transition-colors"
+                                            >
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-amber-400 font-bold text-sm">#{idx + 2}</span>
+                                                        <p className="text-white font-medium truncate" title={empresa.nombre}>
+                                                            {empresa.nombre}
+                                                        </p>
+                                                    </div>
+                                                    <div className="flex items-center gap-3 mt-1">
+                                                        <span className="text-slate-400 text-xs">
+                                                            NIF: {empresa.nif}
+                                                        </span>
+                                                        {empresa.puntuacion && (
+                                                            <span className="text-slate-400 text-xs flex items-center gap-1">
+                                                                <Trophy className="w-3 h-3 text-amber-400" />
+                                                                {empresa.puntuacion} pts
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                <TooltipProvider>
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                className="text-amber-400 border-amber-500/30 hover:bg-amber-500/20 h-8"
+                                                                onClick={() => {
+                                                                    // Crear lead desde competidor
+                                                                    handleCreateLeadFromCompetidor(empresa);
+                                                                }}
+                                                            >
+                                                                <UserPlus className="w-3 h-3 mr-1" />
+                                                                Lead
+                                                            </Button>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>
+                                                            Crear lead desde esta empresa
+                                                        </TooltipContent>
+                                                    </Tooltip>
+                                                </TooltipProvider>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Tecnologías */}
+                            {resumenOperador.tecnologias_mencionadas?.length > 0 && (
+                                <div className="p-4 rounded-lg bg-slate-800">
+                                    <h3 className="text-green-400 font-semibold flex items-center gap-2 mb-2">
                                         <Server className="w-4 h-4" />
-                                        Resumen Componente IT
+                                        Tecnologías
                                     </h3>
-                                    <p className="text-white text-sm">{resumenOperador.resumen_it}</p>
-                                </div>
-                            )}
-
-                            {/* Dolor Principal */}
-                            {resumenOperador.dolor_principal && (
-                                <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/20">
-                                    <h3 className="text-red-400 font-semibold flex items-center gap-2 mb-2">
-                                        <AlertTriangle className="w-4 h-4" />
-                                        Dolor Principal
-                                    </h3>
-                                    <p className="text-white">{resumenOperador.dolor_principal}</p>
-                                </div>
-                            )}
-
-                            {/* Gancho para Email/Llamada */}
-                            {resumenOperador.gancho_inicial && (
-                                <div className="p-4 rounded-lg bg-purple-500/10 border border-purple-500/20">
-                                    <h3 className="text-purple-400 font-semibold flex items-center gap-2 mb-2">
-                                        <Mail className="w-4 h-4" />
-                                        Gancho para el Primer Contacto
-                                    </h3>
-                                    <p className="text-white italic">"{resumenOperador.gancho_inicial}"</p>
-                                </div>
-                            )}
-
-                            {/* Puntos de Dolor para Email */}
-                            {resumenOperador.puntos_dolor_email?.length > 0 && (
-                                <div className="p-4 rounded-lg bg-slate-800">
-                                    <h3 className="text-cyan-400 font-semibold flex items-center gap-2 mb-3">
-                                        <ChevronRight className="w-4 h-4" />
-                                        Puntos de Dolor para el Email
-                                    </h3>
-                                    <ul className="space-y-2">
-                                        {resumenOperador.puntos_dolor_email.map((punto, idx) => (
-                                            <li key={idx} className="text-slate-300 flex items-start gap-2">
-                                                <span className="text-cyan-400 mt-1">•</span>
-                                                {punto}
-                                            </li>
+                                    <div className="flex flex-wrap gap-2">
+                                        {resumenOperador.tecnologias_mencionadas.map((tech, idx) => (
+                                            <Badge key={idx} variant="outline" className="text-green-300 border-green-500/30">
+                                                {tech}
+                                            </Badge>
                                         ))}
-                                    </ul>
-                                </div>
-                            )}
-
-                            {/* Preguntas de Cualificación */}
-                            {resumenOperador.preguntas_cualificacion?.length > 0 && (
-                                <div className="p-4 rounded-lg bg-slate-800">
-                                    <h3 className="text-yellow-400 font-semibold flex items-center gap-2 mb-3">
-                                        <Phone className="w-4 h-4" />
-                                        Preguntas para la Llamada
-                                    </h3>
-                                    <ul className="space-y-2">
-                                        {resumenOperador.preguntas_cualificacion.map((pregunta, idx) => (
-                                            <li key={idx} className="text-slate-300 flex items-start gap-2">
-                                                <span className="text-yellow-400 font-bold">{idx + 1}.</span>
-                                                {pregunta}
-                                            </li>
-                                        ))}
-                                    </ul>
-                                </div>
-                            )}
-
-                            {/* Tecnologías y Certificaciones */}
-                            <div className="grid grid-cols-2 gap-4">
-                                {resumenOperador.tecnologias_mencionadas?.length > 0 && (
-                                    <div className="p-4 rounded-lg bg-slate-800">
-                                        <h3 className="text-green-400 font-semibold flex items-center gap-2 mb-2">
-                                            <Server className="w-4 h-4" />
-                                            Tecnologías
-                                        </h3>
-                                        <div className="flex flex-wrap gap-2">
-                                            {resumenOperador.tecnologias_mencionadas.map((tech, idx) => (
-                                                <Badge key={idx} variant="outline" className="text-green-300 border-green-500/30">
-                                                    {tech}
-                                                </Badge>
-                                            ))}
-                                        </div>
                                     </div>
-                                )}
-
-                                {resumenOperador.certificaciones_requeridas?.length > 0 && (
-                                    <div className="p-4 rounded-lg bg-slate-800">
-                                        <h3 className="text-orange-400 font-semibold flex items-center gap-2 mb-2">
-                                            <Shield className="w-4 h-4" />
-                                            Certificaciones Requeridas
-                                        </h3>
-                                        <div className="flex flex-wrap gap-2">
-                                            {resumenOperador.certificaciones_requeridas.map((cert, idx) => (
-                                                <Badge key={idx} variant="outline" className="text-orange-300 border-orange-500/30">
-                                                    {cert}
-                                                </Badge>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Alertas */}
-                            {resumenOperador.alertas?.length > 0 && (
-                                <div className="p-4 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
-                                    <h3 className="text-yellow-400 font-semibold flex items-center gap-2 mb-2">
-                                        <AlertTriangle className="w-4 h-4" />
-                                        Alertas
-                                    </h3>
-                                    <ul className="space-y-1">
-                                        {resumenOperador.alertas.map((alerta, idx) => (
-                                            <li key={idx} className="text-yellow-200 text-sm">
-                                                ⚠️ {alerta}
-                                            </li>
-                                        ))}
-                                    </ul>
                                 </div>
                             )}
+
+                            {/* Certificaciones */}
+                            {resumenOperador.certificaciones_requeridas?.length > 0 && (
+                                <div className="p-4 rounded-lg bg-slate-800">
+                                    <h3 className="text-orange-400 font-semibold flex items-center gap-2 mb-2">
+                                        <Shield className="w-4 h-4" />
+                                        Certificaciones Requeridas
+                                    </h3>
+                                    <div className="flex flex-wrap gap-2">
+                                        {resumenOperador.certificaciones_requeridas.map((cert, idx) => (
+                                            <Badge key={idx} variant="outline" className="text-orange-300 border-orange-500/30">
+                                                {cert}
+                                            </Badge>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+{/* Alertas eliminadas - ya se muestran en Oportunidades para SRS */}
 
                             {/* Metadata */}
                             <div className="flex justify-between items-center text-xs text-slate-500 pt-4 border-t border-slate-700">

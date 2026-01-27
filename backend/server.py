@@ -248,6 +248,8 @@ class OportunidadPLACSPBase(BaseModel):
     analisis_pliego: Optional[Dict[str, Any]] = None
     analisis_pliego_fecha: Optional[str] = None
     tiene_it_confirmado: Optional[bool] = None
+    # Datos enriquecidos del adjudicatario
+    datos_adjudicatario: Optional[Dict[str, Any]] = None  # {nombre, nif, direccion, telefono, email, web, sector, empleados, fuente, fecha_enriquecimiento}
 
 class OportunidadPLACSPCreate(OportunidadPLACSPBase):
     pass
@@ -255,6 +257,7 @@ class OportunidadPLACSPCreate(OportunidadPLACSPBase):
 class OportunidadPLACSP(OportunidadPLACSPBase):
     model_config = ConfigDict(extra="ignore")
     oportunidad_id: str
+    ref_code: Optional[str] = None  # Código corto de referencia: "01", "02", etc.
 
 class OportunidadSpotterImport(BaseModel):
     oportunidades: List[OportunidadPLACSPCreate]
@@ -1557,6 +1560,55 @@ async def delete_user(user_id: str, current_user: UserResponse = Depends(get_cur
 
 # ============== OPORTUNIDADES ROUTES ==============
 
+async def get_next_ref_code() -> str:
+    """Genera el siguiente ref_code secuencial (01, 02, ... 99, 100, ...)"""
+    # Buscar el mayor ref_code existente
+    pipeline = [
+        {"$match": {"ref_code": {"$exists": True, "$ne": None}}},
+        {"$project": {"ref_num": {"$toInt": "$ref_code"}}},
+        {"$sort": {"ref_num": -1}},
+        {"$limit": 1}
+    ]
+    result = await db.oportunidades_placsp.aggregate(pipeline).to_list(1)
+
+    if result:
+        next_num = result[0]["ref_num"] + 1
+    else:
+        next_num = 1
+
+    # Formato: "01", "02", ... "99", "100", etc.
+    return str(next_num).zfill(2)
+
+@api_router.post("/oportunidades/migrar-ref-codes")
+async def migrar_ref_codes(current_user: UserResponse = Depends(get_current_user)):
+    """Asigna ref_codes a todas las oportunidades que no tienen uno"""
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Solo admin puede ejecutar migraciones")
+
+    # Obtener oportunidades sin ref_code, ordenadas por fecha de detección
+    oportunidades = await db.oportunidades_placsp.find(
+        {"$or": [{"ref_code": {"$exists": False}}, {"ref_code": None}]},
+        {"_id": 1, "oportunidad_id": 1, "fecha_deteccion": 1}
+    ).sort("fecha_deteccion", 1).to_list(10000)
+
+    if not oportunidades:
+        return {"message": "No hay oportunidades sin ref_code", "migrated": 0}
+
+    # Obtener el último ref_code existente
+    next_code = int(await get_next_ref_code())
+    migrated = 0
+
+    for op in oportunidades:
+        ref_code = str(next_code).zfill(2)
+        await db.oportunidades_placsp.update_one(
+            {"_id": op["_id"]},
+            {"$set": {"ref_code": ref_code}}
+        )
+        next_code += 1
+        migrated += 1
+
+    return {"message": f"Migración completada", "migrated": migrated}
+
 @api_router.get("/oportunidades/tipos-srs")
 async def get_tipos_srs():
     """Get available SRS types for filtering"""
@@ -1621,14 +1673,18 @@ async def import_oportunidades_spotter(
                 if isinstance(oportunidad_dict[key], datetime):
                     oportunidad_dict[key] = oportunidad_dict[key].isoformat()
         
+        # Generar ref_code único
+        ref_code = await get_next_ref_code()
+
         oportunidad_doc = {
             "oportunidad_id": oportunidad_id,
+            "ref_code": ref_code,
             **oportunidad_dict
         }
-        
+
         await db.oportunidades_placsp.insert_one(oportunidad_doc)
         imported += 1
-    
+
     return {
         "message": "Importación completada",
         "imported": imported,
@@ -1653,7 +1709,9 @@ async def import_oportunidades_spotter_internal(data: OportunidadSpotterImport):
             if oportunidad_dict.get(key):
                 if isinstance(oportunidad_dict[key], datetime):
                     oportunidad_dict[key] = oportunidad_dict[key].isoformat()
-        oportunidad_doc = {"oportunidad_id": oportunidad_id, **oportunidad_dict}
+        # Generar ref_code único
+        ref_code = await get_next_ref_code()
+        oportunidad_doc = {"oportunidad_id": oportunidad_id, "ref_code": ref_code, **oportunidad_dict}
         await db.oportunidades_placsp.insert_one(oportunidad_doc)
         imported += 1
     return {"message": "Importacion completada", "imported": imported, "duplicates": duplicates, "total": len(data.oportunidades)}
@@ -1978,9 +2036,12 @@ async def analizar_pliego_exhaustivo(
     Descarga el PDF/HTML, extrae texto, analiza con IA buscando IT oculto.
     Genera resumen orientado al operador comercial.
 
-    SIN RESTRICCIONES DE TIEMPO - La calidad es prioritaria.
-    Puede tardar 30-90 segundos dependiendo del tamaño del pliego.
+    Timeout máximo: 150 segundos.
     """
+    import asyncio
+    import logging
+    logger = logging.getLogger(__name__)
+
     try:
         from app.spotter.pliego_analyzer import analizar_pliego_completo
 
@@ -1995,12 +2056,18 @@ async def analizar_pliego_exhaustivo(
         # Buscar URL del pliego
         url_pliego = None
         pliegos = oportunidad.get("pliegos", {})
+        datos_adj = oportunidad.get("datos_adjudicatario", {})
 
         # Priorizar pliego técnico, luego administrativo
+        # Buscar en pliegos y también en datos_adjudicatario (donde lo guarda el enricher)
         if pliegos.get("url_pliego_tecnico"):
             url_pliego = pliegos["url_pliego_tecnico"]
+        elif datos_adj.get("url_pliego_tecnico"):
+            url_pliego = datos_adj["url_pliego_tecnico"]
         elif pliegos.get("url_pliego_administrativo"):
             url_pliego = pliegos["url_pliego_administrativo"]
+        elif datos_adj.get("url_pliego_administrativo"):
+            url_pliego = datos_adj["url_pliego_administrativo"]
         elif oportunidad.get("url_licitacion"):
             # Fallback a URL de la licitación
             url_pliego = oportunidad["url_licitacion"]
@@ -2011,13 +2078,25 @@ async def analizar_pliego_exhaustivo(
                 detail="No se encontró URL de pliego para esta oportunidad"
             )
 
-        # Ejecutar análisis exhaustivo (sin timeout restrictivo)
-        resultado = await analizar_pliego_completo(
-            oportunidad_id=oportunidad_id,
-            url_pliego=url_pliego,
-            objeto=oportunidad.get("objeto", ""),
-            importe=oportunidad.get("importe", 0)
-        )
+        logger.info(f"Iniciando análisis de pliego para {oportunidad_id}, URL: {url_pliego}")
+
+        # Ejecutar análisis con timeout global de 150 segundos
+        try:
+            resultado = await asyncio.wait_for(
+                analizar_pliego_completo(
+                    oportunidad_id=oportunidad_id,
+                    url_pliego=url_pliego,
+                    objeto=oportunidad.get("objeto", ""),
+                    importe=oportunidad.get("importe", 0)
+                ),
+                timeout=150.0  # 2.5 minutos máximo
+            )
+        except asyncio.TimeoutError:
+            logger.error(f"Timeout de 150s en análisis de pliego para {oportunidad_id}")
+            raise HTTPException(
+                status_code=504,
+                detail="El análisis tardó demasiado (>150s). Intente de nuevo más tarde."
+            )
 
         # Guardar resultado en BD
         await db.oportunidades_placsp.update_one(
@@ -2068,7 +2147,7 @@ async def obtener_resumen_operador(
     """
     oportunidad = await db.oportunidades_placsp.find_one(
         {"oportunidad_id": oportunidad_id},
-        {"analisis_pliego": 1, "objeto": 1, "adjudicatario": 1, "importe": 1}
+        {"analisis_pliego": 1, "objeto": 1, "adjudicatario": 1, "importe": 1, "nif": 1, "organo_contratacion": 1, "datos_adjudicatario": 1}
     )
 
     if not oportunidad:
@@ -2089,6 +2168,10 @@ async def obtener_resumen_operador(
         "empresa": oportunidad.get("adjudicatario", ""),
         "objeto": oportunidad.get("objeto", ""),
         "importe": oportunidad.get("importe", 0),
+        "nif": oportunidad.get("nif", ""),
+        "organo_contratacion": oportunidad.get("organo_contratacion", ""),
+        "adjudicatario": oportunidad.get("adjudicatario", ""),
+        "datos_adjudicatario": oportunidad.get("datos_adjudicatario"),
         "tiene_it": resumen.get("tiene_it", False),
         "nivel_oportunidad": resumen.get("nivel_oportunidad", ""),
         "dolor_principal": resumen.get("dolor_principal", ""),
@@ -2100,6 +2183,227 @@ async def obtener_resumen_operador(
         "alertas": resumen.get("alertas", []),
         "confianza": resumen.get("confianza_analisis", "")
     }
+
+
+@api_router.post("/oportunidades/{oportunidad_id}/analisis-comercial")
+async def generar_analisis_comercial_endpoint(
+    oportunidad_id: str,
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """
+    Genera un ANÁLISIS COMERCIAL COMPLETO orientado a la acción.
+
+    Incluye:
+    - Clasificación y scoring detallado
+    - Resumen ejecutivo (30 segundos)
+    - Información del adjudicatario
+    - Dolores principales y secundarios
+    - Servicios SRS aplicables con valor estimado
+    - Competencia y ventajas
+    - Comunicación lista para usar (WhatsApp, email, llamada)
+    - Objeciones y respuestas preparadas
+    - Siguientes pasos
+
+    Timeout máximo: 180 segundos.
+    """
+    import asyncio
+    import logging
+    logger = logging.getLogger(__name__)
+
+    try:
+        from app.spotter.pliego_analyzer import generar_analisis_comercial
+
+        # Buscar la oportunidad con todos sus datos
+        oportunidad = await db.oportunidades_placsp.find_one(
+            {"oportunidad_id": oportunidad_id}
+        )
+
+        if not oportunidad:
+            raise HTTPException(status_code=404, detail="Oportunidad no encontrada")
+
+        # Buscar URL del pliego
+        url_pliego = None
+        pliegos = oportunidad.get("pliegos", {})
+        datos_adj = oportunidad.get("datos_adjudicatario", {})
+
+        # Priorizar pliego técnico, buscar en pliegos y datos_adjudicatario
+        if pliegos.get("url_pliego_tecnico"):
+            url_pliego = pliegos["url_pliego_tecnico"]
+        elif datos_adj.get("url_pliego_tecnico"):
+            url_pliego = datos_adj["url_pliego_tecnico"]
+        elif pliegos.get("url_pliego_admin"):
+            url_pliego = pliegos["url_pliego_admin"]
+        elif datos_adj.get("url_pliego_administrativo"):
+            url_pliego = datos_adj["url_pliego_administrativo"]
+        elif oportunidad.get("url_licitacion"):
+            url_pliego = oportunidad["url_licitacion"]
+
+        if not url_pliego:
+            raise HTTPException(
+                status_code=400,
+                detail="Esta oportunidad no tiene URL de pliego disponible"
+            )
+
+        logger.info(f"Generando análisis comercial para {oportunidad_id}")
+
+        # Datos del adjudicatario
+        datos_adj = oportunidad.get("datos_adjudicatario", {})
+
+        # Ejecutar análisis con timeout
+        try:
+            resultado = await asyncio.wait_for(
+                generar_analisis_comercial(
+                    oportunidad_id=oportunidad_id,
+                    url_pliego=url_pliego,
+                    objeto=oportunidad.get("objeto", ""),
+                    importe=oportunidad.get("importe", 0),
+                    adjudicatario_nombre=oportunidad.get("adjudicatario", ""),
+                    adjudicatario_cif=oportunidad.get("nif", ""),
+                    organo_contratante=oportunidad.get("organo_contratacion", ""),
+                    fecha_adjudicacion=oportunidad.get("fecha_adjudicacion", ""),
+                ),
+                timeout=180.0  # 3 minutos máximo
+            )
+        except asyncio.TimeoutError:
+            logger.error(f"Timeout de 180s en análisis comercial para {oportunidad_id}")
+            raise HTTPException(
+                status_code=504,
+                detail="El análisis tardó demasiado (>180s). Intente de nuevo más tarde."
+            )
+
+        if resultado.get("error"):
+            raise HTTPException(
+                status_code=500,
+                detail=resultado["error"]
+            )
+
+        # Guardar resultado en BD
+        await db.oportunidades_placsp.update_one(
+            {"oportunidad_id": oportunidad_id},
+            {
+                "$set": {
+                    "analisis_comercial": resultado,
+                    "analisis_comercial_fecha": datetime.now()
+                }
+            }
+        )
+
+        return {
+            "success": True,
+            "oportunidad_id": oportunidad_id,
+            "analisis_comercial": resultado
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error en análisis comercial: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error en análisis comercial: {str(e)}"
+        )
+
+
+@api_router.get("/oportunidades/{oportunidad_id}/analisis-comercial")
+async def obtener_analisis_comercial(
+    oportunidad_id: str,
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """
+    Obtiene el análisis comercial completo de una oportunidad.
+    Requiere que se haya generado previamente con POST /analisis-comercial
+    """
+    oportunidad = await db.oportunidades_placsp.find_one(
+        {"oportunidad_id": oportunidad_id},
+        {"analisis_comercial": 1, "analisis_comercial_fecha": 1}
+    )
+
+    if not oportunidad:
+        raise HTTPException(status_code=404, detail="Oportunidad no encontrada")
+
+    analisis = oportunidad.get("analisis_comercial")
+
+    if not analisis:
+        raise HTTPException(
+            status_code=400,
+            detail="Esta oportunidad no tiene análisis comercial. Ejecute primero POST /analisis-comercial"
+        )
+
+    return {
+        "oportunidad_id": oportunidad_id,
+        "fecha_analisis": oportunidad.get("analisis_comercial_fecha"),
+        "analisis_comercial": analisis
+    }
+
+
+@api_router.post("/oportunidades/{oportunidad_id}/enriquecer-adjudicatario")
+async def enriquecer_adjudicatario_endpoint(
+    oportunidad_id: str,
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """
+    Enriquece los datos del adjudicatario desde fuentes externas.
+
+    Busca información adicional como:
+    - Dirección completa
+    - Teléfono de contacto
+    - Email de contacto
+    - Sitio web
+    - Actividad/CNAE
+    - Número de empleados
+
+    Fuentes: Infocif.es, Einforma.com, PLACSP
+    """
+    try:
+        from app.spotter.adjudicatario_enricher import enriquecer_adjudicatario
+
+        # Obtener la oportunidad
+        oportunidad = await db.oportunidades_placsp.find_one(
+            {"oportunidad_id": oportunidad_id},
+            {"_id": 0, "adjudicatario": 1, "nif": 1, "url_licitacion": 1, "datos_adjudicatario": 1}
+        )
+
+        if not oportunidad:
+            raise HTTPException(status_code=404, detail="Oportunidad no encontrada")
+
+        nombre = oportunidad.get("adjudicatario", "")
+        nif = oportunidad.get("nif", "")
+        url_licitacion = oportunidad.get("url_licitacion")
+
+        if not nif:
+            raise HTTPException(status_code=400, detail="La oportunidad no tiene NIF del adjudicatario")
+
+        # Enriquecer datos
+        datos = await enriquecer_adjudicatario(
+            nombre=nombre,
+            nif=nif,
+            url_licitacion=url_licitacion
+        )
+
+        # Guardar en la base de datos
+        await db.oportunidades_placsp.update_one(
+            {"oportunidad_id": oportunidad_id},
+            {"$set": {"datos_adjudicatario": datos}}
+        )
+
+        return {
+            "success": True,
+            "oportunidad_id": oportunidad_id,
+            "datos_adjudicatario": datos
+        }
+
+    except ImportError as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error importando módulo adjudicatario_enricher: {str(e)}"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error enriqueciendo adjudicatario: {str(e)}"
+        )
 
 
 class EstadoRevisionUpdate(BaseModel):

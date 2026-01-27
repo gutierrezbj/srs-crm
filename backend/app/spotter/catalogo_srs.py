@@ -8,17 +8,9 @@ organizados por categoría. Se usa para:
 3. Generar prompts para análisis con IA
 4. Evaluar zonas de cobertura geográfica
 
-Versión: 2.1.0
+Versión: 2.0.0
 Fecha: 2026-01-19
-Total servicios: 211 (incluye 25 nuevos de drones/cartografía)
-
-CATEGORÍAS:
-- Servicios gestionados IT (31)
-- Infraestructura (50)
-- Comunicaciones (24)
-- Software (52)
-- Drones, Cartografía y Seguimiento de Obra (25) ← LÍNEA ESTRATÉGICA
-- Seguridad (41)
+Total servicios: 186
 """
 
 from typing import Dict, List, Optional
@@ -306,45 +298,10 @@ CATALOGO_SRS = [
     {"tipo": "software", "subtipo": "contenedores", "nombre": "Contenedores - Docker", "descripcion": "Containerización aplicaciones, imágenes, registries, Docker Compose", "urgencia": "media", "es_core_srs": False, "keywords": ["Docker", "contenedores", "imágenes", "registry", "containerización"]},
     {"tipo": "software", "subtipo": "contenedores", "nombre": "Orquestación - Kubernetes", "descripcion": "Gestión clusters K8s, deployments, scaling, helm charts, AKS, EKS, GKE", "urgencia": "media", "es_core_srs": False, "keywords": ["Kubernetes", "K8s", "AKS", "EKS", "GKE", "orquestación", "helm"]},
     {"tipo": "software", "subtipo": "devops", "nombre": "CI/CD - Pipelines", "descripcion": "Integración y despliegue continuo (Azure DevOps, GitHub Actions, GitLab CI, Jenkins)", "urgencia": "media", "es_core_srs": False, "keywords": ["CI/CD", "DevOps", "Azure DevOps", "GitHub Actions", "GitLab", "Jenkins"]},
-    {"tipo": "software", "subtipo": "drones", "nombre": "Software fotogrametría (Pix4D)", "descripcion": "Procesamiento imágenes drones, generación ortofotos, modelos 3D", "urgencia": "critica", "es_core_srs": True, "keywords": ["Pix4D", "fotogrametría", "ortofotos", "3D", "drones"]},
-    {"tipo": "software", "subtipo": "drones", "nombre": "Software fotogrametría (Agisoft Metashape)", "descripcion": "Procesamiento fotogramétrico, nubes de puntos, texturas", "urgencia": "alta", "es_core_srs": True, "keywords": ["Agisoft", "Metashape", "fotogrametría", "nubes de puntos"]},
-    {"tipo": "software", "subtipo": "drones", "nombre": "Software fotogrametría (DroneDeploy)", "descripcion": "Plataforma cloud para procesamiento y análisis datos drones", "urgencia": "alta", "es_core_srs": True, "keywords": ["DroneDeploy", "cloud", "drones", "análisis"]},
-    {"tipo": "software", "subtipo": "drones", "nombre": "APIs integración datos drones", "descripcion": "Desarrollo APIs REST para consumo datos cartográficos, ortofotos, modelos", "urgencia": "alta", "es_core_srs": True, "keywords": ["API", "drones", "integración", "cartográfico", "REST"]},
-
-    # ═══════════════════════════════════════════════════════════════════════════
-    # DRONES, CARTOGRAFÍA Y SEGUIMIENTO DE OBRA (25) - LÍNEA ESTRATÉGICA
-    # ═══════════════════════════════════════════════════════════════════════════
-    # --- Servicios de vuelo ---
-    {"tipo": "drones_cartografia", "subtipo": "vuelos", "nombre": "Vuelos fotogramétricos RGB", "descripcion": "Captura aérea con drones para generación de ortofoto y modelo 3D, planificación de vuelo, GSD configurable", "urgencia": "critica", "es_core_srs": True, "keywords": ["fotogrametría", "vuelo", "drones", "RPAS", "UAV", "ortofoto", "RGB", "captura aérea", "GSD"]},
-    {"tipo": "drones_cartografia", "subtipo": "vuelos", "nombre": "Vuelos LiDAR aéreo", "descripcion": "Captura de nube de puntos de alta densidad con sensor LiDAR, penetración vegetación, precisión centimétrica", "urgencia": "critica", "es_core_srs": True, "keywords": ["LiDAR", "nube de puntos", "láser", "drones", "RPAS", "UAV", "escáner", "alta densidad", "topografía aérea"]},
-    {"tipo": "drones_cartografia", "subtipo": "vuelos", "nombre": "Termografía aérea", "descripcion": "Inspección térmica con cámara infrarroja: paneles solares, líneas eléctricas, cubiertas industriales, detección de anomalías", "urgencia": "alta", "es_core_srs": True, "keywords": ["termografía", "infrarrojo", "térmico", "hotspot", "paneles solares", "fotovoltaica", "líneas eléctricas", "anomalías térmicas"]},
-    {"tipo": "drones_cartografia", "subtipo": "vuelos", "nombre": "Inspección visual aérea de infraestructuras", "descripcion": "Inspección detallada de torres, puentes, fachadas, aerogeneradores, estructuras de difícil acceso", "urgencia": "alta", "es_core_srs": True, "keywords": ["inspección", "visual", "torres", "puentes", "fachadas", "aerogeneradores", "palas", "estructuras", "infraestructuras"]},
-    {"tipo": "drones_cartografia", "subtipo": "vuelos", "nombre": "Vuelos multiespectrales (agricultura)", "descripcion": "Captura con sensores multiespectrales para índices vegetativos NDVI, NDRE, análisis de cultivos", "urgencia": "media", "es_core_srs": False, "keywords": ["multiespectral", "NDVI", "NDRE", "agricultura", "cultivos", "vegetación", "índices"]},
-
-    # --- Procesamiento y productos cartográficos ---
-    {"tipo": "drones_cartografia", "subtipo": "procesamiento", "nombre": "Ortofotos georreferenciadas", "descripcion": "Generación de ortofotografías de alta resolución con georreferenciación precisa, mosaicos, exportación GeoTIFF", "urgencia": "critica", "es_core_srs": True, "keywords": ["ortofoto", "georreferenciación", "mosaico", "GeoTIFF", "cartografía", "alta resolución", "ortomosaico"]},
-    {"tipo": "drones_cartografia", "subtipo": "procesamiento", "nombre": "Modelos digitales MDS/MDT", "descripcion": "Generación de Modelo Digital de Superficie y Modelo Digital de Terreno, curvas de nivel, perfiles", "urgencia": "critica", "es_core_srs": True, "keywords": ["MDS", "MDT", "MDE", "modelo digital", "elevación", "superficie", "terreno", "curvas de nivel", "DEM", "DSM", "DTM"]},
-    {"tipo": "drones_cartografia", "subtipo": "procesamiento", "nombre": "Nubes de puntos clasificadas", "descripcion": "Procesamiento y clasificación automática de nubes de puntos: suelo, vegetación, edificaciones, infraestructuras", "urgencia": "alta", "es_core_srs": True, "keywords": ["nube de puntos", "clasificación", "LAS", "LAZ", "suelo", "vegetación", "edificaciones", "point cloud"]},
-    {"tipo": "drones_cartografia", "subtipo": "procesamiento", "nombre": "Modelos 3D texturizados", "descripcion": "Generación de modelos tridimensionales con textura fotorrealista, mallado, exportación múltiples formatos", "urgencia": "alta", "es_core_srs": True, "keywords": ["modelo 3D", "mesh", "textura", "fotorrealista", "mallado", "OBJ", "FBX", "tridimensional"]},
-    {"tipo": "drones_cartografia", "subtipo": "procesamiento", "nombre": "Gemelos digitales", "descripcion": "Creación de réplicas digitales de instalaciones y obras para visualización, análisis y simulación", "urgencia": "alta", "es_core_srs": True, "keywords": ["gemelo digital", "digital twin", "réplica", "BIM", "visualización", "simulación", "instalaciones"]},
-    {"tipo": "drones_cartografia", "subtipo": "procesamiento", "nombre": "Cálculo de volumetrías", "descripcion": "Medición precisa de volúmenes: excavaciones, acopios, stockpiles, movimiento de tierras, comparativas temporales", "urgencia": "critica", "es_core_srs": True, "keywords": ["volumetría", "volumen", "excavación", "acopio", "stockpile", "movimiento de tierras", "cubicación", "medición"]},
-
-    # --- Seguimiento de obra ---
-    {"tipo": "drones_cartografia", "subtipo": "seguimiento_obra", "nombre": "Seguimiento periódico de obra", "descripcion": "Reportes de avance semanal/quincenal con vuelos programados, documentación fotográfica y videográfica georeferenciada", "urgencia": "critica", "es_core_srs": True, "keywords": ["seguimiento de obra", "avance de obra", "control de avance", "reportes", "periódico", "semanal", "quincenal", "construcción"]},
-    {"tipo": "drones_cartografia", "subtipo": "seguimiento_obra", "nombre": "Comparativa con proyecto/BIM", "descripcion": "Análisis de desviaciones entre ejecución real y proyecto original, integración con modelos BIM, detección de discrepancias", "urgencia": "alta", "es_core_srs": True, "keywords": ["BIM", "comparativa", "desviaciones", "as-built", "proyecto", "IFC", "Revit", "discrepancias"]},
-    {"tipo": "drones_cartografia", "subtipo": "seguimiento_obra", "nombre": "Mediciones para certificaciones", "descripcion": "Cálculo de volúmenes y superficies para certificaciones de obra, documentación técnica para pagos", "urgencia": "alta", "es_core_srs": True, "keywords": ["certificación", "mediciones", "certificación de obra", "pagos", "volúmenes", "superficies"]},
-    {"tipo": "drones_cartografia", "subtipo": "seguimiento_obra", "nombre": "Histórico temporal de obra", "descripcion": "Archivo cronológico de vuelos y datos para análisis de evolución, time-lapse, documentación legal", "urgencia": "media", "es_core_srs": True, "keywords": ["histórico", "temporal", "evolución", "time-lapse", "archivo", "cronológico"]},
-
-    # --- Aplicaciones sectoriales ---
-    {"tipo": "drones_cartografia", "subtipo": "energia_solar", "nombre": "O&M plantas fotovoltaicas", "descripcion": "Operación y mantenimiento con drones: termografía de paneles, detección hotspots, informes de estado, limpieza", "urgencia": "critica", "es_core_srs": True, "keywords": ["fotovoltaica", "solar", "O&M", "paneles", "hotspot", "termografía", "planta solar", "mantenimiento", "PV"]},
-    {"tipo": "drones_cartografia", "subtipo": "energia_solar", "nombre": "Limpieza de paneles solares con drones", "descripcion": "Servicio de limpieza automatizada de instalaciones fotovoltaicas mediante drones especializados", "urgencia": "alta", "es_core_srs": True, "keywords": ["limpieza", "paneles", "fotovoltaica", "solar", "drones", "mantenimiento"]},
-    {"tipo": "drones_cartografia", "subtipo": "energia_eolica", "nombre": "Inspección de aerogeneradores", "descripcion": "Inspección visual detallada de palas, góndola y torre de aerogeneradores, detección de daños y erosión", "urgencia": "alta", "es_core_srs": True, "keywords": ["aerogenerador", "eólico", "palas", "góndola", "torre", "inspección", "molinos", "parque eólico"]},
-    {"tipo": "drones_cartografia", "subtipo": "energia_eolica", "nombre": "Limpieza de aerogeneradores", "descripcion": "Servicio de limpieza de palas de aerogeneradores con drones especializados, mejora de rendimiento", "urgencia": "media", "es_core_srs": True, "keywords": ["limpieza", "aerogenerador", "palas", "eólico", "drones"]},
-    {"tipo": "drones_cartografia", "subtipo": "mineria", "nombre": "Topografía y volumetría minera", "descripcion": "Levantamientos topográficos de canteras y explotaciones, cálculo de reservas, planificación de extracción", "urgencia": "alta", "es_core_srs": True, "keywords": ["minería", "cantera", "topografía", "volumetría", "reservas", "extracción", "explotación"]},
-    {"tipo": "drones_cartografia", "subtipo": "obra_civil", "nombre": "Control de obra civil", "descripcion": "Seguimiento de carreteras, túneles, urbanizaciones, infraestructuras lineales, replanteos", "urgencia": "alta", "es_core_srs": True, "keywords": ["obra civil", "carreteras", "túneles", "urbanización", "infraestructuras", "lineal", "replanteo"]},
-    {"tipo": "drones_cartografia", "subtipo": "agricultura", "nombre": "Agricultura de precisión (partner)", "descripcion": "Aplicación de fitosanitarios con drones, mapas de prescripción, análisis de cultivos (servicio vía partner)", "urgencia": "media", "es_core_srs": False, "keywords": ["agricultura", "fitosanitarios", "precisión", "cultivos", "fumigación", "agro", "prescripción"]},
-    {"tipo": "drones_cartografia", "subtipo": "infraestructuras", "nombre": "Inspección líneas eléctricas", "descripcion": "Revisión de líneas de alta/media tensión, torres, aisladores, detección de anomalías, termografía", "urgencia": "alta", "es_core_srs": True, "keywords": ["líneas eléctricas", "alta tensión", "torres", "aisladores", "red eléctrica", "tendido"]},
-    {"tipo": "drones_cartografia", "subtipo": "infraestructuras", "nombre": "Inspección de subestaciones", "descripcion": "Revisión termográfica y visual de subestaciones eléctricas, transformadores, conexiones", "urgencia": "alta", "es_core_srs": True, "keywords": ["subestación", "transformador", "eléctrica", "termografía", "conexiones"]},
+    {"tipo": "software", "subtipo": "drones", "nombre": "Software fotogrametría (Pix4D)", "descripcion": "Procesamiento imágenes drones, generación ortofotos, modelos 3D", "urgencia": "critica", "es_core_srs": False, "keywords": ["Pix4D", "fotogrametría", "ortofotos", "3D", "drones"]},
+    {"tipo": "software", "subtipo": "drones", "nombre": "Software fotogrametría (Agisoft Metashape)", "descripcion": "Procesamiento fotogramétrico, nubes de puntos, texturas", "urgencia": "alta", "es_core_srs": False, "keywords": ["Agisoft", "Metashape", "fotogrametría", "nubes de puntos"]},
+    {"tipo": "software", "subtipo": "drones", "nombre": "Software fotogrametría (DroneDeploy)", "descripcion": "Plataforma cloud para procesamiento y análisis datos drones", "urgencia": "alta", "es_core_srs": False, "keywords": ["DroneDeploy", "cloud", "drones", "análisis"]},
+    {"tipo": "software", "subtipo": "drones", "nombre": "APIs integración datos drones", "descripcion": "Desarrollo APIs REST para consumo datos cartográficos, ortofotos, modelos", "urgencia": "alta", "es_core_srs": False, "keywords": ["API", "drones", "integración", "cartográfico", "REST"]},
 
     # ═══════════════════════════════════════════════════════════════════════════
     # SEGURIDAD (41)
@@ -410,7 +367,7 @@ def generar_lista_servicios_para_prompt() -> str:
         servicios_por_tipo[tipo].append(item)
 
     resultado = []
-    for tipo in ["drones_cartografia", "servicios", "infraestructura", "comunicaciones", "software", "seguridad"]:
+    for tipo in ["servicios", "infraestructura", "comunicaciones", "software", "seguridad"]:
         if tipo in servicios_por_tipo:
             resultado.append(f"\n{tipo.upper()}:")
             for s in servicios_por_tipo[tipo]:
@@ -506,43 +463,7 @@ def get_estadisticas_catalogo() -> Dict:
 SERVICIOS_RESUMEN_PROMPT = """
 CATÁLOGO DE SERVICIOS SRS (detecta estos en el pliego):
 
-★★★ DRONES, CARTOGRAFÍA Y SEGUIMIENTO DE OBRA [LÍNEA ESTRATÉGICA] ★★★
-Servicios de vuelo:
-- Vuelos fotogramétricos RGB (ortofoto, modelo 3D, RPAS, UAV) [CORE]
-- Vuelos LiDAR aéreo (nube de puntos, topografía aérea, precisión centimétrica) [CORE]
-- Termografía aérea (paneles solares, líneas eléctricas, hotspots) [CORE]
-- Inspección visual de infraestructuras (torres, puentes, aerogeneradores, fachadas) [CORE]
-
-Procesamiento cartográfico:
-- Ortofotos georreferenciadas (alta resolución, GeoTIFF, mosaico) [CORE]
-- Modelos digitales MDS/MDT/MDE (elevación, curvas de nivel, DEM, DSM) [CORE]
-- Nubes de puntos clasificadas (LAS, LAZ, suelo, vegetación, edificaciones) [CORE]
-- Modelos 3D texturizados (mesh, fotorrealista) [CORE]
-- Gemelos digitales (digital twin, BIM, visualización) [CORE]
-- Cálculo de volumetrías (excavación, acopio, stockpile, movimiento tierras) [CORE]
-
-Seguimiento de obra:
-- Seguimiento periódico de obra (avance, reportes, control de avance) [CORE]
-- Comparativa con proyecto/BIM (desviaciones, as-built, IFC, Revit) [CORE]
-- Mediciones para certificaciones de obra [CORE]
-- Histórico temporal y time-lapse [CORE]
-
-Aplicaciones sectoriales:
-- O&M plantas fotovoltaicas (termografía paneles, hotspots, PV) [CORE]
-- Limpieza paneles solares con drones [CORE]
-- Inspección aerogeneradores/eólicos (palas, góndola, torre, parque eólico) [CORE]
-- Limpieza de aerogeneradores [CORE]
-- Topografía y volumetría minera (canteras, reservas) [CORE]
-- Control de obra civil (carreteras, túneles, urbanización) [CORE]
-- Inspección líneas eléctricas y subestaciones [CORE]
-- Agricultura de precisión (partner: fitosanitarios, NDVI)
-
-KEYWORDS CLAVE para detección: fotogrametría, LiDAR, ortofoto, topografía aérea, drones,
-RPAS, UAV, seguimiento de obra, control de avance, gemelo digital, termografía, inspección
-aérea, volumetría, cartografía, modelo 3D, nube de puntos, BIM, as-built, O&M fotovoltaica,
-inspección aerogeneradores, eólico, solar, planta fotovoltaica, EPC, constructora, obra civil
-
-SERVICIOS GESTIONADOS IT:
+SERVICIOS GESTIONADOS:
 - Soporte técnico N1/N2/N3 (helpdesk, incidencias, troubleshooting) [CORE]
 - Helpdesk 24x7 (multicanal, cobertura completa) [CORE]
 - Service Desk dedicado (SPOC, ITSM) [CORE]
@@ -593,10 +514,10 @@ SOFTWARE:
 - Backup (Veeam, Acronis, cloud M365/Google) [CORE]
 - Monitorización (Zabbix, PRTG, Nagios) [CORE]
 - RMM gestión remota endpoints [CORE]
-- Fotogrametría (Pix4D, Agisoft Metashape, DroneDeploy) [CORE]
 - ITSM (ServiceNow, Jira, Freshservice)
 - Automatización (Ansible, Terraform, Power Automate)
 - Contenedores (Docker, Kubernetes)
+- CI/CD, DevOps
 
 SEGURIDAD:
 - Firewall NGFW, IDS/IPS, WAF [CORE]
@@ -622,12 +543,4 @@ ZONAS DE COBERTURA SRS (evalúa ubicación):
   Toledo, Ciudad Real, Guadalajara, Cuenca, Albacete, Badajoz, Cáceres, Ávila, Segovia, Murcia
 - ZONA EXPANSIÓN (respuesta 48-72h, coste estándar):
   Resto de España (Cataluña, Valencia, País Vasco, Galicia, etc.)
-
-SECTORES TARGET para drones/cartografía:
-- Constructoras y EPC (obra civil, edificación)
-- Plantas fotovoltaicas (construcción y O&M)
-- Parques eólicos (inspección y mantenimiento)
-- Minería y canteras
-- Infraestructuras energéticas (líneas, subestaciones)
-- Administraciones públicas (topografía, urbanismo)
 """

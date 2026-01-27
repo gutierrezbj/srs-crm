@@ -27,11 +27,26 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Detectar proveedores IA
+ANTHROPIC_AVAILABLE = False
+try:
+    import anthropic
+    ANTHROPIC_AVAILABLE = True
+except ImportError:
+    logger.warning("anthropic no disponible")
+
 OPENAI_AVAILABLE = False
 try:
     from openai import OpenAI
     OPENAI_AVAILABLE = True
 except ImportError:
+    pass
+
+GEMINI_AVAILABLE = False
+try:
+    import google.generativeai as genai
+    GEMINI_AVAILABLE = True
+except ImportError:
+    logger.warning("google-generativeai no disponible")
     pass
 
 
@@ -47,13 +62,71 @@ class ITComponente:
 
 
 @dataclass
+class ImpactoNegocio:
+    """Impacto cuantificable del dolor en el negocio"""
+    descripcion: str  # Descripción del impacto
+    cuantificacion: str  # Estimación numérica del impacto
+    area_afectada: str  # Área de negocio afectada
+
+
+@dataclass
+class UrgenciaTemporal:
+    """Urgencia temporal del dolor"""
+    nivel: str  # critico, alto, medio, bajo
+    fecha_limite: Optional[str]  # Fecha límite si existe
+    dias_restantes: Optional[int]  # Días hasta la fecha límite
+    consecuencias_retraso: str  # Qué pasa si no se resuelve a tiempo
+
+
+@dataclass
+class SolucionSRS:
+    """Mapeo de la solución SRS para este dolor"""
+    servicio_principal: str  # Servicio principal del catálogo SRS
+    servicios_complementarios: List[str]  # Servicios adicionales relacionados
+    tiempo_implementacion: str  # Tiempo estimado de implementación
+    equipo_necesario: str  # Recursos humanos necesarios
+
+
+@dataclass
+class ArgumentoVenta:
+    """Argumentos de venta para este dolor"""
+    gancho: str  # Frase inicial para captar atención
+    diferenciador: str  # Qué nos diferencia de la competencia
+    prueba_social: str  # Caso de éxito similar
+
+
+@dataclass
+class ObjecionPrevisible:
+    """Objeción previsible y respuesta preparada"""
+    objecion: str  # La objeción esperada
+    respuesta: str  # Respuesta preparada
+
+
+@dataclass
 class DolorDetectado:
-    """Dolor/necesidad específica del cliente"""
-    categoria: str  # operativo, tecnico, cumplimiento, recursos, economico
-    descripcion: str
-    impacto: str  # como afecta al cliente
-    extracto_pliego: str
-    argumento_venta: str  # Como SRS puede resolver esto
+    """Dolor/necesidad específica del cliente - Estructura enriquecida"""
+    # Clasificación
+    categoria: str  # temporal, tecnico, cumplimiento, recursos, economico, operativo, estrategico
+    subcategoria: str  # Subcategoría específica
+    severidad: str  # critico, alto, medio, bajo
+
+    # Descripción
+    descripcion: str  # Descripción del dolor
+    extracto_pliego: str  # Fragmento literal del pliego
+
+    # Impacto
+    impacto_negocio: ImpactoNegocio
+    urgencia_temporal: UrgenciaTemporal
+
+    # Solución
+    solucion_srs: SolucionSRS
+
+    # Venta
+    argumento_venta: ArgumentoVenta
+    objeciones_previsibles: List[ObjecionPrevisible]
+
+    # Confianza
+    confianza_deteccion: int  # 0-100
 
 
 @dataclass
@@ -171,12 +244,28 @@ class PliegoAnalyzer:
     }
 
     def __init__(self):
+        self.anthropic_client = None
         self.openai_client = None
+        self.gemini_model = None
+
+        # Configurar Gemini (PRIORIDAD - gemini-2.0-flash)
+        if GEMINI_AVAILABLE and os.getenv("GOOGLE_API_KEY"):
+            genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+            self.gemini_model = genai.GenerativeModel("gemini-2.0-flash")
+            logger.info("PliegoAnalyzer: Gemini 2.0 Flash configurado (PRINCIPAL)")
+
+        # Configurar OpenAI como primer fallback
         if OPENAI_AVAILABLE and os.getenv("OPENAI_API_KEY"):
             self.openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-            logger.info("PliegoAnalyzer: OpenAI configurado")
-        else:
-            logger.warning("PliegoAnalyzer: OpenAI NO disponible - análisis limitado")
+            logger.info("PliegoAnalyzer: OpenAI configurado como fallback #1")
+
+        # Configurar Anthropic Claude como último fallback (deshabilitado por defecto)
+        if ANTHROPIC_AVAILABLE and os.getenv("ANTHROPIC_API_KEY"):
+            self.anthropic_client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+            logger.info("PliegoAnalyzer: Anthropic Claude configurado como fallback #2 (último)")
+
+        if not self.gemini_model and not self.openai_client and not self.anthropic_client:
+            logger.warning("PliegoAnalyzer: Ningún proveedor IA disponible - solo análisis básico")
 
     async def descargar_documento(self, url: str) -> Tuple[Optional[bytes], str]:
         """Descarga documento de PLACSP o URL directa"""
@@ -204,6 +293,110 @@ class PliegoAnalyzer:
         except Exception as e:
             logger.error(f"Error descargando {url}: {e}")
             return None, "error"
+
+    async def extraer_url_pliego_tecnico(self, url_licitacion: str) -> Optional[str]:
+        """
+        Extrae la URL del pliego técnico desde la página de detalle de PLACSP.
+        Busca en la sección de documentos el enlace al pliego de prescripciones técnicas.
+
+        Prioridad:
+        1. Pliego de Prescripciones Técnicas (PPT)
+        2. Pliego Técnico
+        3. Cualquier documento técnico con GetDocumentsById
+        """
+        try:
+            async with httpx.AsyncClient(
+                timeout=60.0,
+                follow_redirects=True,
+                headers={"User-Agent": self.USER_AGENT}
+            ) as client:
+                response = await client.get(url_licitacion)
+                response.raise_for_status()
+
+                soup = BeautifulSoup(response.content, "html.parser")
+                html_text = response.text.lower()
+
+                # Patrones por orden de prioridad (más específico primero)
+                patrones_pliego_tecnico = [
+                    "pliego prescripciones técnicas",
+                    "pliego de prescripciones técnicas",
+                    "prescripciones técnicas",
+                    "prescripciones tecnicas",  # sin tilde
+                    "pliego técnico",
+                    "pliego tecnico",  # sin tilde
+                    "ppt",
+                    "condiciones técnicas",
+                    "especificaciones técnicas",
+                    "anexo técnico",
+                    "anexo tecnico",
+                ]
+
+                encontrados = []  # Lista de (prioridad, url)
+
+                # Buscar en todos los enlaces
+                for link in soup.find_all('a', href=True):
+                    texto_link = link.get_text(strip=True).lower()
+                    href = link.get('href', '')
+
+                    # Solo considerar enlaces a documentos
+                    if not ('GetDocumentsById' in href or '.pdf' in href.lower()):
+                        continue
+
+                    # Construir URL completa si es relativa
+                    if href.startswith('/'):
+                        href = f"https://contrataciondelestado.es{href}"
+                    elif not href.startswith('http'):
+                        continue
+
+                    # Verificar prioridad por patrón
+                    for idx, patron in enumerate(patrones_pliego_tecnico):
+                        if patron in texto_link:
+                            encontrados.append((idx, href, texto_link))
+                            logger.info(f"Candidato pliego técnico (prioridad {idx}): {texto_link[:50]}... -> {href[:80]}...")
+                            break
+
+                # Segunda pasada: buscar por estructura de tabla de documentos
+                for row in soup.find_all('tr'):
+                    cells = row.find_all(['td', 'th'])
+                    row_text = ' '.join([c.get_text(strip=True).lower() for c in cells])
+
+                    for idx, patron in enumerate(patrones_pliego_tecnico):
+                        if patron in row_text:
+                            # Buscar enlace en esta fila
+                            for link in row.find_all('a', href=True):
+                                href = link.get('href', '')
+                                if 'GetDocumentsById' in href or '.pdf' in href.lower():
+                                    if href.startswith('/'):
+                                        href = f"https://contrataciondelestado.es{href}"
+                                    encontrados.append((idx, href, row_text[:50]))
+                                    logger.info(f"Candidato en tabla (prioridad {idx}): {row_text[:50]}...")
+                            break
+
+                # Seleccionar el de mayor prioridad (menor índice)
+                if encontrados:
+                    encontrados.sort(key=lambda x: x[0])
+                    mejor = encontrados[0]
+                    logger.info(f"Seleccionado pliego técnico: {mejor[2][:50]}... -> {mejor[1][:80]}...")
+                    return mejor[1]
+
+                # Fallback: buscar cualquier GetDocumentsById que parezca un documento principal
+                for link in soup.find_all('a', href=True):
+                    href = link.get('href', '')
+                    if 'GetDocumentsById' in href:
+                        texto = link.get_text(strip=True).lower()
+                        # Evitar documentos claramente administrativos
+                        if not any(x in texto for x in ['administrativ', 'carátula', 'anuncio', 'resolución']):
+                            if href.startswith('/'):
+                                href = f"https://contrataciondelestado.es{href}"
+                            logger.info(f"Fallback - documento encontrado: {texto[:50]}... -> {href[:80]}...")
+                            return href
+
+                logger.warning(f"No se encontró pliego técnico en {url_licitacion}")
+                return None
+
+        except Exception as e:
+            logger.error(f"Error extrayendo URL pliego técnico: {e}")
+            return None
 
     def extraer_texto_pdf(self, pdf_bytes: bytes) -> Tuple[str, int]:
         """Extrae texto de PDF usando pdfplumber"""
@@ -278,10 +471,14 @@ class PliegoAnalyzer:
 
     def _generar_prompt_analisis(self, texto: str, objeto: str, importe: float) -> str:
         """Genera prompt para análisis exhaustivo con IA"""
+        from app.spotter.catalogo_srs import SERVICIOS_RESUMEN_PROMPT
+
         # Limitar texto a ~50k caracteres para no exceder contexto
         texto_truncado = texto[:50000] if len(texto) > 50000 else texto
 
-        return f"""Eres un analista experto en licitaciones públicas de IT/Infraestructura para una empresa de servicios tecnológicos (SRS).
+        return f"""Eres un analista experto en licitaciones públicas de IT/Infraestructura para SRS (System Rapid Solutions), empresa especializada en servicios de soporte IT, cableado estructurado e infraestructura.
+
+{SERVICIOS_RESUMEN_PROMPT}
 
 CONTEXTO DE LA LICITACIÓN:
 - Objeto: {objeto}
@@ -292,7 +489,7 @@ TEXTO DEL PLIEGO (extracto):
 {texto_truncado}
 ---
 
-ANALIZA EL PLIEGO Y RESPONDE EN JSON con esta estructura EXACTA:
+ANALIZA EL PLIEGO buscando ESPECÍFICAMENTE servicios del catálogo SRS y responde en JSON con esta estructura EXACTA:
 
 {{
   "tiene_it": true/false,  // ¿Tiene componentes IT/Infraestructura?
@@ -303,21 +500,50 @@ ANALIZA EL PLIEGO Y RESPONDE EN JSON con esta estructura EXACTA:
 
   "dolores": [
     {{
-      "categoria": "operativo|tecnico|cumplimiento|recursos|economico",
-      "descripcion": "Descripción del dolor",
-      "impacto": "Cómo afecta al cliente",
-      "extracto_pliego": "Fragmento literal del pliego que evidencia esto",
-      "argumento_venta": "Cómo SRS puede resolver esto"
+      "categoria": "temporal|tecnico|cumplimiento|recursos|economico|operativo|estrategico",
+      "subcategoria": "Subcategoría específica (ej: plazos_ajustados, obsolescencia_tecnologica, normativa_ens)",
+      "severidad": "critico|alto|medio|bajo",
+      "descripcion": "Descripción clara del dolor detectado",
+      "extracto_pliego": "Fragmento LITERAL del pliego que evidencia este dolor",
+      "impacto_negocio": {{
+        "descripcion": "Cómo afecta al negocio del cliente",
+        "cuantificacion": "Estimación numérica del impacto (ej: '500K€/año en multas potenciales')",
+        "area_afectada": "Área de negocio afectada (ej: 'operaciones', 'finanzas', 'reputación')"
+      }},
+      "urgencia_temporal": {{
+        "nivel": "critico|alto|medio|bajo",
+        "fecha_limite": "YYYY-MM-DD si existe deadline específico, null si no",
+        "dias_restantes": "Número de días hasta el deadline, null si no aplica",
+        "consecuencias_retraso": "Qué ocurre si no se resuelve a tiempo"
+      }},
+      "solucion_srs": {{
+        "servicio_principal": "Nombre EXACTO del servicio del catálogo SRS",
+        "servicios_complementarios": ["Otros servicios SRS relacionados"],
+        "tiempo_implementacion": "Estimación de tiempo (ej: '2-4 semanas')",
+        "equipo_necesario": "Recursos humanos (ej: '2 técnicos N2 + 1 PM')"
+      }},
+      "argumento_venta": {{
+        "gancho": "Frase impactante para captar atención",
+        "diferenciador": "Qué nos diferencia de la competencia en este dolor",
+        "prueba_social": "Caso de éxito similar (ej: 'Implementamos esto en Ayuntamiento X en 3 semanas')"
+      }},
+      "objeciones_previsibles": [
+        {{
+          "objecion": "Objeción esperada del cliente",
+          "respuesta": "Respuesta preparada"
+        }}
+      ],
+      "confianza_deteccion": 0-100
     }}
   ],
 
   "componentes_it": [
     {{
-      "tipo": "infraestructura|software|servicios|comunicaciones|seguridad",
-      "nombre": "Nombre del componente",
-      "descripcion": "Descripción breve",
+      "tipo": "servicios|infraestructura|comunicaciones|software|seguridad",
+      "nombre": "Nombre EXACTO del servicio del catálogo SRS (ej: 'Soporte técnico Nivel 1', 'Cableado estructurado cobre')",
+      "descripcion": "Descripción específica de lo que pide el pliego",
       "urgencia": "critica|alta|media|baja",
-      "extracto_pliego": "Fragmento que menciona esto"
+      "extracto_pliego": "Fragmento LITERAL del pliego que evidencia esta necesidad"
     }}
   ],
 
@@ -340,7 +566,15 @@ ANALIZA EL PLIEGO Y RESPONDE EN JSON con esta estructura EXACTA:
 
   "competidores_potenciales": ["Si se mencionan empresas incumbentes"],
 
-  "nivel_oportunidad": "oro|plata|bronce|descartar",  // Basado en fit con SRS
+  "ubicacion": {{
+    "provincia": "Provincia detectada o null",
+    "localidad": "Ciudad/localidad si se menciona",
+    "zona_srs": "base|cercana|expansion",
+    "multisede": true/false,
+    "sedes_detectadas": ["Lista de sedes si hay varias"]
+  }},
+
+  "nivel_oportunidad": "oro|plata|bronce|descartar",  // Basado en fit con SRS + ubicación
 
   "confianza_analisis": "alta|media|baja",
 
@@ -356,51 +590,150 @@ CRITERIOS PARA pain_score:
 - +15: Urgencia explícita / Plazos cortos
 - +10: Multisede / Complejidad técnica
 - +10: Penalizaciones por incumplimiento
+- +20: Ubicación en zona BASE SRS (Madrid, Andalucía)
+- +10: Ubicación en zona CERCANA SRS (Castilla, Extremadura, Murcia)
 
 CRITERIOS PARA nivel_oportunidad:
-- ORO: IT es el núcleo del contrato, alto importe, alta urgencia
+- ORO: IT es el núcleo del contrato, alto importe, alta urgencia, zona BASE
 - PLATA: IT relevante, buen importe, oportunidad clara
 - BRONCE: IT secundario pero presente, vale la pena explorar
-- DESCARTAR: No hay IT o no encaja con SRS
+- DESCARTAR: No hay IT o no encaja con SRS o ubicación muy lejana sin justificación
 
 IMPORTANTE:
+- USA NOMBRES DEL CATÁLOGO SRS para los componentes_it (ej: "Soporte técnico Nivel 1", no "soporte técnico")
 - Busca IT OCULTO en contratos que parecen de otra cosa (obras, suministros, etc.)
+- Busca especialmente: cableado, puntos de red, fibra, racks, switches, CPD, servidores, backup, monitorización
 - Extrae fragmentos LITERALES del pliego como evidencia
 - El gancho_inicial debe ser ESPECÍFICO al dolor detectado, no genérico
 - Las preguntas de cualificación deben ayudar a entender si es oportunidad real
 - Busca emails y teléfonos de contacto en el pliego (del órgano contratante o responsable técnico)
 - El resumen_it debe ser conciso pero informativo para un comercial que va a llamar
+- Si detectas servicios de soporte/helpdesk, indica los niveles (N1, N2, N3) y horarios (24x7, 8x5)
+- Si detectas cableado, especifica tipo (cobre Cat6/Cat6A, fibra monomodo/multimodo)
+- DETECTA LA UBICACIÓN: busca provincia, localidad, dirección del lugar de ejecución
+- Evalúa si es multisede (varias ubicaciones) y lista las sedes detectadas
+- Clasifica la zona_srs según las provincias del catálogo
 
 RESPONDE SOLO JSON, sin explicaciones adicionales."""
 
-    async def _analizar_con_openai(self, texto: str, objeto: str, importe: float) -> Optional[Dict]:
-        """Análisis exhaustivo con OpenAI GPT-4"""
-        if not self.openai_client:
+    async def _analizar_con_anthropic(self, texto: str, objeto: str, importe: float) -> Optional[Dict]:
+        """Análisis con Anthropic Claude (fallback #2 - último recurso)"""
+        if not self.anthropic_client:
+            logger.warning("Anthropic client no disponible")
             return None
 
         try:
             prompt = self._generar_prompt_analisis(texto, objeto, importe)
+            logger.info("Enviando solicitud a Anthropic Claude...")
 
-            # Sin timeout estricto - dejar que complete
-            response = await asyncio.to_thread(
-                self.openai_client.chat.completions.create,
-                model="gpt-4o",  # Modelo más potente para análisis profundo
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=4000,
-                temperature=0.3,
+            # Timeout de 90 segundos para la llamada a Claude
+            response = await asyncio.wait_for(
+                asyncio.to_thread(
+                    self.anthropic_client.messages.create,
+                    model="claude-sonnet-4-20250514",
+                    max_tokens=4000,
+                    messages=[{"role": "user", "content": prompt}],
+                ),
+                timeout=90.0
             )
 
-            text = response.choices[0].message.content
+            text = response.content[0].text
+            logger.info(f"Respuesta recibida de Claude ({len(text)} caracteres)")
 
             # Extraer JSON
             json_match = re.search(r"\{[\s\S]*\}", text)
             if json_match:
                 return json.loads(json_match.group())
 
+            logger.warning("No se pudo extraer JSON de la respuesta de Claude")
             return None
 
+        except asyncio.TimeoutError:
+            logger.error("Timeout de 90s en análisis Claude")
+            return None
+        except Exception as e:
+            logger.error(f"Error en análisis Claude: {e}")
+            return None
+
+    async def _analizar_con_openai(self, texto: str, objeto: str, importe: float) -> Optional[Dict]:
+        """Análisis con OpenAI GPT-4o (fallback #1)"""
+        if not self.openai_client:
+            logger.warning("OpenAI client no disponible - saltando análisis IA")
+            return None
+
+        try:
+            prompt = self._generar_prompt_analisis(texto, objeto, importe)
+            logger.info("Enviando solicitud a OpenAI GPT-4o...")
+
+            # Timeout de 90 segundos para la llamada a OpenAI
+            response = await asyncio.wait_for(
+                asyncio.to_thread(
+                    self.openai_client.chat.completions.create,
+                    model="gpt-4o",  # Modelo más potente para análisis profundo
+                    messages=[{"role": "user", "content": prompt}],
+                    max_tokens=4000,
+                    temperature=0.3,
+                ),
+                timeout=90.0  # 90 segundos máximo
+            )
+
+            text = response.choices[0].message.content
+            logger.info(f"Respuesta recibida de OpenAI ({len(text)} caracteres)")
+
+            # Extraer JSON
+            json_match = re.search(r"\{[\s\S]*\}", text)
+            if json_match:
+                return json.loads(json_match.group())
+
+            logger.warning("No se pudo extraer JSON de la respuesta de OpenAI")
+            return None
+
+        except asyncio.TimeoutError:
+            logger.error("Timeout de 90s en análisis OpenAI - intentando Gemini")
+            return None
         except Exception as e:
             logger.error(f"Error en análisis OpenAI: {e}")
+            return None
+
+    async def _analizar_con_gemini(self, texto: str, objeto: str, importe: float) -> Optional[Dict]:
+        """Análisis con Gemini 2.0 Flash (PRINCIPAL - rápido y económico)"""
+        if not self.gemini_model:
+            logger.warning("Gemini no disponible")
+            return None
+
+        try:
+            prompt = self._generar_prompt_analisis(texto, objeto, importe)
+            logger.info("Enviando solicitud a Gemini...")
+
+            # Timeout de 90 segundos
+            response = await asyncio.wait_for(
+                asyncio.to_thread(
+                    self.gemini_model.generate_content,
+                    prompt,
+                    generation_config=genai.GenerationConfig(
+                        temperature=0.3,
+                        max_output_tokens=4000,
+                    )
+                ),
+                timeout=90.0
+            )
+
+            text = response.text
+            logger.info(f"Respuesta recibida de Gemini ({len(text)} caracteres)")
+
+            # Extraer JSON
+            json_match = re.search(r"\{[\s\S]*\}", text)
+            if json_match:
+                return json.loads(json_match.group())
+
+            logger.warning("No se pudo extraer JSON de la respuesta de Gemini")
+            return None
+
+        except asyncio.TimeoutError:
+            logger.error("Timeout de 90s en análisis Gemini")
+            return None
+        except Exception as e:
+            logger.error(f"Error en análisis Gemini: {e}")
             return None
 
     def _analisis_basico(self, texto: str, objeto: str, importe: float) -> Dict:
@@ -478,11 +811,23 @@ RESPONDE SOLO JSON, sin explicaciones adicionales."""
         inicio = datetime.now()
 
         logger.info(f"Iniciando análisis exhaustivo de pliego: {oportunidad_id}")
-        logger.info(f"URL: {url_pliego}")
+        logger.info(f"URL inicial: {url_pliego}")
+
+        # 0. Si la URL es la página de detalle de PLACSP (no un PDF directo),
+        #    intentar extraer la URL del pliego técnico real
+        url_final = url_pliego
+        if 'detalle_licitacion' in url_pliego or 'deeplink' in url_pliego:
+            logger.info("URL es página de detalle PLACSP, buscando pliego técnico...")
+            url_pliego_tecnico = await self.extraer_url_pliego_tecnico(url_pliego)
+            if url_pliego_tecnico:
+                logger.info(f"Pliego técnico encontrado: {url_pliego_tecnico}")
+                url_final = url_pliego_tecnico
+            else:
+                logger.warning("No se encontró pliego técnico, usando página de detalle")
 
         # 1. Descargar documento
-        logger.info("Descargando documento...")
-        contenido, tipo_doc = await self.descargar_documento(url_pliego)
+        logger.info(f"Descargando documento desde: {url_final}")
+        contenido, tipo_doc = await self.descargar_documento(url_final)
 
         if not contenido:
             return AnalisisPliego(
@@ -510,7 +855,7 @@ RESPONDE SOLO JSON, sin explicaciones adicionales."""
                     palabras_analizadas=0,
                     confianza_analisis="baja"
                 ),
-                url_pliego=url_pliego,
+                url_pliego=url_final,
                 tipo_documento="error",
                 fecha_analisis=datetime.now().isoformat(),
                 proveedor_ia="ninguno",
@@ -555,7 +900,7 @@ RESPONDE SOLO JSON, sin explicaciones adicionales."""
                     palabras_analizadas=0,
                     confianza_analisis="baja"
                 ),
-                url_pliego=url_pliego,
+                url_pliego=url_final,
                 tipo_documento=tipo_doc,
                 fecha_analisis=datetime.now().isoformat(),
                 proveedor_ia="ninguno",
@@ -563,13 +908,34 @@ RESPONDE SOLO JSON, sin explicaciones adicionales."""
                 error="No se pudo extraer texto del documento"
             )
 
-        # 3. Analizar con IA
+        # 3. Analizar con IA (Gemini primero, luego OpenAI, luego Anthropic)
         logger.info("Analizando con IA (esto puede tardar 30-60 segundos)...")
-        resultado_ia = await self._analizar_con_openai(texto, objeto, importe)
-        proveedor = "openai" if resultado_ia else "basico"
+        resultado_ia = None
+        proveedor = "basico"
 
+        # Intentar Gemini primero (PRINCIPAL - rápido y económico)
+        if self.gemini_model:
+            resultado_ia = await self._analizar_con_gemini(texto, objeto, importe)
+            if resultado_ia:
+                proveedor = "gemini"
+
+        # Fallback a OpenAI si Gemini falla
+        if not resultado_ia and self.openai_client:
+            logger.info("Gemini falló, intentando con OpenAI...")
+            resultado_ia = await self._analizar_con_openai(texto, objeto, importe)
+            if resultado_ia:
+                proveedor = "openai"
+
+        # Fallback a Anthropic Claude si OpenAI también falla
+        if not resultado_ia and self.anthropic_client:
+            logger.info("OpenAI falló, intentando con Anthropic Claude...")
+            resultado_ia = await self._analizar_con_anthropic(texto, objeto, importe)
+            if resultado_ia:
+                proveedor = "anthropic"
+
+        # Último recurso: análisis básico
         if not resultado_ia:
-            logger.warning("Fallback a análisis básico")
+            logger.warning("Fallback a análisis básico (sin IA)")
             resultado_ia = self._analisis_basico(texto, objeto, importe)
 
         # 4. Detectar tecnologías y certificaciones (adicional)
@@ -586,15 +952,71 @@ RESPONDE SOLO JSON, sin explicaciones adicionales."""
         tiempo_total = (datetime.now() - inicio).total_seconds()
         logger.info(f"Análisis completado en {tiempo_total:.1f} segundos")
 
-        # Construir dolores
+        # Construir dolores con estructura enriquecida
         dolores = []
         for d in resultado_ia.get("dolores", []):
+            # Construir impacto_negocio
+            impacto_data = d.get("impacto_negocio", {})
+            impacto_negocio = ImpactoNegocio(
+                descripcion=impacto_data.get("descripcion", d.get("impacto", "")),
+                cuantificacion=impacto_data.get("cuantificacion", "No cuantificado"),
+                area_afectada=impacto_data.get("area_afectada", "general")
+            )
+
+            # Construir urgencia_temporal
+            urgencia_data = d.get("urgencia_temporal", {})
+            urgencia_temporal = UrgenciaTemporal(
+                nivel=urgencia_data.get("nivel", "medio"),
+                fecha_limite=urgencia_data.get("fecha_limite"),
+                dias_restantes=urgencia_data.get("dias_restantes"),
+                consecuencias_retraso=urgencia_data.get("consecuencias_retraso", "")
+            )
+
+            # Construir solucion_srs
+            solucion_data = d.get("solucion_srs", {})
+            solucion_srs = SolucionSRS(
+                servicio_principal=solucion_data.get("servicio_principal", "Soporte técnico"),
+                servicios_complementarios=solucion_data.get("servicios_complementarios", []),
+                tiempo_implementacion=solucion_data.get("tiempo_implementacion", "A determinar"),
+                equipo_necesario=solucion_data.get("equipo_necesario", "A determinar")
+            )
+
+            # Construir argumento_venta
+            argumento_data = d.get("argumento_venta", {})
+            if isinstance(argumento_data, str):
+                # Compatibilidad con formato antiguo
+                argumento_venta = ArgumentoVenta(
+                    gancho=argumento_data,
+                    diferenciador="",
+                    prueba_social=""
+                )
+            else:
+                argumento_venta = ArgumentoVenta(
+                    gancho=argumento_data.get("gancho", ""),
+                    diferenciador=argumento_data.get("diferenciador", ""),
+                    prueba_social=argumento_data.get("prueba_social", "")
+                )
+
+            # Construir objeciones_previsibles
+            objeciones = []
+            for obj in d.get("objeciones_previsibles", []):
+                objeciones.append(ObjecionPrevisible(
+                    objecion=obj.get("objecion", ""),
+                    respuesta=obj.get("respuesta", "")
+                ))
+
             dolores.append(DolorDetectado(
                 categoria=d.get("categoria", "tecnico"),
+                subcategoria=d.get("subcategoria", "general"),
+                severidad=d.get("severidad", "medio"),
                 descripcion=d.get("descripcion", ""),
-                impacto=d.get("impacto", ""),
                 extracto_pliego=d.get("extracto_pliego", ""),
-                argumento_venta=d.get("argumento_venta", "")
+                impacto_negocio=impacto_negocio,
+                urgencia_temporal=urgencia_temporal,
+                solucion_srs=solucion_srs,
+                argumento_venta=argumento_venta,
+                objeciones_previsibles=objeciones,
+                confianza_deteccion=d.get("confianza_deteccion", 50)
             ))
 
         # Construir componentes IT
@@ -640,7 +1062,7 @@ RESPONDE SOLO JSON, sin explicaciones adicionales."""
             email_contacto=resultado_ia.get("email_contacto"),
             telefono_contacto=resultado_ia.get("telefono_contacto"),
             resumen_it=resultado_ia.get("resumen_it"),
-            url_pliego=url_pliego,
+            url_pliego=url_final,
             tipo_documento=tipo_doc,
             fecha_analisis=datetime.now().isoformat(),
             proveedor_ia=proveedor,
@@ -674,6 +1096,214 @@ async def analizar_pliego_completo(
         importe=importe
     )
     return resultado.to_dict()
+
+
+async def generar_analisis_comercial_v2(
+    oportunidad_id: str,
+    url_pliego: str,
+    objeto: str = "",
+    importe: float = 0,
+    adjudicatario_nombre: str = "",
+    adjudicatario_cif: str = "",
+    organo_contratante: str = "",
+    fecha_adjudicacion: str = "",
+    expediente: str = "",
+) -> Dict:
+    """
+    Genera un análisis comercial COMPLETO orientado a la acción usando SpotterSRS v2.
+
+    Esta versión usa:
+    - prompt_spotter_v2.py: Prompt optimizado con estructura JSON completa
+    - modelos_analisis.py: Dataclasses alineados con la estructura del prompt
+
+    Incluye: adjudicatario, dolores, servicios SRS, comunicación lista para usar, etc.
+    """
+    from app.spotter.prompts import get_prompt_con_catalogo, PROMPT_VERSION
+    from app.spotter.modelos_analisis import (
+        construir_desde_json,
+        construir_metadata_trazabilidad
+    )
+
+    analyzer = get_pliego_analyzer()
+    inicio = datetime.now()
+
+    logger.info(f"Generando análisis comercial v2 para: {oportunidad_id}")
+    logger.info(f"Usando prompt versión: {PROMPT_VERSION}")
+
+    # 1. Descargar y extraer texto del pliego
+    url_final = url_pliego
+    if 'detalle_licitacion' in url_pliego or 'deeplink' in url_pliego:
+        url_pliego_tecnico = await analyzer.extraer_url_pliego_tecnico(url_pliego)
+        if url_pliego_tecnico:
+            url_final = url_pliego_tecnico
+
+    contenido, tipo_doc = await analyzer.descargar_documento(url_final)
+
+    if not contenido:
+        return {
+            "error": "No se pudo descargar el documento",
+            "oportunidad": {"id_expediente": oportunidad_id}
+        }
+
+    paginas = 1  # Por defecto
+    if tipo_doc == "pdf":
+        texto, paginas = analyzer.extraer_texto_pdf(contenido)
+    else:
+        texto = analyzer.extraer_texto_html(contenido)
+
+    if not texto or len(texto) < 100:
+        return {
+            "error": "No se pudo extraer texto del documento",
+            "oportunidad": {"id_expediente": oportunidad_id}
+        }
+
+    # Truncar texto si es muy largo (máx ~60K tokens)
+    texto_truncado = texto[:80000] if len(texto) > 80000 else texto
+
+    # 2. Generar prompt v2 con catálogo de servicios inyectado dinámicamente
+    prompt = get_prompt_con_catalogo(texto_truncado)
+
+    # 3. Llamar a IA (misma lógica que pliego_analyzer)
+    resultado_ia = None
+    proveedor = "basico"
+
+    # Intentar Gemini primero
+    if analyzer.gemini_model:
+        try:
+            response = await asyncio.wait_for(
+                asyncio.to_thread(
+                    analyzer.gemini_model.generate_content,
+                    prompt,
+                    generation_config=genai.GenerationConfig(
+                        temperature=0.3,
+                        max_output_tokens=8000,  # Más tokens para respuesta completa
+                    )
+                ),
+                timeout=120.0  # 2 minutos para análisis completo
+            )
+            text = response.text
+            json_match = re.search(r"\{[\s\S]*\}", text)
+            if json_match:
+                resultado_ia = json.loads(json_match.group())
+                proveedor = "gemini"
+        except Exception as e:
+            logger.error(f"Error en Gemini: {e}")
+
+    # Fallback a OpenAI
+    if not resultado_ia and analyzer.openai_client:
+        try:
+            response = await asyncio.wait_for(
+                asyncio.to_thread(
+                    analyzer.openai_client.chat.completions.create,
+                    model="gpt-4o",
+                    messages=[{"role": "user", "content": prompt}],
+                    max_tokens=8000,
+                    temperature=0.3,
+                ),
+                timeout=120.0
+            )
+            text = response.choices[0].message.content
+            json_match = re.search(r"\{[\s\S]*\}", text)
+            if json_match:
+                resultado_ia = json.loads(json_match.group())
+                proveedor = "openai"
+        except Exception as e:
+            logger.error(f"Error en OpenAI: {e}")
+
+    # Fallback a Anthropic
+    if not resultado_ia and analyzer.anthropic_client:
+        try:
+            response = await asyncio.wait_for(
+                asyncio.to_thread(
+                    analyzer.anthropic_client.messages.create,
+                    model="claude-sonnet-4-20250514",
+                    max_tokens=8000,
+                    messages=[{"role": "user", "content": prompt}],
+                ),
+                timeout=120.0
+            )
+            text = response.content[0].text
+            json_match = re.search(r"\{[\s\S]*\}", text)
+            if json_match:
+                resultado_ia = json.loads(json_match.group())
+                proveedor = "anthropic"
+        except Exception as e:
+            logger.error(f"Error en Anthropic: {e}")
+
+    if not resultado_ia:
+        return {
+            "error": "No se pudo generar análisis con IA",
+            "oportunidad": {"id_expediente": oportunidad_id}
+        }
+
+    fin = datetime.now()
+    tiempo_total = (fin - inicio).total_seconds()
+    tiempo_ms = int(tiempo_total * 1000)
+    logger.info(f"Análisis comercial v2 completado en {tiempo_total:.1f}s con {proveedor}")
+
+    # 4. Construir objeto de análisis comercial desde JSON
+    analisis = construir_desde_json(resultado_ia)
+
+    # 5. Construir metadata de trazabilidad
+    modelo_usado = {
+        "gemini": "gemini-2.0-flash",
+        "openai": "gpt-4o",
+        "anthropic": "claude-sonnet-4-20250514"
+    }.get(proveedor, "desconocido")
+
+    documentos_info = [{
+        "tipo": "pliego_tecnico" if "tecnico" in url_final.lower() else "pliego",
+        "url_origen": url_final,
+        "paginas_totales": paginas if tipo_doc == "pdf" else 1,
+        "palabras_totales": len(texto.split()) if texto else 0
+    }]
+
+    metadata = construir_metadata_trazabilidad(
+        oportunidad_id=oportunidad_id,
+        timestamp_inicio=inicio,
+        timestamp_fin=fin,
+        proveedor_ia=proveedor,
+        modelo_ia=modelo_usado,
+        tokens_entrada=int(len(prompt.split()) * 1.3),
+        tokens_salida=len(str(resultado_ia)) // 4,
+        tiempo_ms=tiempo_ms,
+        url_pliego=url_final,
+        expediente=expediente or oportunidad_id,
+        documentos=documentos_info
+    )
+
+    # Añadir metadata al análisis
+    analisis.metadata = metadata
+
+    return analisis.to_dict()
+
+
+# Mantener función legacy para compatibilidad
+async def generar_analisis_comercial(
+    oportunidad_id: str,
+    url_pliego: str,
+    objeto: str = "",
+    importe: float = 0,
+    adjudicatario_nombre: str = "",
+    adjudicatario_cif: str = "",
+    organo_contratante: str = "",
+    fecha_adjudicacion: str = "",
+) -> Dict:
+    """
+    LEGACY: Usa generar_analisis_comercial_v2 en su lugar.
+    Mantiene compatibilidad con código existente redirigiendo a v2.
+    """
+    return await generar_analisis_comercial_v2(
+        oportunidad_id=oportunidad_id,
+        url_pliego=url_pliego,
+        objeto=objeto,
+        importe=importe,
+        adjudicatario_nombre=adjudicatario_nombre,
+        adjudicatario_cif=adjudicatario_cif,
+        organo_contratante=organo_contratante,
+        fecha_adjudicacion=fecha_adjudicacion,
+        expediente=oportunidad_id
+    )
 
 
 if __name__ == "__main__":
