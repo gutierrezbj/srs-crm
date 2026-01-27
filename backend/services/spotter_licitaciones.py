@@ -1,393 +1,418 @@
 #!/usr/bin/env python3
 """
-Motor de analisis de licitaciones para deteccion de oportunidades de drones.
-Utiliza el mapeo CPV de config/cpv_drone_mapping.json para scoring.
+╔═══════════════════════════════════════════════════════════════════╗
+║             SpotterSRS-Licitaciones                               ║
+║     Análisis de Licitaciones ABIERTAS para Servicios de Drones   ║
+╚═══════════════════════════════════════════════════════════════════╝
+
+Servicio para analizar licitaciones de PLACSP y detectar oportunidades
+relacionadas con servicios de drones usando:
+- CPV matching (nivel 1 directo y nivel 2 indirecto)
+- Búsqueda de keywords en título y descripción
+- Cálculo de scoring basado en pesos configurados
 """
 
 import json
 import re
 from pathlib import Path
-from dataclasses import dataclass, field
-from typing import List, Dict, Optional, Any
+from datetime import datetime, timezone
+from typing import List, Optional, Dict, Any, Tuple
+from pydantic import BaseModel, Field
 
 
-# Cargar configuracion de CPV
-CONFIG_PATH = Path(__file__).parent.parent / "config" / "cpv_drone_mapping.json"
+# ============================================================================
+# MODELOS PYDANTIC
+# ============================================================================
 
-
-def load_cpv_config() -> Dict[str, Any]:
-    """Carga la configuracion de CPV desde el archivo JSON"""
-    try:
-        with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except FileNotFoundError:
-        print(f"Advertencia: No se encontro {CONFIG_PATH}, usando config vacia")
-        return {"categorias": {}, "keywords_genericas_drones": {}, "scoring": {}}
-
-
-@dataclass
-class LicitacionInput:
-    """Datos de entrada para analizar una licitacion"""
-    titulo: str
-    descripcion: Optional[str] = None
-    cpv: Optional[str] = None
+class LicitacionInput(BaseModel):
+    """Datos de entrada de una licitación para analizar"""
+    expediente: str
+    objeto: str  # Título/objeto del contrato
+    cpv: str  # Código CPV principal
+    descripcion: Optional[str] = None  # Descripción adicional o PPT
     presupuesto: Optional[float] = None
+    plazo_presentacion: Optional[datetime] = None
     organo_contratacion: Optional[str] = None
+    url: Optional[str] = None
 
 
-@dataclass
-class LicitacionAnalysisResult:
-    """Resultado del analisis de una licitacion"""
-    score: int  # 0-100
-    relevante: bool
-    cpv_matches: List[Dict[str, Any]] = field(default_factory=list)
-    keywords_detectados: List[str] = field(default_factory=list)
+class CPVMatch(BaseModel):
+    """Resultado de matching de CPV"""
+    nivel: int  # 1 = directo, 2 = indirecto, 0 = sin match
+    categoria: Optional[str] = None
+    nombre_categoria: Optional[str] = None
+    nombre_cpv: Optional[str] = None
+    puntos: int = 0
+
+
+class ScoringDetails(BaseModel):
+    """Detalles del cálculo de scoring"""
+    puntos_cpv: int = 0
+    puntos_keywords_titulo: int = 0
+    puntos_keywords_descripcion: int = 0
+    puntos_presupuesto: int = 0
+    puntos_plazo: int = 0
+    bonus_keywords_multiples: int = 0
+    total: int = 0
+
+
+class LicitacionAnalysisResult(BaseModel):
+    """Resultado del análisis de una licitación"""
+    expediente: str
+    es_relevante: bool
+    score: int = Field(ge=0, le=100)
+    cpv_match: CPVMatch
+    keywords_encontradas: List[str] = []
+    keywords_en_titulo: List[str] = []
+    keywords_en_descripcion: List[str] = []
     categoria_principal: Optional[str] = None
+    detalles_scoring: ScoringDetails
     recomendacion: str = ""
 
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            "score": self.score,
-            "relevante": self.relevante,
-            "cpv_matches": self.cpv_matches,
-            "keywords_detectados": self.keywords_detectados,
-            "categoria_principal": self.categoria_principal,
-            "recomendacion": self.recomendacion
-        }
 
+# ============================================================================
+# ANALIZADOR DE LICITACIONES
+# ============================================================================
 
 class LicitacionAnalyzer:
     """
-    Analizador de licitaciones para detectar oportunidades de drones.
-    Calcula un score de relevancia basado en CPV y keywords.
+    Analizador de licitaciones para detectar oportunidades de servicios drone.
+    Usa el archivo cpv_drone_mapping.json para CPVs, keywords y scoring.
     """
-
-    def __init__(self):
-        self.config = load_cpv_config()
-        self.categorias = self.config.get("categorias", {})
-        self.keywords_genericas = self.config.get("keywords_genericas_drones", {})
-        self.scoring_config = self.config.get("scoring", {
-            "cpv_directo_drones": 100,
-            "cpv_categoria_primaria": 80,
-            "cpv_categoria_secundaria": 60,
-            "keyword_alta_prioridad": 50,
-            "keyword_media_prioridad": 30,
-            "keyword_contexto": 10,
-            "multiplicador_presupuesto_alto": 1.2,
-            "umbral_presupuesto_alto": 50000
-        })
-
-        # Construir indice de CPV para busqueda rapida
+    
+    def __init__(self, config_path: Optional[str] = None):
+        """
+        Inicializa el analizador cargando la configuración.
+        
+        Args:
+            config_path: Ruta al archivo de configuración JSON.
+                        Si no se especifica, busca en backend/config/
+        """
+        if config_path is None:
+            # Buscar en la ruta por defecto
+            base_path = Path(__file__).parent.parent
+            config_path = base_path / "config" / "cpv_drone_mapping.json"
+        
+        self.config_path = Path(config_path)
+        self._load_config()
         self._build_cpv_index()
-
-        # Compilar keywords para busqueda
-        self._compile_keywords()
-
+        self._build_keyword_sets()
+    
+    def _load_config(self):
+        """Carga la configuración desde el archivo JSON"""
+        if not self.config_path.exists():
+            raise FileNotFoundError(f"Config file not found: {self.config_path}")
+        
+        with open(self.config_path, 'r', encoding='utf-8') as f:
+            self.config = json.load(f)
+        
+        self.scoring_weights = self.config.get("scoring_weights", {})
+        self.nivel_1 = self.config.get("nivel_1_cpv_directos", {})
+        self.nivel_2 = self.config.get("nivel_2_cpv_indirectos", {})
+        self.keywords_universales = self.config.get("keywords_universales", {})
+        self.exclusiones = self.config.get("exclusiones", {}).get("cpv_codes", [])
+    
     def _build_cpv_index(self):
-        """Construye un indice de CPV -> categoria para busqueda rapida"""
-        self.cpv_index = {}
-
-        for cat_key, cat_data in self.categorias.items():
-            cpvs = cat_data.get("cpvs", {})
-            peso_base = cat_data.get("peso_base", 50)
-            nombre = cat_data.get("nombre", cat_key)
-
-            for cpv_code, cpv_desc in cpvs.items():
-                self.cpv_index[cpv_code] = {
+        """Construye un índice de CPVs para búsqueda rápida"""
+        self.cpv_index: Dict[str, Dict[str, Any]] = {}
+        
+        # Indexar nivel 1 (directos)
+        for cat_key, cat_data in self.nivel_1.get("categories", {}).items():
+            for cpv_item in cat_data.get("cpv_codes", []):
+                code = cpv_item["code"]
+                self.cpv_index[code] = {
+                    "nivel": 1,
                     "categoria": cat_key,
-                    "categoria_nombre": nombre,
-                    "descripcion": cpv_desc,
-                    "peso_base": peso_base
+                    "nombre_categoria": cat_data.get("name", ""),
+                    "nombre_cpv": cpv_item.get("name", ""),
+                    "keywords": cat_data.get("keywords", [])
                 }
-
-    def _compile_keywords(self):
-        """Compila las keywords en listas para busqueda"""
-        self.keywords_alta = []
-        self.keywords_media = []
-        self.keywords_contexto = []
-        self.keywords_por_categoria = {}
-
-        # Keywords genericas
-        for kw in self.keywords_genericas.get("alta_prioridad", []):
-            self.keywords_alta.append(kw.lower())
-
-        for kw in self.keywords_genericas.get("media_prioridad", []):
-            self.keywords_media.append(kw.lower())
-
-        for kw in self.keywords_genericas.get("contexto_adicional", []):
-            self.keywords_contexto.append(kw.lower())
-
-        # Keywords por categoria
-        for cat_key, cat_data in self.categorias.items():
-            self.keywords_por_categoria[cat_key] = [
-                kw.lower() for kw in cat_data.get("keywords", [])
-            ]
-
-    def _match_cpv(self, cpv: str) -> List[Dict[str, Any]]:
-        """Busca coincidencias de CPV en el indice"""
-        if not cpv:
-            return []
-
-        matches = []
-        cpv_clean = cpv.replace("-", "").replace(" ", "")[:8]
-
-        # Busqueda exacta
-        if cpv_clean in self.cpv_index:
-            match = self.cpv_index[cpv_clean].copy()
-            match["cpv"] = cpv_clean
-            match["tipo_match"] = "exacto"
-            matches.append(match)
-            return matches
-
-        # Busqueda por prefijo (grupos de CPV)
-        for length in [5, 4, 3, 2]:
-            prefix = cpv_clean[:length]
-            for cpv_code, data in self.cpv_index.items():
-                if cpv_code.startswith(prefix) and data not in [m for m in matches]:
-                    match = data.copy()
-                    match["cpv"] = cpv_code
-                    match["tipo_match"] = f"prefijo_{length}"
-                    matches.append(match)
-                    break
-            if matches:
-                break
-
-        return matches
-
-    def _find_keywords(self, texto: str) -> Dict[str, List[str]]:
-        """Busca keywords en el texto usando word boundaries para evitar falsos positivos"""
+        
+        # Indexar nivel 2 (indirectos)
+        for cat_key, cat_data in self.nivel_2.get("categories", {}).items():
+            for cpv_item in cat_data.get("cpv_codes", []):
+                code = cpv_item["code"]
+                # Solo agregar si no está ya en nivel 1
+                if code not in self.cpv_index:
+                    self.cpv_index[code] = {
+                        "nivel": 2,
+                        "categoria": cat_key,
+                        "nombre_categoria": cat_data.get("name", ""),
+                        "nombre_cpv": cpv_item.get("name", ""),
+                        "keywords": cat_data.get("keywords_ppt", []),
+                        "probability": cat_data.get("probability", "media")
+                    }
+    
+    def _build_keyword_sets(self):
+        """Construye conjuntos de keywords para búsqueda"""
+        self.all_keywords: set = set()
+        self.keywords_by_category: Dict[str, List[str]] = {}
+        
+        # Keywords de nivel 1
+        for cat_key, cat_data in self.nivel_1.get("categories", {}).items():
+            keywords = cat_data.get("keywords", [])
+            self.keywords_by_category[cat_key] = keywords
+            self.all_keywords.update(kw.lower() for kw in keywords)
+        
+        # Keywords de nivel 2
+        for cat_key, cat_data in self.nivel_2.get("categories", {}).items():
+            keywords = cat_data.get("keywords_ppt", [])
+            if cat_key not in self.keywords_by_category:
+                self.keywords_by_category[cat_key] = []
+            self.keywords_by_category[cat_key].extend(keywords)
+            self.all_keywords.update(kw.lower() for kw in keywords)
+        
+        # Keywords universales
+        for key in ["keywords_tecnicos", "keywords_regulatorios", "keywords_equipamiento"]:
+            keywords = self.keywords_universales.get(key, [])
+            self.all_keywords.update(kw.lower() for kw in keywords)
+    
+    def _match_cpv(self, cpv: str) -> CPVMatch:
+        """
+        Busca el CPV en el índice y retorna información de matching.
+        También intenta match por prefijo de CPV.
+        """
+        # Normalizar CPV (quitar espacios)
+        cpv = cpv.strip()
+        
+        # Verificar exclusiones
+        if cpv in self.exclusiones:
+            return CPVMatch(nivel=0, puntos=0)
+        
+        # Match exacto
+        if cpv in self.cpv_index:
+            info = self.cpv_index[cpv]
+            nivel = info["nivel"]
+            puntos = self.scoring_weights.get("cpv_nivel_1", 40) if nivel == 1 else self.scoring_weights.get("cpv_nivel_2", 20)
+            return CPVMatch(
+                nivel=nivel,
+                categoria=info["categoria"],
+                nombre_categoria=info["nombre_categoria"],
+                nombre_cpv=info["nombre_cpv"],
+                puntos=puntos
+            )
+        
+        # Intentar match por prefijo (primeros 5 dígitos)
+        # Formato CPV: XXXXXXXX-X (8 dígitos + dígito de control)
+        cpv_prefix = cpv[:5] if len(cpv) >= 5 else cpv
+        
+        for code, info in self.cpv_index.items():
+            if code.startswith(cpv_prefix):
+                nivel = info["nivel"]
+                # Dar menos puntos por match parcial
+                base_puntos = self.scoring_weights.get("cpv_nivel_1", 40) if nivel == 1 else self.scoring_weights.get("cpv_nivel_2", 20)
+                puntos = int(base_puntos * 0.7)  # 70% por match parcial
+                return CPVMatch(
+                    nivel=nivel,
+                    categoria=info["categoria"],
+                    nombre_categoria=info["nombre_categoria"],
+                    nombre_cpv=f"(Parcial) {info['nombre_cpv']}",
+                    puntos=puntos
+                )
+        
+        return CPVMatch(nivel=0, puntos=0)
+    
+    def _buscar_keywords(self, texto: str) -> List[str]:
+        """
+        Busca keywords relevantes en un texto.
+        Retorna lista de keywords encontradas.
+        """
         if not texto:
-            return {"alta": [], "media": [], "contexto": [], "categoria": []}
-
+            return []
+        
         texto_lower = texto.lower()
-        found = {
-            "alta": [],
-            "media": [],
-            "contexto": [],
-            "categoria": []
-        }
-
-        def keyword_match(kw, text):
-            """Match keyword con word boundary para keywords cortas"""
-            if len(kw) <= 4:
-                # Para keywords cortas, usar word boundaries
-                pattern = r'\b' + re.escape(kw) + r'\b'
-                return re.search(pattern, text) is not None
-            else:
-                # Para keywords largas, substring match es suficiente
-                return kw in text
-
-        # Keywords genericas
-        for kw in self.keywords_alta:
-            if keyword_match(kw, texto_lower):
-                found["alta"].append(kw)
-
-        for kw in self.keywords_media:
-            if keyword_match(kw, texto_lower):
-                found["media"].append(kw)
-
-        for kw in self.keywords_contexto:
-            if keyword_match(kw, texto_lower):
-                found["contexto"].append(kw)
-
-        # Keywords por categoria
-        for cat_key, keywords in self.keywords_por_categoria.items():
-            for kw in keywords:
-                if kw in texto_lower and kw not in found["categoria"]:
-                    found["categoria"].append(kw)
-
-        return found
-
-    def _calcular_score(
-        self,
-        cpv_matches: List[Dict[str, Any]],
-        keywords_found: Dict[str, List[str]],
-        presupuesto: Optional[float]
-    ) -> int:
-        """Calcula el score de relevancia (0-100)"""
-        score = 0
-
-        # Score por CPV
-        if cpv_matches:
-            best_match = max(cpv_matches, key=lambda x: x.get("peso_base", 0))
-            if best_match.get("tipo_match") == "exacto":
-                score += self.scoring_config.get("cpv_categoria_primaria", 80)
-            else:
-                score += self.scoring_config.get("cpv_categoria_secundaria", 60)
-
-        # Score por keywords
-        n_alta = len(keywords_found.get("alta", []))
-        n_media = len(keywords_found.get("media", []))
-        n_contexto = len(keywords_found.get("contexto", []))
-        n_categoria = len(keywords_found.get("categoria", []))
-
-        # Keywords de alta prioridad dan mas puntos
-        score += min(n_alta * 15, 45)  # Max 45 puntos por keywords de alta
-        score += min(n_media * 8, 24)   # Max 24 puntos por keywords de media
-        score += min(n_contexto * 3, 9) # Max 9 puntos por contexto
-        score += min(n_categoria * 5, 15) # Max 15 puntos por categoria
-
-        # Bonus por presupuesto alto
-        umbral = self.scoring_config.get("umbral_presupuesto_alto", 50000)
-        if presupuesto and presupuesto > umbral:
-            multiplicador = self.scoring_config.get("multiplicador_presupuesto_alto", 1.2)
-            score = int(score * multiplicador)
-
-        # Limitar a 100
-        return min(100, score)
-
-    def _determinar_categoria_principal(
-        self,
-        cpv_matches: List[Dict[str, Any]],
-        keywords_found: Dict[str, List[str]]
-    ) -> Optional[str]:
-        """Determina la categoria principal de la licitacion"""
-        # Prioridad a CPV si hay match
-        if cpv_matches:
-            best = max(cpv_matches, key=lambda x: x.get("peso_base", 0))
-            return best.get("categoria_nombre")
-
-        # Si hay keywords de categoria, buscar la mas frecuente
-        if keywords_found.get("categoria"):
-            # Contar en que categoria aparecen mas
-            cat_counts = {}
-            for kw in keywords_found["categoria"]:
-                for cat_key, keywords in self.keywords_por_categoria.items():
-                    if kw in keywords:
-                        cat_name = self.categorias.get(cat_key, {}).get("nombre", cat_key)
-                        cat_counts[cat_name] = cat_counts.get(cat_name, 0) + 1
-
-            if cat_counts:
-                return max(cat_counts, key=cat_counts.get)
-
-        # Keywords genericas de drones
-        if keywords_found.get("alta"):
-            return "Servicios con Drones"
-
-        return None
-
-    def _generar_recomendacion(self, score: int, categoria: Optional[str]) -> str:
-        """Genera una recomendacion basada en el score"""
-        if score >= 80:
-            return f"Muy relevante para servicios de drones{' - ' + categoria if categoria else ''}. Revisar urgente."
-        elif score >= 60:
-            return f"Relevante{' para ' + categoria if categoria else ''}. Revisar el pliego tecnico."
-        elif score >= 40:
-            return f"Potencialmente relevante. Verificar alcance en pliego."
-        elif score >= 20:
-            return "Baja relevancia. Solo revisar si hay capacidad."
+        encontradas = []
+        
+        for keyword in self.all_keywords:
+            # Usar regex para word boundary matching
+            pattern = r'\b' + re.escape(keyword) + r'\b'
+            if re.search(pattern, texto_lower, re.IGNORECASE):
+                encontradas.append(keyword)
+        
+        return list(set(encontradas))
+    
+    def _calcular_puntos_presupuesto(self, presupuesto: Optional[float]) -> int:
+        """Calcula puntos bonus por presupuesto"""
+        if presupuesto is None:
+            return 0
+        
+        rangos = self.scoring_weights.get("presupuesto", {})
+        
+        if presupuesto < 10000:
+            return rangos.get("menos_10k", 5)
+        elif presupuesto < 50000:
+            return rangos.get("10k_50k", 15)
+        elif presupuesto < 100000:
+            return rangos.get("50k_100k", 25)
+        elif presupuesto < 500000:
+            return rangos.get("100k_500k", 35)
         else:
-            return "No relevante para servicios de drones."
-
+            return rangos.get("mas_500k", 40)
+    
+    def _calcular_puntos_plazo(self, plazo: Optional[datetime]) -> int:
+        """Calcula ajuste de puntos por plazo de presentación"""
+        if plazo is None:
+            return 0
+        
+        # Calcular días hasta el plazo
+        ahora = datetime.now(timezone.utc)
+        if plazo.tzinfo is None:
+            plazo = plazo.replace(tzinfo=timezone.utc)
+        
+        dias = (plazo - ahora).days
+        
+        rangos = self.scoring_weights.get("plazo_presentacion", {})
+        
+        if dias < 7:
+            return rangos.get("menos_7_dias", -10)
+        elif dias <= 15:
+            return rangos.get("7_15_dias", 5)
+        elif dias <= 30:
+            return rangos.get("15_30_dias", 10)
+        else:
+            return rangos.get("mas_30_dias", 0)
+    
+    def _calcular_bonus_keywords(self, num_keywords: int) -> int:
+        """Calcula bonus por múltiples keywords encontradas"""
+        bonus_config = self.scoring_weights.get("bonus_keywords_multiples", {})
+        
+        if num_keywords >= 4:
+            return bonus_config.get("4_o_mas_keywords", 15)
+        elif num_keywords >= 3:
+            return bonus_config.get("3_keywords", 10)
+        elif num_keywords >= 2:
+            return bonus_config.get("2_keywords", 5)
+        return 0
+    
+    def _generar_recomendacion(self, score: int, cpv_match: CPVMatch, keywords: List[str]) -> str:
+        """Genera texto de recomendación basado en el análisis"""
+        if score >= 80:
+            return "🔥 ALTA PRIORIDAD - Revisar inmediatamente, alta probabilidad de match"
+        elif score >= 60:
+            return "⭐ PRIORIDAD MEDIA - Revisar PPT para confirmar requisitos de drone"
+        elif score >= 40:
+            return "📋 REVISAR - Posible oportunidad, verificar detalles técnicos"
+        elif score >= 20:
+            return "🔎 BAJA PRIORIDAD - Match parcial, revisar si hay tiempo"
+        else:
+            return "❌ NO RELEVANTE - No cumple criterios mínimos"
+    
     def analizar(self, licitacion: LicitacionInput) -> LicitacionAnalysisResult:
         """
-        Analiza una licitacion y retorna el resultado con score de relevancia.
-
+        Analiza una licitación y calcula su relevancia para servicios drone.
+        
         Args:
-            licitacion: Datos de la licitacion a analizar
-
+            licitacion: Datos de la licitación a analizar
+            
         Returns:
-            LicitacionAnalysisResult con score, relevancia y detalles
+            LicitacionAnalysisResult con el análisis completo
         """
-        # Combinar titulo y descripcion para analisis
-        texto_completo = licitacion.titulo or ""
-        if licitacion.descripcion:
-            texto_completo += " " + licitacion.descripcion
-        if licitacion.organo_contratacion:
-            texto_completo += " " + licitacion.organo_contratacion
-
-        # Buscar coincidencias de CPV
-        cpv_matches = self._match_cpv(licitacion.cpv)
-
-        # Buscar keywords
-        keywords_found = self._find_keywords(texto_completo)
-
-        # Calcular score
-        score = self._calcular_score(
-            cpv_matches,
-            keywords_found,
-            licitacion.presupuesto
-        )
-
-        # Determinar categoria principal
-        categoria = self._determinar_categoria_principal(cpv_matches, keywords_found)
-
-        # Aplanar keywords encontrados
-        all_keywords = (
-            keywords_found.get("alta", []) +
-            keywords_found.get("media", []) +
-            keywords_found.get("contexto", []) +
-            keywords_found.get("categoria", [])
-        )
-        all_keywords = list(set(all_keywords))  # Eliminar duplicados
-
-        # Generar recomendacion
-        recomendacion = self._generar_recomendacion(score, categoria)
-
-        # Determinar si es relevante (umbral: 30)
-        relevante = score >= 30 or len(cpv_matches) > 0
-
+        # 1. Match de CPV
+        cpv_match = self._match_cpv(licitacion.cpv)
+        
+        # 2. Búsqueda de keywords
+        keywords_titulo = self._buscar_keywords(licitacion.objeto)
+        keywords_descripcion = self._buscar_keywords(licitacion.descripcion or "")
+        todas_keywords = list(set(keywords_titulo + keywords_descripcion))
+        
+        # 3. Calcular scoring
+        scoring = ScoringDetails()
+        
+        # Puntos por CPV
+        scoring.puntos_cpv = cpv_match.puntos
+        
+        # Puntos por keywords en título (peso alto)
+        if keywords_titulo:
+            scoring.puntos_keywords_titulo = min(
+                len(keywords_titulo) * self.scoring_weights.get("keyword_titulo", 15),
+                30  # Cap máximo
+            )
+        
+        # Puntos por keywords en descripción
+        if keywords_descripcion:
+            scoring.puntos_keywords_descripcion = min(
+                len(keywords_descripcion) * self.scoring_weights.get("keyword_ppt", 25) // 3,
+                25  # Cap máximo
+            )
+        
+        # Puntos por presupuesto
+        scoring.puntos_presupuesto = self._calcular_puntos_presupuesto(licitacion.presupuesto)
+        
+        # Ajuste por plazo
+        scoring.puntos_plazo = self._calcular_puntos_plazo(licitacion.plazo_presentacion)
+        
+        # Bonus por múltiples keywords
+        scoring.bonus_keywords_multiples = self._calcular_bonus_keywords(len(todas_keywords))
+        
+        # Total (máximo 100)
+        scoring.total = min(100, max(0,
+            scoring.puntos_cpv +
+            scoring.puntos_keywords_titulo +
+            scoring.puntos_keywords_descripcion +
+            scoring.puntos_presupuesto +
+            scoring.puntos_plazo +
+            scoring.bonus_keywords_multiples
+        ))
+        
+        # 4. Determinar relevancia (umbral: 20 puntos)
+        es_relevante = scoring.total >= 20
+        
+        # 5. Generar recomendación
+        recomendacion = self._generar_recomendacion(scoring.total, cpv_match, todas_keywords)
+        
         return LicitacionAnalysisResult(
-            score=score,
-            relevante=relevante,
-            cpv_matches=cpv_matches,
-            keywords_detectados=all_keywords,
-            categoria_principal=categoria,
+            expediente=licitacion.expediente,
+            es_relevante=es_relevante,
+            score=scoring.total,
+            cpv_match=cpv_match,
+            keywords_encontradas=todas_keywords,
+            keywords_en_titulo=keywords_titulo,
+            keywords_en_descripcion=keywords_descripcion,
+            categoria_principal=cpv_match.nombre_categoria,
+            detalles_scoring=scoring,
             recomendacion=recomendacion
         )
-
+    
     def analizar_batch(self, licitaciones: List[LicitacionInput]) -> List[LicitacionAnalysisResult]:
         """
-        Analiza un lote de licitaciones.
-
+        Analiza múltiples licitaciones y retorna resultados ordenados por score.
+        
         Args:
             licitaciones: Lista de licitaciones a analizar
-
+            
         Returns:
-            Lista de resultados de analisis
+            Lista de resultados ordenados por score (mayor primero)
         """
-        return [self.analizar(lic) for lic in licitaciones]
-
-    def es_cpv_drones_directo(self, cpv: str) -> bool:
+        resultados = [self.analizar(lic) for lic in licitaciones]
+        
+        # Ordenar por score descendente
+        resultados.sort(key=lambda x: x.score, reverse=True)
+        
+        return resultados
+    
+    def get_estadisticas(self, resultados: List[LicitacionAnalysisResult]) -> Dict[str, Any]:
         """
-        Verifica si un CPV es directamente relacionado con drones.
-        CPV 34711200 = Aeronaves no tripuladas
+        Genera estadísticas de un batch de análisis.
+        
+        Args:
+            resultados: Lista de resultados de análisis
+            
+        Returns:
+            Diccionario con estadísticas
         """
-        if not cpv:
-            return False
-        cpv_clean = cpv.replace("-", "").replace(" ", "")[:8]
-        return cpv_clean.startswith("34711200")
-
-
-# Instancia global del analizador
-_analyzer_instance = None
-
-
-def get_analyzer() -> LicitacionAnalyzer:
-    """Retorna la instancia singleton del analizador"""
-    global _analyzer_instance
-    if _analyzer_instance is None:
-        _analyzer_instance = LicitacionAnalyzer()
-    return _analyzer_instance
-
-
-# Para pruebas directas
-if __name__ == "__main__":
-    analyzer = LicitacionAnalyzer()
-
-    # Ejemplo de licitacion
-    test_lic = LicitacionInput(
-        titulo="Servicio de inspeccion con drones de lineas electricas de alta tension",
-        descripcion="Inspeccion termografica y visual de torres de alta tension mediante RPAS",
-        cpv="71631400",
-        presupuesto=75000,
-        organo_contratacion="Iberdrola Distribucion"
-    )
-
-    resultado = analyzer.analizar(test_lic)
-    print(f"Score: {resultado.score}")
-    print(f"Relevante: {resultado.relevante}")
-    print(f"Categoria: {resultado.categoria_principal}")
-    print(f"Keywords: {resultado.keywords_detectados}")
-    print(f"CPV Matches: {resultado.cpv_matches}")
-    print(f"Recomendacion: {resultado.recomendacion}")
+        if not resultados:
+            return {"total": 0}
+        
+        relevantes = [r for r in resultados if r.es_relevante]
+        
+        return {
+            "total": len(resultados),
+            "relevantes": len(relevantes),
+            "no_relevantes": len(resultados) - len(relevantes),
+            "score_promedio": sum(r.score for r in resultados) / len(resultados),
+            "score_max": max(r.score for r in resultados),
+            "alta_prioridad": len([r for r in resultados if r.score >= 80]),
+            "media_prioridad": len([r for r in resultados if 60 <= r.score < 80]),
+            "baja_prioridad": len([r for r in resultados if 20 <= r.score < 60]),
+            "categorias": list(set(r.categoria_principal for r in relevantes if r.categoria_principal))
+        }

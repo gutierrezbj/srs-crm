@@ -180,8 +180,20 @@ class AdjudicatarioEnricher:
                 datos = self._merge_datos(datos, datos_einforma, "einforma")
                 logger.info(f"Datos obtenidos de Einforma para {nif}")
 
-        # 4. Extraer empresas competidoras del PDF del Acta de Resolución
-        if datos.pdf_acta_resolucion_url:
+        # 4. Extraer empresas competidoras (licitadores perdedores)
+        # Primero intentar desde HTML de adjudicación (más rápido)
+        if datos.html_adjudicacion_url and not datos.empresas_competidoras:
+            logger.info(f"Extrayendo competidores del HTML: {datos.html_adjudicacion_url}")
+            competidores = await self._extract_competidores_from_html(
+                datos.html_adjudicacion_url,
+                nif
+            )
+            if competidores:
+                datos.empresas_competidoras = competidores
+                logger.info(f"Se encontraron {len(competidores)} empresas competidoras (HTML)")
+
+        # Si no encontramos en HTML, intentar con PDF del Acta de Resolución
+        if datos.pdf_acta_resolucion_url and not datos.empresas_competidoras:
             logger.info(f"Extrayendo competidores del PDF: {datos.pdf_acta_resolucion_url}")
             competidores = await self._extract_competidores_from_pdf(
                 datos.pdf_acta_resolucion_url,
@@ -189,12 +201,47 @@ class AdjudicatarioEnricher:
             )
             if competidores:
                 datos.empresas_competidoras = competidores
-                logger.info(f"Se encontraron {len(competidores)} empresas competidoras")
+                logger.info(f"Se encontraron {len(competidores)} empresas competidoras (PDF)")
 
         # Calcular confianza
         datos.confianza = self._calcular_confianza(datos)
 
         return datos
+
+    async def extraer_datos_placsp(
+        self,
+        url_licitacion: str,
+        nombre_adjudicatario: str = "",
+        nif_adjudicatario: str = ""
+    ) -> Dict[str, Any]:
+        """
+        Método público para extraer datos de la página de PLACSP.
+
+        Este método es usado por el endpoint /analizar-pliego para obtener
+        las URLs de los pliegos antes de analizar.
+
+        Args:
+            url_licitacion: URL de la página de detalle en PLACSP
+            nombre_adjudicatario: Nombre del adjudicatario (opcional)
+            nif_adjudicatario: NIF del adjudicatario (opcional)
+
+        Returns:
+            Dict con todos los datos extraídos, incluyendo url_pliego_tecnico y url_pliego_administrativo
+        """
+        logger.info(f"Extrayendo datos de PLACSP para: {url_licitacion[:80]}...")
+
+        datos = await self._scrape_placsp(url_licitacion)
+        if datos:
+            # Añadir info del adjudicatario si se proporcionó
+            if nombre_adjudicatario and not datos.get('nombre'):
+                datos['nombre'] = nombre_adjudicatario
+            if nif_adjudicatario and not datos.get('nif'):
+                datos['nif'] = nif_adjudicatario
+
+            logger.info(f"Datos extraídos de PLACSP: PPT={bool(datos.get('url_pliego_tecnico'))}, PCAP={bool(datos.get('url_pliego_administrativo'))}")
+            return datos
+
+        return {}
 
     async def _scrape_infocif(self, nif: str) -> Optional[Dict[str, Any]]:
         """
@@ -683,16 +730,38 @@ class AdjudicatarioEnricher:
                             es_pliego_tecnico = any(x in row_text for x in ['prescripciones técnicas', 'prescripciones tecnicas', 'ppt', 'técnico', 'tecnico'])
                             es_pliego_admin = any(x in row_text for x in ['cláusulas administrativas', 'clausulas administrativas', 'pcap', 'administrativo'])
 
-                            if es_pliego_tecnico and not url_pliego_tecnico:
+                            # IMPORTANTE: Solo aceptar como PPT/PCAP si es un PDF directo
+                            # Los enlaces HTML pueden ser páginas intermedias "Documento de Pliegos"
+                            # que contienen los enlaces reales a los PDFs
+                            es_pdf_directo = tipo == 'pdf'
+
+                            if es_pliego_tecnico and not url_pliego_tecnico and es_pdf_directo:
                                 url_pliego_tecnico = full_url
                                 datos['url_pliego_tecnico'] = full_url
                                 logger.info(f"✓ Pliego Técnico (PPT): {full_url[:80]}")
                                 doc_info = {'titulo': 'Pliego Técnico (PPT)', 'url': full_url, 'tipo': tipo}
-                            elif es_pliego_admin and not url_pliego_administrativo:
+                            elif es_pliego_admin and not url_pliego_administrativo and es_pdf_directo:
                                 url_pliego_administrativo = full_url
                                 datos['url_pliego_administrativo'] = full_url
                                 logger.info(f"✓ Pliego Administrativo (PCAP): {full_url[:80]}")
                                 doc_info = {'titulo': 'Pliego Administrativo (PCAP)', 'url': full_url, 'tipo': tipo}
+                            elif not url_pliego_tecnico and es_pdf_directo:
+                                # Si es un pliego PDF genérico sin identificar, asumimos que es PPT
+                                # (más relevante para análisis que el PCAP)
+                                url_pliego_tecnico = full_url
+                                datos['url_pliego_tecnico'] = full_url
+                                logger.info(f"✓ Pliego Técnico (PPT) inferido: {full_url[:80]}")
+                                doc_info = {'titulo': 'Pliego Técnico (PPT)', 'url': full_url, 'tipo': tipo}
+                            elif not url_pliego_administrativo and es_pdf_directo:
+                                # Si ya tenemos PPT pero no PCAP
+                                url_pliego_administrativo = full_url
+                                datos['url_pliego_administrativo'] = full_url
+                                logger.info(f"✓ Pliego Administrativo (PCAP) inferido: {full_url[:80]}")
+                                doc_info = {'titulo': 'Pliego Administrativo (PCAP)', 'url': full_url, 'tipo': tipo}
+                            elif not es_pdf_directo:
+                                # Enlace HTML a página de pliegos - marcar para navegar después
+                                logger.info(f"Encontrado enlace HTML a página de pliegos (no PDF): {full_url[:80]}")
+                                doc_info = {'titulo': 'Página de Pliegos', 'url': full_url, 'tipo': tipo}
                             else:
                                 doc_info = {'titulo': 'Pliego', 'url': full_url, 'tipo': tipo}
                         elif es_anuncio:
@@ -748,6 +817,70 @@ class AdjudicatarioEnricher:
                                 datos['xml_formalizacion_url'] = full_url
 
                 logger.info(f"Documentos encontrados: XML_adj={bool(xml_adjudicacion)}, HTML_adj={bool(html_adjudicacion)}, XML_form={bool(xml_formalizacion)}, PDF_acta={bool(pdf_acta_resolucion)}, PPT={bool(url_pliego_tecnico)}, PCAP={bool(url_pliego_administrativo)}")
+
+                # =====================================================================
+                # SIEMPRE buscar enlace a "Documento de Pliegos" y navegar a esa página
+                # para extraer los PDFs REALES (Pliego Prescripciones Técnicas, etc.)
+                # Los PDFs encontrados directamente pueden ser documentos intermedios incorrectos.
+                # =====================================================================
+                logger.info("Buscando enlace a página de 'Documento de Pliegos' para extraer PDFs reales...")
+
+                # Buscar enlace a la página "Documento de Pliegos"
+                url_pagina_pliegos = None
+                for row in soup.find_all('tr'):
+                    row_text = row.get_text(strip=True).lower()
+                    # Buscar filas que contengan "pliego" pero NO sean anuncios
+                    if 'pliego' in row_text and 'anuncio' not in row_text:
+                        for link in row.find_all('a', href=True):
+                            href = link.get('href', '')
+                            link_text = link.get_text(strip=True).lower()
+
+                            # Buscar específicamente enlaces HTML (páginas intermedias)
+                            # La página "Documento de Pliegos" es HTML, no PDF
+                            if 'GetDocumentByIdServlet' in href or 'viewDocument' in href.lower() or 'detalle' in href.lower():
+                                tipo = identificar_tipo_documento(link, href, link.get_text(strip=True))
+                                # Solo seguir enlaces HTML o sin tipo claro (NO PDFs directos)
+                                if tipo in ['html', None]:
+                                    if href.startswith('http'):
+                                        url_pagina_pliegos = href
+                                    elif href.startswith('/'):
+                                        url_pagina_pliegos = f"https://contrataciondelestado.es{href}"
+                                    logger.info(f"Encontrado enlace a página de pliegos (HTML): {url_pagina_pliegos[:80]}...")
+                                    break
+                    if url_pagina_pliegos:
+                        break
+
+                # Si encontramos la página de pliegos, SIEMPRE navegar y extraer PDFs reales
+                # Estos PDFs tienen prioridad sobre cualquier PDF encontrado antes
+                if url_pagina_pliegos:
+                    logger.info(f"Navegando a página de pliegos para extraer PPT/PCAP reales...")
+                    pliegos_urls = await self._extraer_pliegos_de_pagina(url_pagina_pliegos)
+                    if pliegos_urls:
+                        # IMPORTANTE: Sobrescribir el PPT/PCAP si encontramos uno mejor
+                        # El PPT de la página de pliegos es el REAL (ej: "Pliego Prescripciones Técnicas")
+                        if pliegos_urls.get('url_pliego_tecnico'):
+                            ppt_anterior = url_pliego_tecnico
+                            url_pliego_tecnico = pliegos_urls['url_pliego_tecnico']
+                            datos['url_pliego_tecnico'] = url_pliego_tecnico
+                            if ppt_anterior:
+                                logger.info(f"✓ PPT REEMPLAZADO por el de página de pliegos: {url_pliego_tecnico[:80]}")
+                            else:
+                                logger.info(f"✓ PPT extraído de página de pliegos: {url_pliego_tecnico[:80]}")
+                            # Actualizar/añadir a documentos
+                            documentos = [d for d in documentos if d.get('titulo') != 'Pliego Técnico (PPT)']
+                            documentos.append({'titulo': 'Pliego Técnico (PPT)', 'url': url_pliego_tecnico, 'tipo': 'pdf'})
+                        if pliegos_urls.get('url_pliego_administrativo'):
+                            pcap_anterior = url_pliego_administrativo
+                            url_pliego_administrativo = pliegos_urls['url_pliego_administrativo']
+                            datos['url_pliego_administrativo'] = url_pliego_administrativo
+                            if pcap_anterior:
+                                logger.info(f"✓ PCAP REEMPLAZADO por el de página de pliegos: {url_pliego_administrativo[:80]}")
+                            else:
+                                logger.info(f"✓ PCAP extraído de página de pliegos: {url_pliego_administrativo[:80]}")
+                            documentos = [d for d in documentos if d.get('titulo') != 'Pliego Administrativo (PCAP)']
+                            documentos.append({'titulo': 'Pliego Administrativo (PCAP)', 'url': url_pliego_administrativo, 'tipo': 'pdf'})
+                else:
+                    logger.info("No se encontró enlace a página de pliegos HTML")
 
                 if documentos:
                     # Eliminar duplicados manteniendo orden
@@ -834,6 +967,242 @@ class AdjudicatarioEnricher:
 
         except Exception as e:
             logger.error(f"Error scraping PLACSP: {e}", exc_info=True)
+            return None
+
+    async def _extraer_pliegos_de_pagina(self, url_pagina_pliegos: str) -> Optional[Dict[str, str]]:
+        """
+        Navega a la página de "Documento de Pliegos" y extrae los enlaces reales a los PDFs.
+
+        La página de pliegos de PLACSP contiene enlaces a:
+        - Pliego de Prescripciones Técnicas (PPT) - PDF
+        - Pliego de Cláusulas Administrativas (PCAP) - PDF
+
+        Args:
+            url_pagina_pliegos: URL de la página de pliegos
+
+        Returns:
+            Dict con url_pliego_tecnico y/o url_pliego_administrativo
+        """
+        try:
+            logger.info(f"Navegando a página de pliegos: {url_pagina_pliegos[:80]}...")
+
+            async with httpx.AsyncClient(timeout=self.timeout, verify=False) as client:
+                response = await client.get(
+                    url_pagina_pliegos,
+                    headers={"User-Agent": self.USER_AGENT},
+                    follow_redirects=True
+                )
+
+                if response.status_code != 200:
+                    logger.warning(f"Página de pliegos retornó {response.status_code}")
+                    return None
+
+                logger.info(f"Página de pliegos descargada: {len(response.text)} bytes")
+                soup = BeautifulSoup(response.text, 'html.parser')
+                resultado = {}
+
+                # Keywords para identificar PPT (Pliego Prescripciones Técnicas)
+                keywords_ppt = [
+                    'prescripciones técnicas',
+                    'prescripciones tecnicas',
+                    'pliego técnico',
+                    'pliego tecnico',
+                    'ppt',
+                ]
+
+                # Keywords para identificar PCAP (Pliego Cláusulas Administrativas)
+                keywords_pcap = [
+                    'cláusulas administrativas',
+                    'clausulas administrativas',
+                    'pliego administrativo',
+                    'pcap',
+                ]
+
+                # MÉTODO 1: Buscar TODOS los enlaces que contengan las keywords en su texto
+                # Esto es más directo que buscar por tipo de archivo
+                logger.info("Buscando enlaces con keywords de PPT/PCAP...")
+
+                # Primero, listar TODOS los enlaces de documentos encontrados para debug
+                all_doc_links = []
+                for link in soup.find_all('a', href=True):
+                    href = link.get('href', '')
+                    link_text = link.get_text(strip=True)
+                    es_enlace_documento = (
+                        'GetDocumentsById' in href or
+                        'docAccCmpnt' in href or
+                        'GetDocumentByIdServlet' in href or
+                        '.pdf' in href.lower()
+                    )
+                    if es_enlace_documento:
+                        all_doc_links.append({'texto': link_text, 'href': href[:100]})
+
+                logger.info(f"Encontrados {len(all_doc_links)} enlaces a documentos en página de pliegos:")
+                for i, doc in enumerate(all_doc_links):
+                    texto_lower = doc['texto'].lower()
+                    tiene_prescripciones = 'prescripciones' in texto_lower
+                    tiene_administrativas = 'administrativas' in texto_lower
+                    logger.info(f"  [{i+1}] '{doc['texto']}' (prescripciones={tiene_prescripciones}, admin={tiene_administrativas}) -> {doc['href']}...")
+
+                for link in soup.find_all('a', href=True):
+                    href = link.get('href', '')
+                    link_text_original = link.get_text(strip=True)
+                    link_text = link_text_original.lower()
+
+                    # Solo procesar enlaces a documentos de PLACSP
+                    # PLACSP usa varios formatos:
+                    # - GetDocumentsById (el más común para pliegos - docAccCmpnt)
+                    # - GetDocumentByIdServlet (otro formato)
+                    # - .pdf directo
+                    es_enlace_documento = (
+                        'GetDocumentsById' in href or
+                        'docAccCmpnt' in href or
+                        'GetDocumentByIdServlet' in href or
+                        '.pdf' in href.lower()
+                    )
+                    if not es_enlace_documento:
+                        continue
+
+                    # Construir URL completa
+                    if href.startswith('http'):
+                        full_url = href
+                    elif href.startswith('/'):
+                        full_url = f"https://contrataciondelestado.es{href}"
+                    else:
+                        continue
+
+                    # Buscar también en el contexto (fila padre, div, li, span)
+                    parent = link.find_parent('tr') or link.find_parent('div') or link.find_parent('li') or link.find_parent('span')
+                    parent_text = parent.get_text(strip=True).lower() if parent else ''
+
+                    # Texto combinado para búsqueda (incluir title y alt del enlace)
+                    title_attr = link.get('title', '').lower()
+                    texto_busqueda = f"{link_text} {parent_text} {title_attr}"
+
+                    logger.info(f"Analizando enlace doc: texto='{link_text_original}', texto_busqueda contiene 'prescripciones'={('prescripciones' in texto_busqueda)}")
+
+                    # Clasificar como PPT o PCAP basándose en el texto
+                    # IMPORTANTE: Primero verificar PPT (prescripciones técnicas)
+                    # El texto debe contener ESPECÍFICAMENTE "prescripciones" para ser PPT
+                    es_ppt = 'prescripciones' in texto_busqueda or 'ppt' in texto_busqueda.split()
+                    es_pcap = any(kw in texto_busqueda for kw in keywords_pcap)
+
+                    if es_ppt and not es_pcap:  # PPT pero NO PCAP
+                        if 'url_pliego_tecnico' not in resultado:
+                            resultado['url_pliego_tecnico'] = full_url
+                            logger.info(f"✓ Encontrado PPT (método 1): '{link_text_original}' -> {full_url[:80]}")
+                    elif es_pcap and not es_ppt:  # PCAP pero NO PPT
+                        if 'url_pliego_administrativo' not in resultado:
+                            resultado['url_pliego_administrativo'] = full_url
+                            logger.info(f"✓ Encontrado PCAP (método 1): '{link_text_original}' -> {full_url[:80]}")
+
+                # MÉTODO 2: Si no encontramos con método 1, buscar por iconos de PDF
+                if not resultado.get('url_pliego_tecnico'):
+                    logger.info("Método 1 no encontró PPT, buscando por iconos...")
+
+                    for link in soup.find_all('a', href=True):
+                        href = link.get('href', '')
+
+                        # Solo procesar enlaces a documentos de PLACSP
+                        es_enlace_documento = (
+                            'GetDocumentsById' in href or
+                            'docAccCmpnt' in href or
+                            'GetDocumentByIdServlet' in href or
+                            '.pdf' in href.lower()
+                        )
+                        if not es_enlace_documento:
+                            continue
+
+                        # Verificar si tiene icono de PDF
+                        img = link.find('img')
+                        es_pdf_por_icono = False
+                        if img:
+                            img_src = img.get('src', '').lower()
+                            img_alt = (img.get('alt', '') + ' ' + img.get('title', '')).lower()
+                            if 'pdf' in img_src or 'pdf' in img_alt:
+                                es_pdf_por_icono = True
+
+                        if not es_pdf_por_icono and '.pdf' not in href.lower():
+                            continue
+
+                        # Construir URL completa
+                        if href.startswith('http'):
+                            full_url = href
+                        elif href.startswith('/'):
+                            full_url = f"https://contrataciondelestado.es{href}"
+                        else:
+                            continue
+
+                        link_text = link.get_text(strip=True).lower()
+                        parent = link.find_parent('tr') or link.find_parent('div')
+                        parent_text = parent.get_text(strip=True).lower() if parent else ''
+                        texto_busqueda = f"{link_text} {parent_text}"
+
+                        # Clasificar usando la misma lógica mejorada del método 1
+                        es_ppt = 'prescripciones' in texto_busqueda or 'ppt' in texto_busqueda.split()
+                        es_pcap = any(kw in texto_busqueda for kw in keywords_pcap)
+
+                        if es_ppt and not es_pcap:
+                            if 'url_pliego_tecnico' not in resultado:
+                                resultado['url_pliego_tecnico'] = full_url
+                                logger.info(f"✓ Encontrado PPT (método 2 icono): {full_url[:80]}")
+                        elif es_pcap and not es_ppt:
+                            if 'url_pliego_administrativo' not in resultado:
+                                resultado['url_pliego_administrativo'] = full_url
+                                logger.info(f"✓ Encontrado PCAP (método 2 icono): {full_url[:80]}")
+
+                # MÉTODO 3: Fallback - buscar cualquier PDF con "pliego" en el contexto
+                if not resultado.get('url_pliego_tecnico'):
+                    logger.info("Métodos 1-2 no encontraron PPT, buscando cualquier PDF con 'pliego'...")
+                    pdfs_encontrados = []
+
+                    for link in soup.find_all('a', href=True):
+                        href = link.get('href', '')
+                        link_text = link.get_text(strip=True).lower()
+
+                        # Cualquier enlace a documento de PLACSP
+                        es_enlace_documento = (
+                            'GetDocumentsById' in href or
+                            'docAccCmpnt' in href or
+                            'GetDocumentByIdServlet' in href or
+                            '.pdf' in href.lower()
+                        )
+                        if es_enlace_documento:
+                            if href.startswith('http'):
+                                full_url = href
+                            elif href.startswith('/'):
+                                full_url = f"https://contrataciondelestado.es{href}"
+                            else:
+                                continue
+
+                            if 'pliego' in link_text or 'técnic' in link_text or 'administrativ' in link_text:
+                                pdfs_encontrados.append({
+                                    'url': full_url,
+                                    'texto': link_text,
+                                    'es_tecnico': 'técnic' in link_text or 'tecnic' in link_text or 'prescripcion' in link_text,
+                                    'es_admin': 'administrativ' in link_text or 'cláusula' in link_text or 'clausula' in link_text
+                                })
+                                logger.info(f"PDF con pliego encontrado: {link_text[:50]} -> {full_url[:60]}")
+
+                    # Asignar los PDFs encontrados
+                    for pdf in pdfs_encontrados:
+                        if pdf['es_tecnico'] and 'url_pliego_tecnico' not in resultado:
+                            resultado['url_pliego_tecnico'] = pdf['url']
+                            logger.info(f"✓ PPT asignado (método 3): {pdf['url'][:80]}")
+                        elif pdf['es_admin'] and 'url_pliego_administrativo' not in resultado:
+                            resultado['url_pliego_administrativo'] = pdf['url']
+                            logger.info(f"✓ PCAP asignado (método 3): {pdf['url'][:80]}")
+
+                    # Si aún no hay PPT pero hay PDFs, asignar el primero
+                    if not resultado.get('url_pliego_tecnico') and pdfs_encontrados:
+                        resultado['url_pliego_tecnico'] = pdfs_encontrados[0]['url']
+                        logger.info(f"✓ PPT asignado (fallback): {pdfs_encontrados[0]['url'][:80]}")
+
+                logger.info(f"Resultado extracción pliegos: PPT={bool(resultado.get('url_pliego_tecnico'))}, PCAP={bool(resultado.get('url_pliego_administrativo'))}")
+
+                return resultado if resultado else None
+
+        except Exception as e:
+            logger.error(f"Error extrayendo pliegos de página: {e}", exc_info=True)
             return None
 
     async def _parse_xml_adjudicacion(self, xml_url: str) -> Optional[Dict[str, Any]]:
@@ -1019,28 +1388,91 @@ class AdjudicatarioEnricher:
                 texto_completo = response.text.lower()
                 texto_raw = response.text
 
-                # === MÉTODO 1: Buscar <strong> después de <h5> (estructura típica PLACSP) ===
-                for h5 in soup.find_all('h5'):
-                    h5_text = h5.get_text(strip=True).lower()
+                # === MÉTODO 0: BeautifulSoup - Buscar <h4>Adjudicatario</h4> seguido de <strong> ===
+                # La estructura real de PLACSP es:
+                # <h4>Adjudicatario</h4>
+                # <ul><li><div class="noremarca"><strong>NOMBRE EMPRESA S.L.</strong></div></li>...
 
-                    # Buscar el siguiente <strong> que contenga el valor
-                    next_strong = h5.find_next('strong')
-                    if next_strong:
-                        valor = next_strong.get_text(strip=True)
+                # Primero buscar h4 con "Adjudicatario"
+                for h4 in soup.find_all('h4'):
+                    h4_text = h4.get_text(strip=True).lower()
+                    if 'adjudicatario' in h4_text and 'entidad' not in h4_text:
+                        # Buscar el siguiente <strong> dentro de <li> o <div>
+                        next_elem = h4.find_next(['ul', 'li', 'div'])
+                        if next_elem:
+                            strong = next_elem.find('strong')
+                            if strong:
+                                valor = strong.get_text(strip=True)
+                                # Validar que parece nombre de empresa (no vacío, no solo números)
+                                if valor and len(valor) > 3 and not valor.isdigit():
+                                    # Excluir valores que parecen NIF o localidades cortas
+                                    if not re.match(r'^[A-Z]\d{8}$', valor) and not re.match(r'^[A-Z]\d{7}[A-Z]$', valor):
+                                        datos['nombre_comercial'] = valor
+                                        logger.info(f"✓ Nombre adjudicatario (método 0 H4+strong): {valor}")
+                                        break
+                        # Si no hay strong inmediato, buscar más adelante
+                        if not datos.get('nombre_comercial'):
+                            next_strong = h4.find_next('strong')
+                            if next_strong:
+                                valor = next_strong.get_text(strip=True)
+                                if valor and len(valor) > 3 and not valor.isdigit():
+                                    if not re.match(r'^[A-Z]\d{8}$', valor) and not re.match(r'^[A-Z]\d{7}[A-Z]$', valor):
+                                        datos['nombre_comercial'] = valor
+                                        logger.info(f"✓ Nombre adjudicatario (método 0 H4+strong fallback): {valor}")
+                                        break
 
-                        # Adjudicatario
-                        if 'adjudicatario' in h5_text and 'entidad' not in h5_text:
-                            if valor and len(valor) > 3:
-                                datos['nombre_comercial'] = valor
-                                logger.debug(f"H5: nombre_comercial = {valor}")
+                # === MÉTODO 1: Buscar <strong> después de <h5> (estructura alternativa PLACSP) ===
+                if not datos.get('nombre_comercial'):
+                    for h5 in soup.find_all('h5'):
+                        h5_text = h5.get_text(strip=True).lower()
 
-                        # Órgano/Entidad adjudicadora
-                        elif 'entidad adjudicadora' in h5_text or 'órgano' in h5_text:
-                            if valor and len(valor) > 3:
-                                datos['organo_contratacion'] = valor
-                                logger.debug(f"H5: organo_contratacion = {valor}")
+                        # Buscar el siguiente <strong> que contenga el valor
+                        next_strong = h5.find_next('strong')
+                        if next_strong:
+                            valor = next_strong.get_text(strip=True)
 
-                # === MÉTODO 2: Buscar patrones "Label: Valor" en el texto ===
+                            # Adjudicatario
+                            if 'adjudicatario' in h5_text and 'entidad' not in h5_text:
+                                if valor and len(valor) > 3:
+                                    datos['nombre_comercial'] = valor
+                                    logger.info(f"✓ Nombre adjudicatario (método 1 H5): {valor}")
+
+                            # Órgano/Entidad adjudicadora
+                            elif 'entidad adjudicadora' in h5_text or 'órgano' in h5_text:
+                                if valor and len(valor) > 3:
+                                    datos['organo_contratacion'] = valor
+                                    logger.debug(f"H5: organo_contratacion = {valor}")
+
+                # === MÉTODO 2: Regex - Buscar patrón directo "Adjudicatario → NOMBRE" con flecha Unicode ===
+                # La estructura puede ser: "Adjudicatario\n→ NOMBRE\n→ NIF..."
+                if not datos.get('nombre_comercial'):
+                    adj_nombre_match = re.search(
+                        r'Adjudicatario\s*(?:</h\d>)?\s*[→\-:]\s*([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñÁÉÍÓÚÑ\s\.,&]+(?:S\.?L\.?U?\.?|S\.?A\.?U?\.?|S\.?L\.?|S\.?A\.?))',
+                        texto_raw, re.I
+                    )
+                    if adj_nombre_match:
+                        nombre = adj_nombre_match.group(1).strip()
+                        nombre = re.sub(r'\s+', ' ', nombre)
+                        if nombre and len(nombre) > 3:
+                            datos['nombre_comercial'] = nombre
+                            logger.info(f"✓ Nombre adjudicatario (método 2a regex): {nombre}")
+
+                # Si no encontramos con forma jurídica, buscar nombre genérico antes de NIF
+                if not datos.get('nombre_comercial'):
+                    adj_nombre_match2 = re.search(
+                        r'Adjudicatario\s*(?:</h\d>)?\s*[→\-:]\s*([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñÁÉÍÓÚÑ\s\.,&\-]+?)(?=\s*[→\-:]\s*NIF|\s*NIF\s|$)',
+                        texto_raw, re.I
+                    )
+                    if adj_nombre_match2:
+                        nombre = adj_nombre_match2.group(1).strip()
+                        nombre = re.sub(r'\s+', ' ', nombre)
+                        # Validar que no sea una localidad (menos de 3 palabras y sin forma jurídica)
+                        palabras = nombre.split()
+                        if nombre and len(nombre) > 5 and len(palabras) >= 2:
+                            datos['nombre_comercial'] = nombre
+                            logger.info(f"✓ Nombre adjudicatario (método 2b regex): {nombre}")
+
+                # === MÉTODO 3: Buscar patrones "Label: Valor" en el texto ===
 
                 # NIF del adjudicatario (buscar cerca de "Adjudicatario" o solo el patrón)
                 nif_patterns = [
@@ -1057,30 +1489,38 @@ class AdjudicatarioEnricher:
 
                 # Es PYME
                 if 'pyme' in texto_completo:
-                    pyme_match = re.search(r'(?:es\s*)?pyme[:\s]*(sí|si|yes|true|no|false)?', texto_completo, re.I)
+                    pyme_match = re.search(r'(?:es\s*una?\s*)?pyme[:\s]*(sí|si|yes|true|no|false)?', texto_completo, re.I)
                     if pyme_match:
                         valor_pyme = pyme_match.group(1) if pyme_match.group(1) else ''
                         datos['es_pyme'] = valor_pyme.lower() in ['sí', 'si', 'yes', 'true', '']
                         logger.debug(f"Es PYME: {datos['es_pyme']}")
 
-                # === DATOS DE CONTACTO DEL ADJUDICATARIO (teléfono y email) ===
-                # La estructura típica de PLACSP usa:
-                # - Sección "Adjudicatario" seguida de datos
-                # - "→" como bullet points
-                # - Labels como "Teléfono", "Correo Electrónico", "Dirección Física"
+                # País de origen del producto/servicio
+                pais_match = re.search(r'Pa[íi]s\s*(?:Origen|de\s*Origen)[^:]*[:\s]*([A-ZÁÉÍÓÚÑa-záéíóúñ]+)', texto_raw, re.I)
+                if pais_match:
+                    datos['pais_origen'] = pais_match.group(1).strip()
+                    logger.debug(f"País origen: {datos['pais_origen']}")
 
-                # MÉTODO PRINCIPAL: Buscar en la sección entre "Adjudicatario" y la siguiente sección
-                # (típicamente "Importes de Adjudicación" o "Entidad Adjudicadora")
+                # === DATOS COMPLETOS DEL ADJUDICATARIO ===
+                # Estructura típica del HTML de PLACSP:
+                # - Sección "Adjudicatario" con nombre, NIF, es PYME, país origen
+                # - Subsección "Dirección Física" con calle y CP/localidad
+                # - Subsección "Contacto" con teléfono y email
+                # - Sección "Importes de Adjudicación" con importes sin/con IVA
+                # - Sección "Motivación" con razón de adjudicación
+                # - Sección "Información Sobre las Ofertas" con estadísticas
+
+                # MÉTODO PRINCIPAL: Buscar sección Adjudicatario (hasta Importes)
                 adj_section_match = re.search(
-                    r'Adjudicatario.*?(?=Importes|Entidad\s*Adjudicadora|Motivación|Información|$)',
+                    r'Adjudicatario.*?(?=Importes\s*de\s*Adjudicaci[óo]n|Entidad\s*Adjudicadora|Motivaci[óo]n|$)',
                     texto_raw, re.I | re.DOTALL
                 )
 
                 if adj_section_match:
                     adj_text = adj_section_match.group(0)
-                    logger.debug(f"Sección Adjudicatario encontrada: {len(adj_text)} chars")
+                    logger.info(f"Sección Adjudicatario encontrada: {len(adj_text)} chars")
 
-                    # Teléfono del adjudicatario (formato: +34 922276634 o 922276634)
+                    # Teléfono del adjudicatario (en subsección Contacto)
                     tel_patterns = [
                         r'Tel[ée]fono[:\s→]*\+?34?\s*(\d{9}|\d{3}[\s.-]?\d{3}[\s.-]?\d{3})',
                         r'Tel[:\s→]*\+?34?\s*(\d{9})',
@@ -1095,46 +1535,120 @@ class AdjudicatarioEnricher:
                                 logger.info(f"✓ Teléfono adjudicatario: {tel}")
                                 break
 
-                    # Email del adjudicatario (formato: Correo Electrónico domaser@domasercanaria.com)
-                    email_patterns = [
+                    # Email del adjudicatario (en subsección Contacto)
+                    # IMPORTANTE: Buscar específicamente después de "Correo Electrónico"
+                    # Primero buscar en la subsección Contacto del adjudicatario
+                    contacto_section = re.search(
+                        r'Contacto.*?(?=Direcci[óo]n|Importes|Motivaci|Entidad|$)',
+                        adj_text, re.I | re.DOTALL
+                    )
+                    email_search_text = contacto_section.group(0) if contacto_section else adj_text
+
+                    email_match = re.search(
                         r'Correo\s*Electr[óo]nico[:\s→]*([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})',
-                        r'(?:Email|E-mail)[:\s→]*([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})',
-                        r'→\s*([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})',
-                    ]
-                    for pattern in email_patterns:
-                        email_match = re.search(pattern, adj_text, re.I)
-                        if email_match:
-                            email = email_match.group(1)
-                            if not any(x in email.lower() for x in ['noreply', 'no-reply', 'example', 'contratacion']):
-                                datos['email'] = email
-                                logger.info(f"✓ Email adjudicatario: {email}")
-                                break
+                        email_search_text, re.I
+                    )
+                    if email_match:
+                        email = email_match.group(1)
+                        if not any(x in email.lower() for x in ['noreply', 'no-reply', 'example', 'contratacion', 'hacienda']):
+                            datos['email'] = email
+                            logger.info(f"✓ Email adjudicatario: {email}")
 
                     # Dirección Física del adjudicatario
-                    # Formato típico: "Dirección Física → ACCESO AUTOPISTA, LA HIDALGA, Nº14, → (38550) ARAFO España"
-                    dir_patterns = [
-                        r'Direcci[óo]n\s*F[íi]sica[:\s→]*([^→\n]+(?:→[^→\n]+)*)',
-                        r'Direcci[óo]n[:\s→]*([A-Z][^→\n]{10,80})',
-                        r'→\s*((?:CALLE|AVENIDA|ACCESO|PLAZA|PASEO|C/)[^→\n]+)',
-                    ]
-                    for pattern in dir_patterns:
-                        dir_match = re.search(pattern, adj_text, re.I)
-                        if dir_match:
-                            direccion = dir_match.group(1).strip()
-                            # Limpiar múltiples → y espacios
-                            direccion = re.sub(r'→\s*', ', ', direccion)
-                            direccion = re.sub(r',\s*,', ',', direccion).strip(' ,')
-                            if len(direccion) > 10:
-                                datos['direccion'] = direccion
-                                logger.info(f"✓ Dirección adjudicatario: {direccion[:60]}...")
-                                break
+                    # Formato: "Dirección Física → Camino Cerro De los Gamos, 1 → (28224) Pozuelo..."
+                    dir_section = re.search(
+                        r'Direcci[óo]n\s*F[íi]sica[:\s→]*(.*?)(?=Contacto|Importes|Motivaci|$)',
+                        adj_text, re.I | re.DOTALL
+                    )
+                    if dir_section:
+                        dir_text = dir_section.group(1)
+                        # Extraer la calle (primera línea después de Dirección Física)
+                        calle_match = re.search(r'→?\s*([A-Za-záéíóúñÁÉÍÓÚÑ][^→\n]{5,80}?)(?=→|\n|$)', dir_text)
+                        if calle_match:
+                            calle = calle_match.group(1).strip()
+                            # Evitar capturar el CP como dirección
+                            if not re.match(r'^\(\d{5}\)', calle):
+                                datos['direccion'] = calle
+                                logger.info(f"✓ Dirección adjudicatario: {calle}")
 
-                    # Código postal y localidad (formato: (38550) ARAFO)
-                    cp_match = re.search(r'\((\d{5})\)\s*([A-ZÁÉÍÓÚÑa-záéíóúñ\s]+?)(?:\s*España)?(?:→|$|\n)', adj_text)
+                    # Código postal y localidad (formato: (28224) Pozuelo de Alarcón)
+                    cp_match = re.search(r'\((\d{5})\)\s*([A-ZÁÉÍÓÚÑa-záéíóúñ\s]+?)(?:\s*España)?(?:→|<|$|\n)', adj_text)
                     if cp_match:
                         datos['codigo_postal'] = cp_match.group(1)
                         datos['localidad'] = cp_match.group(2).strip()
-                        logger.debug(f"CP: {datos['codigo_postal']}, Localidad: {datos['localidad']}")
+                        logger.info(f"✓ CP/Localidad: {datos['codigo_postal']} {datos['localidad']}")
+
+                # === IMPORTES DE ADJUDICACIÓN ===
+                importes_section = re.search(
+                    r'Importes\s*de\s*Adjudicaci[óo]n.*?(?=Motivaci[óo]n|Informaci[óo]n|Entidad|$)',
+                    texto_raw, re.I | re.DOTALL
+                )
+                if importes_section:
+                    imp_text = importes_section.group(0)
+
+                    # Importe sin impuestos
+                    sin_iva = re.search(r'sin\s*impuestos[:\s→]*([\d.,]+)\s*EUR', imp_text, re.I)
+                    if sin_iva:
+                        datos['importe_sin_iva'] = sin_iva.group(1)
+                        logger.info(f"✓ Importe sin IVA: {datos['importe_sin_iva']} EUR")
+
+                    # Importe con impuestos
+                    con_iva = re.search(r'con\s*impuestos[:\s→]*([\d.,]+)\s*EUR', imp_text, re.I)
+                    if con_iva:
+                        datos['importe_con_iva'] = con_iva.group(1)
+                        logger.info(f"✓ Importe con IVA: {datos['importe_con_iva']} EUR")
+
+                # === MOTIVACIÓN DE LA ADJUDICACIÓN ===
+                motivacion_section = re.search(
+                    r'Motivaci[óo]n.*?(?=Informaci[óo]n|Entidad|$)',
+                    texto_raw, re.I | re.DOTALL
+                )
+                if motivacion_section:
+                    mot_text = motivacion_section.group(0)
+
+                    # Razón de la adjudicación
+                    motivo = re.search(r'Motivaci[óo]n[:\s→]*([A-Za-záéíóúñÁÉÍÓÚÑ][^→\n]{5,100})', mot_text, re.I)
+                    if motivo:
+                        datos['motivacion_adjudicacion'] = motivo.group(1).strip()
+                        logger.info(f"✓ Motivación: {datos['motivacion_adjudicacion']}")
+
+                    # Fecha del acuerdo
+                    fecha_acuerdo = re.search(r'Fecha\s*del\s*Acuerdo[:\s→]*(\d{1,2}/\d{1,2}/\d{4})', mot_text, re.I)
+                    if fecha_acuerdo:
+                        datos['fecha_adjudicacion'] = fecha_acuerdo.group(1)
+                        logger.info(f"✓ Fecha acuerdo: {datos['fecha_adjudicacion']}")
+
+                # === INFORMACIÓN SOBRE LAS OFERTAS ===
+                ofertas_section = re.search(
+                    r'Informaci[óo]n\s*[Ss]obre\s*las\s*[Oo]fertas.*?(?=Entidad|$)',
+                    texto_raw, re.I | re.DOTALL
+                )
+                if ofertas_section:
+                    of_text = ofertas_section.group(0)
+
+                    # Número de ofertas recibidas
+                    ofertas_recibidas = re.search(r'Ofertas\s*recibidas[:\s→]*(\d+)', of_text, re.I)
+                    if ofertas_recibidas:
+                        datos['numero_ofertas'] = int(ofertas_recibidas.group(1))
+                        logger.info(f"✓ Ofertas recibidas: {datos['numero_ofertas']}")
+
+                    # Ofertas de PYMEs
+                    pymes = re.search(r'(?:ofertas\s*)?(?:recibidas\s*)?(?:de\s*)?PYMEs?[:\s→]*(\d+)', of_text, re.I)
+                    if pymes:
+                        datos['ofertas_pymes'] = int(pymes.group(1))
+                        logger.info(f"✓ Ofertas PYMEs: {datos['ofertas_pymes']}")
+
+                    # Precio oferta más baja
+                    precio_bajo = re.search(r'(?:Precio|oferta)\s*m[áa]s\s*baja[:\s→]*([\d.,]+)\s*EUR', of_text, re.I)
+                    if precio_bajo:
+                        datos['precio_oferta_baja'] = precio_bajo.group(1)
+                        logger.info(f"✓ Precio más bajo: {datos['precio_oferta_baja']} EUR")
+
+                    # Precio oferta más alta
+                    precio_alto = re.search(r'(?:Precio|oferta)\s*m[áa]s\s*alta[:\s→]*([\d.,]+)\s*EUR', of_text, re.I)
+                    if precio_alto:
+                        datos['precio_oferta_alta'] = precio_alto.group(1)
+                        logger.info(f"✓ Precio más alto: {datos['precio_oferta_alta']} EUR")
 
                 # Si no encontramos con el método principal, intentar patrones globales
                 if not datos.get('telefono'):
@@ -1378,9 +1892,76 @@ class AdjudicatarioEnricher:
                     if 'financiacion_ue' not in datos:
                         datos['financiacion_ue'] = 'Sí - Fondos UE'
 
+                # === BUSCAR ENLACE AL PDF DEL ACTA DE RESOLUCIÓN ===
+                # El Acta de Resolución contiene la lista de empresas competidoras
+                # Estructura típica: <h3>Acta de Resolución</h3><ul><li><a href="...">Documento de Acta de Resolución</a></li></ul>
+                all_links = soup.find_all('a', href=True)
+                logger.info(f"Buscando PDF Acta entre {len(all_links)} enlaces en HTML adjudicación...")
+
+                for link in all_links:
+                    link_text = link.get_text(strip=True)
+                    link_text_lower = link_text.lower()
+                    href = link.get('href', '')
+
+                    # Log de enlaces que contienen 'acta' o 'documento'
+                    if 'acta' in link_text_lower or 'documento' in link_text_lower or 'resoluci' in link_text_lower:
+                        logger.info(f"  Enlace candidato: '{link_text}' -> {href[:80] if href else 'N/A'}...")
+
+                    # Buscar enlaces que contengan "acta" y/o "resolución"
+                    # Patrones válidos: "Acta de Resolución", "Documento de Acta", "Acta", "Resolución del procedimiento"
+                    is_acta_link = (
+                        ('acta' in link_text_lower and 'resoluci' in link_text_lower) or
+                        'documento de acta' in link_text_lower or
+                        ('acta' in link_text_lower and ('procedimiento' in link_text_lower or 'adjudicaci' in link_text_lower)) or
+                        (link_text_lower.strip() == 'acta') or
+                        ('resoluci' in link_text_lower and 'adjudicaci' in link_text_lower)
+                    )
+
+                    if is_acta_link:
+                        if 'GetDocumentByIdServlet' in href or '.pdf' in href.lower() or 'idDoc=' in href:
+                            # Construir URL completa
+                            if href.startswith('http'):
+                                pdf_acta_url = href
+                            else:
+                                pdf_acta_url = f"https://contrataciondelestado.es{href}"
+
+                            # Decodificar entidades HTML en la URL
+                            pdf_acta_url = pdf_acta_url.replace('&amp;', '&')
+
+                            datos['pdf_acta_resolucion_url'] = pdf_acta_url
+                            logger.info(f"✓ PDF Acta de Resolución encontrado en HTML adjudicación: {pdf_acta_url[:80]}...")
+                            break
+
+                if 'pdf_acta_resolucion_url' not in datos:
+                    # Segundo intento: buscar cualquier PDF con 'acta' en el texto del enlace
+                    for link in all_links:
+                        link_text_lower = link.get_text(strip=True).lower()
+                        href = link.get('href', '')
+
+                        if 'acta' in link_text_lower and ('GetDocumentByIdServlet' in href or '.pdf' in href.lower() or 'idDoc=' in href):
+                            if href.startswith('http'):
+                                pdf_acta_url = href
+                            else:
+                                pdf_acta_url = f"https://contrataciondelestado.es{href}"
+                            pdf_acta_url = pdf_acta_url.replace('&amp;', '&')
+                            datos['pdf_acta_resolucion_url'] = pdf_acta_url
+                            logger.info(f"✓ PDF Acta (fallback 'acta'): {pdf_acta_url[:80]}...")
+                            break
+
+                if 'pdf_acta_resolucion_url' not in datos:
+                    logger.warning("No se encontró enlace al PDF del Acta de Resolución en el HTML de adjudicación")
+
                 # Resumen final
                 campos_encontrados = [k for k in datos.keys()]
                 logger.info(f"HTML adjudicación parseado: {len(datos)} campos - {campos_encontrados}")
+
+                # Log datos del adjudicatario extraídos
+                datos_adj = {k: datos.get(k) for k in ['telefono', 'email', 'direccion', 'localidad', 'codigo_postal', 'es_pyme', 'pais_origen'] if datos.get(k)}
+                if datos_adj:
+                    logger.info(f"Datos adjudicatario extraídos: {datos_adj}")
+                else:
+                    logger.warning("No se extrajeron datos de contacto del adjudicatario")
+
                 return datos if datos else None
 
         except Exception as e:
@@ -1419,12 +2000,23 @@ class AdjudicatarioEnricher:
 
                 competidores = []
                 nif_ganador_upper = nif_ganador.upper() if nif_ganador else ""
+                logger.info(f"PDF Acta descargado: {len(response.content)} bytes, NIF ganador a excluir: {nif_ganador_upper}")
 
                 try:
                     with pdfplumber.open(tmp_path) as pdf:
-                        for page in pdf.pages:
+                        logger.info(f"PDF tiene {len(pdf.pages)} páginas")
+
+                        # Log del texto completo de la primera página para diagnóstico
+                        if pdf.pages:
+                            first_page_text = pdf.pages[0].extract_text()
+                            if first_page_text:
+                                preview = first_page_text[:800].replace('\n', ' | ')
+                                logger.info(f"Vista previa primera página: {preview}...")
+
+                        for page_num, page in enumerate(pdf.pages):
                             # Intentar extraer tablas
                             tables = page.extract_tables()
+                            logger.info(f"Página {page_num+1}: {len(tables)} tablas encontradas")
 
                             for table in tables:
                                 if not table:
@@ -1477,42 +2069,139 @@ class AdjudicatarioEnricher:
                                                 competidores.append(competidor)
                                                 logger.info(f"Competidor encontrado: {nombre_found} ({nif_found})")
 
-                            # Si no encontramos tablas, intentar con el texto
-                            if not competidores:
-                                text = page.extract_text()
-                                if text:
-                                    # Buscar patrones de NIF seguidos de nombre
-                                    # Patrón: NIF en una línea, seguido de nombre
-                                    lines = text.split('\n')
-                                    for i, line in enumerate(lines):
-                                        nif_match = re.search(r'\b([A-Z]\d{8}|\d{8}[A-Z])\b', line, re.I)
-                                        if nif_match:
-                                            nif = nif_match.group(1).upper()
-                                            if nif == nif_ganador_upper:
-                                                continue
+                            # Siempre extraer texto de la página para buscar competidores
+                            # (las tablas pueden no tener el formato esperado)
+                            text = page.extract_text()
+                            if text and not competidores:
+                                # Log primeras líneas del texto para debug
+                                preview = text[:500].replace('\n', ' | ')
+                                logger.info(f"Texto extraído de página {page_num+1} (preview): {preview}...")
+                                lines = text.split('\n')
 
-                                            # Buscar nombre en la misma línea o la siguiente
-                                            nombre = None
-                                            # Texto después del NIF en la misma línea
-                                            after_nif = line[nif_match.end():].strip()
-                                            if after_nif and len(after_nif) > 5:
-                                                # Quitar puntuación si está al final
-                                                nombre = re.sub(r'\s+\d+[,.]?\d*\s*(?:puntos?)?\s*$', '', after_nif, flags=re.I).strip()
-                                            elif i + 1 < len(lines):
-                                                next_line = lines[i + 1].strip()
-                                                if next_line and len(next_line) > 5 and not re.match(r'^[A-Z]\d{8}', next_line, re.I):
-                                                    nombre = re.sub(r'\s+\d+[,.]?\d*\s*(?:puntos?)?\s*$', '', next_line, flags=re.I).strip()
+                                # MÉTODO A: Buscar patrón "NOMBRE EMPRESA (NIF)" o "NOMBRE (NIF)"
+                                # Formato típico en PDFs de PLACSP: "EMPRESA S.L. (B12345678) 12.764,4 €"
+                                # El nombre está ANTES del NIF entre paréntesis
+                                # Primero intentar con formato empresa (S.L., S.A., etc.)
+                                empresa_nif_pattern = r'([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ\s,.\-&]+(?:S\.?L\.?U?\.?|S\.?A\.?U?\.?|SOCIEDAD|COOPERATIVA|SL|SA))\s*\(([A-Z]\d{8}|\d{8}[A-Z])\)'
 
-                                            if nombre and not any(c['nif'] == nif for c in competidores):
-                                                # Buscar puntuación
-                                                punt_match = re.search(r'(\d+[,.]?\d*)\s*(?:puntos?)?', line)
-                                                puntuacion = punt_match.group(1).replace(',', '.') if punt_match else None
+                                # Si no funciona, usar patrón más genérico
+                                # Captura cualquier texto antes del NIF entre paréntesis
+                                empresa_nif_pattern_generic = r'([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ0-9\s,.\-&]+?)\s*\(([A-Z]\d{8}|\d{8}[A-Z])\)'
 
-                                                competidores.append({
-                                                    'nif': nif,
-                                                    'nombre': nombre,
-                                                    'puntuacion': puntuacion
-                                                })
+                                # Función para limpiar nombre de empresa
+                                def limpiar_nombre_empresa(nombre_raw):
+                                    """Elimina prefijos comunes que no son parte del nombre"""
+                                    nombre = nombre_raw.strip()
+                                    # Prefijos a eliminar (texto legal/administrativo antes del nombre real)
+                                    prefijos = [
+                                        r'^excluir\s+a\s+la\s+mercantil\s+',
+                                        r'^adjudicar\s+a\s+',
+                                        r'^a\s+la\s+mercantil\s+',
+                                        r'^la\s+mercantil\s+',
+                                        r'^empresa\s+',
+                                        r'^licitador[a]?\s+',
+                                    ]
+                                    for prefijo in prefijos:
+                                        nombre = re.sub(prefijo, '', nombre, flags=re.I)
+                                    return nombre.strip()
+
+                                for match in re.finditer(empresa_nif_pattern, text, re.I):
+                                    nombre = limpiar_nombre_empresa(match.group(1))
+                                    nif = match.group(2).upper()
+
+                                    if nif == nif_ganador_upper:
+                                        continue
+
+                                    # Buscar importe cerca (después del NIF)
+                                    after_match = text[match.end():match.end()+50]
+                                    importe_match = re.search(r'([\d.,]+)\s*€', after_match)
+                                    importe = None
+                                    if importe_match:
+                                        importe = importe_match.group(1)
+
+                                    if not any(c['nif'] == nif for c in competidores):
+                                        competidores.append({
+                                            'nif': nif,
+                                            'nombre': nombre,
+                                            'importe_oferta': importe,
+                                            'puntuacion': None
+                                        })
+                                        logger.info(f"Competidor encontrado: {nombre} ({nif}) - {importe}€")
+
+                                # MÉTODO A2: Buscar NIF y capturar todo el texto antes como nombre
+                                if not competidores:
+                                    # Usar patrón genérico - captura todo antes del NIF entre paréntesis
+                                    for match in re.finditer(empresa_nif_pattern_generic, text, re.I):
+                                        nombre = limpiar_nombre_empresa(match.group(1))
+                                        nif = match.group(2).upper()
+
+                                        if nif == nif_ganador_upper:
+                                            continue
+
+                                        # Filtrar nombres muy cortos o que son solo números
+                                        if len(nombre) < 3 or nombre.isdigit():
+                                            continue
+
+                                        # Buscar importe cerca (después del NIF)
+                                        after_match = text[match.end():match.end()+50]
+                                        importe_match = re.search(r'([\d.,]+)\s*€', after_match)
+                                        importe = importe_match.group(1) if importe_match else None
+
+                                        if not any(c['nif'] == nif for c in competidores):
+                                            competidores.append({
+                                                'nif': nif,
+                                                'nombre': nombre,
+                                                'importe_oferta': importe,
+                                                'puntuacion': None
+                                            })
+                                            logger.info(f"Competidor encontrado (genérico): {nombre} ({nif}) - {importe}€")
+
+                                # MÉTODO B: Buscar patrón "NOMBRE S.L." + importe en € (formato común en PDFs de PLACSP)
+                                # Formato real del PDF: "ESCLAPES E HIJOS, S.L. 176.243,76 €"
+                                if not competidores:
+                                    full_text = text
+                                    # Patrón: Nombre empresa (S.L., S.A., etc.) seguido de importe y €
+                                    # Captura: EMPRESA S.L. + espacio(s) + número con puntos/comas + espacio(s) + €
+                                    empresa_euro_pattern = r'([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ0-9\s,.\-&]+?(?:S\.?L\.?U?\.?|S\.?A\.?U?\.?|S\.L|S\.A|SOCIEDAD|COOPERATIVA|2007,?\s*S\.?L\.?))\s+([\d.,]+)\s*€'
+
+                                    for match in re.finditer(empresa_euro_pattern, full_text, re.I):
+                                        nombre = match.group(1).strip().rstrip(',').strip()
+                                        importe = match.group(2)
+
+                                        # Limpiar nombre de textos no deseados
+                                        if any(x in nombre.upper() for x in ['DURACIÓN', 'PLAZO', 'GARANTÍA', 'CONTRATO', 'ACTA', 'ARTÍCULO']):
+                                            continue
+
+                                        # Evitar duplicados (comparar por nombre normalizado)
+                                        nombre_norm = nombre.upper().replace(' ', '').replace(',', '').replace('.', '')
+                                        if not any(c.get('nombre', '').upper().replace(' ', '').replace(',', '').replace('.', '') == nombre_norm for c in competidores):
+                                            competidores.append({
+                                                'nif': None,  # No disponible en este formato
+                                                'nombre': nombre,
+                                                'importe_oferta': importe,
+                                                'puntuacion': None
+                                            })
+                                            logger.info(f"Competidor (formato €): {nombre} - {importe}€")
+
+                                # MÉTODO C: Buscar con "euros" en lugar de €
+                                if not competidores:
+                                    empresa_euros_pattern = r'([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ0-9\s,.\-&]+?(?:S\.?L\.?U?\.?|S\.?A\.?U?\.?|S\.L|S\.A))\s+([\d.,]+)\s*euros?'
+                                    for match in re.finditer(empresa_euros_pattern, full_text, re.I):
+                                        nombre = match.group(1).strip().rstrip(',').strip()
+                                        importe = match.group(2)
+
+                                        if any(x in nombre.upper() for x in ['DURACIÓN', 'PLAZO', 'GARANTÍA', 'CONTRATO']):
+                                            continue
+
+                                        nombre_norm = nombre.upper().replace(' ', '').replace(',', '').replace('.', '')
+                                        if not any(c.get('nombre', '').upper().replace(' ', '').replace(',', '').replace('.', '') == nombre_norm for c in competidores):
+                                            competidores.append({
+                                                'nif': None,
+                                                'nombre': nombre,
+                                                'importe_oferta': importe,
+                                                'puntuacion': None
+                                            })
+                                            logger.info(f"Competidor (formato euros): {nombre} - {importe}€")
 
                 finally:
                     # Limpiar archivo temporal
@@ -1534,6 +2223,204 @@ class AdjudicatarioEnricher:
 
         except Exception as e:
             logger.error(f"Error extrayendo competidores del PDF: {e}")
+            return None
+
+    async def _extract_competidores_from_html(self, html_url: str, nif_ganador: str) -> Optional[List[Dict[str, Any]]]:
+        """
+        Extrae la lista de empresas competidoras del HTML de adjudicación de PLACSP.
+
+        El HTML de adjudicación contiene información sobre las ofertas presentadas:
+        - Sección "Información sobre las ofertas" o "Ofertas recibidas"
+        - Tabla con licitadores, NIFs y puntuaciones
+        - Formato variable según el tipo de procedimiento
+
+        Returns:
+            Lista de competidores (excluyendo al ganador) con formato:
+            [{nif: str, nombre: str, puntuacion: str, posicion: int}, ...]
+        """
+        try:
+            logger.info(f"Extrayendo competidores del HTML: {html_url[:80]}...")
+
+            async with httpx.AsyncClient(timeout=self.timeout, verify=False) as client:
+                response = await client.get(
+                    html_url,
+                    headers={"User-Agent": self.USER_AGENT},
+                    follow_redirects=True
+                )
+
+                if response.status_code != 200:
+                    logger.warning(f"HTML adjudicación retornó {response.status_code}")
+                    return None
+
+                soup = BeautifulSoup(response.text, 'html.parser')
+                texto_raw = response.text
+                competidores = []
+                nif_ganador_upper = nif_ganador.upper() if nif_ganador else ""
+
+                # =====================================================================
+                # MÉTODO 1: Buscar tabla de ofertas/licitadores
+                # PLACSP tiene tablas con estructura: NIF | Nombre | Puntuación | etc.
+                # =====================================================================
+                for table in soup.find_all('table'):
+                    table_text = table.get_text().lower()
+
+                    # Solo procesar tablas que parezcan contener ofertas
+                    if not any(x in table_text for x in ['oferta', 'licitador', 'puntuación', 'puntuacion', 'cif', 'nif']):
+                        continue
+
+                    rows = table.find_all('tr')
+                    for row in rows:
+                        cells = row.find_all(['td', 'th'])
+                        if len(cells) < 2:
+                            continue
+
+                        nif_found = None
+                        nombre_found = None
+                        puntuacion_found = None
+
+                        for cell in cells:
+                            cell_text = cell.get_text(strip=True)
+                            if not cell_text:
+                                continue
+
+                            # Detectar NIF/CIF (letra + 8 dígitos o 8 dígitos + letra)
+                            nif_match = re.search(r'\b([A-Z]\d{8}|\d{8}[A-Z])\b', cell_text, re.I)
+                            if nif_match and not nif_found:
+                                nif_found = nif_match.group(1).upper()
+                                continue
+
+                            # Detectar puntuación (número con decimales, típicamente entre 0-100)
+                            punt_match = re.search(r'^(\d{1,3}[,.]?\d*)\s*(?:puntos?)?$', cell_text, re.I)
+                            if punt_match and not puntuacion_found:
+                                puntuacion_found = punt_match.group(1).replace(',', '.')
+                                continue
+
+                            # Lo que queda y tiene más de 5 caracteres es probablemente el nombre
+                            if len(cell_text) > 5 and not nombre_found:
+                                # Verificar que no sea header o NIF
+                                if cell_text.upper() not in ['CIF', 'NIF', 'NOMBRE', 'PUNTUACIÓN', 'PUNTUACION', 'EMPRESA', 'LICITADOR', 'OFERTANTE']:
+                                    if not re.match(r'^[A-Z]\d{8}$', cell_text, re.I):
+                                        nombre_found = cell_text
+
+                        # Si encontramos NIF y nombre, añadir (excluyendo al ganador)
+                        if nif_found and nombre_found:
+                            if nif_found != nif_ganador_upper:
+                                competidor = {
+                                    'nif': nif_found,
+                                    'nombre': nombre_found,
+                                    'puntuacion': puntuacion_found
+                                }
+                                # Evitar duplicados
+                                if not any(c['nif'] == nif_found for c in competidores):
+                                    competidores.append(competidor)
+                                    logger.info(f"Competidor (tabla): {nombre_found} ({nif_found})")
+
+                # =====================================================================
+                # MÉTODO 2: Buscar patrones de NIF + nombre en texto estructurado
+                # PLACSP usa formato: "→ NIF: B12345678 → Nombre: Empresa S.L."
+                # =====================================================================
+                if not competidores:
+                    # Buscar sección de ofertas
+                    ofertas_section = re.search(
+                        r'(?:Ofertas|Licitadores|Información sobre las ofertas).*?(?=Motivación|Recurso|$)',
+                        texto_raw, re.I | re.DOTALL
+                    )
+
+                    section_text = ofertas_section.group(0) if ofertas_section else texto_raw
+
+                    # Patrón 1: "NIF: X12345678" seguido de nombre
+                    nif_pattern = r'(?:NIF|CIF)[:\s]*([A-Z]\d{8}|\d{8}[A-Z])'
+                    for match in re.finditer(nif_pattern, section_text, re.I):
+                        nif = match.group(1).upper()
+                        if nif == nif_ganador_upper:
+                            continue
+
+                        # Buscar nombre cerca del NIF (antes o después)
+                        context_start = max(0, match.start() - 200)
+                        context_end = min(len(section_text), match.end() + 200)
+                        context = section_text[context_start:context_end]
+
+                        # Buscar nombre de empresa (patrón: S.L., S.A., etc.)
+                        nombre_match = re.search(
+                            r'([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ\s,.-]{5,60}(?:S\.?L\.?U?\.?|S\.?A\.?U?\.?|SOCIEDAD|EMPRESA|GRUPO|CONSULTORIA|CONSULTING|TECNOLOG[IÍ]AS?|SISTEMAS?|SOLUCIONES|SERVICIOS|INGENIERÍA?|INFORMATICA))',
+                            context, re.I
+                        )
+
+                        if nombre_match:
+                            nombre = nombre_match.group(1).strip()
+
+                            # Buscar puntuación cerca
+                            punt_match = re.search(r'(\d{1,3}[,.]?\d*)\s*(?:puntos?)?', context, re.I)
+                            puntuacion = punt_match.group(1).replace(',', '.') if punt_match else None
+
+                            if not any(c['nif'] == nif for c in competidores):
+                                competidores.append({
+                                    'nif': nif,
+                                    'nombre': nombre,
+                                    'puntuacion': puntuacion
+                                })
+                                logger.info(f"Competidor (texto): {nombre} ({nif})")
+
+                # =====================================================================
+                # MÉTODO 3: Buscar lista estructurada con bullets/líneas
+                # =====================================================================
+                if not competidores:
+                    # Buscar líneas con NIFs
+                    lines = texto_raw.split('\n')
+                    for i, line in enumerate(lines):
+                        nif_match = re.search(r'\b([A-Z]\d{8}|\d{8}[A-Z])\b', line, re.I)
+                        if nif_match:
+                            nif = nif_match.group(1).upper()
+                            if nif == nif_ganador_upper:
+                                continue
+
+                            # Buscar nombre en la misma línea o línea cercana
+                            nombre = None
+                            puntuacion = None
+
+                            # Texto después del NIF
+                            after_nif = line[nif_match.end():].strip()
+                            if after_nif and len(after_nif) > 5:
+                                # Quitar puntuación si está al final
+                                nombre_clean = re.sub(r'\s+\d+[,.]?\d*\s*(?:puntos?)?\s*$', '', after_nif, flags=re.I).strip()
+                                if nombre_clean:
+                                    nombre = nombre_clean
+
+                            # Si no encontramos nombre, buscar antes del NIF
+                            if not nombre:
+                                before_nif = line[:nif_match.start()].strip()
+                                if before_nif and len(before_nif) > 5:
+                                    nombre = before_nif
+
+                            # Buscar puntuación
+                            punt_match = re.search(r'(\d{1,3}[,.]?\d*)\s*(?:puntos?)?', line, re.I)
+                            if punt_match:
+                                puntuacion = punt_match.group(1).replace(',', '.')
+
+                            if nombre and not any(c['nif'] == nif for c in competidores):
+                                competidores.append({
+                                    'nif': nif,
+                                    'nombre': nombre,
+                                    'puntuacion': puntuacion
+                                })
+                                logger.info(f"Competidor (línea): {nombre} ({nif})")
+
+                # Ordenar por puntuación (mayor primero) y añadir posición
+                if competidores:
+                    competidores.sort(
+                        key=lambda x: float(x['puntuacion']) if x.get('puntuacion') else 0,
+                        reverse=True
+                    )
+                    # Añadir posición (el ganador sería 1, así que empezamos en 2)
+                    for i, comp in enumerate(competidores):
+                        comp['posicion'] = i + 2
+
+                    logger.info(f"Total competidores extraídos del HTML: {len(competidores)}")
+
+                return competidores if competidores else None
+
+        except Exception as e:
+            logger.error(f"Error extrayendo competidores del HTML: {e}", exc_info=True)
             return None
 
     def _merge_datos(

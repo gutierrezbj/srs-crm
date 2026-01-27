@@ -58,6 +58,7 @@ class TipoOportunidad(Enum):
     COMUNICACIONES_UC = "📞 Comunicaciones Unificadas"         # Pilar 4
     HEALTHCARE_IT = "🏥 Healthcare IT (RIS/PACS)"              # Pilar 5
     FOTOVOLTAICA_ENERGIA = "☀️ Fotovoltaica / Energía"         # Pilar 6
+    DRONES_CARTOGRAFIA = "🚁 Drones / Cartografía"             # Pilar 7 - LiDAR, fotogrametría, topografía
     # Diferenciales
     SOPORTE_INTERNACIONAL = "🌍 Soporte Internacional"         # Diferencial único
     # Genéricos
@@ -902,6 +903,25 @@ def calcular_dolor(
                         "multisede", "múltiples sedes", "sedes internacionales",
                         "latam", "latinoamérica", "latinoamerica", "worldwide"]
 
+    # PILAR 7: Drones / Cartografía (LiDAR, fotogrametría, topografía aérea)
+    # Keywords que indican captura/vuelo (contexto SRS)
+    kw_drones_captura = ["vuelo", "vuelos", "dron", "drones", "rpas", "uav",
+                         "fotogrametría", "fotogrametria", "ortofoto", "ortofotos",
+                         "topografía aérea", "topografia aerea", "levantamiento aéreo",
+                         "captura aérea", "captura aerea", "escáner láser", "escaner laser"]
+    # Keywords que pueden ser LiDAR de captura o LiDAR de procesamiento
+    kw_lidar_contexto = ["lidar", "nube de puntos", "nubes de puntos", "laser escáner",
+                         "mdt", "mds", "modelo digital", "punto kilométrico"]
+    # Keywords que confirman contexto de cartografía/obra (no solo datos)
+    kw_contexto_cartografia = ["cartografía", "cartografia", "cartográfico", "cartografico",
+                               "seguimiento de obra", "control de obra", "avance de obra",
+                               "gemelo digital", "as-built", "asbuilt", "volumetría", "volumetria",
+                               "cubicación", "cubicacion", "estereoscop", "restitución", "restitucion"]
+    # Keywords que indican que es solo procesamiento/almacenamiento de datos (NO es SRS drones)
+    kw_solo_datos = ["espacio de datos", "data space", "almacenamiento de datos",
+                     "procesamiento de datos", "gestión de datos", "plataforma de datos",
+                     "lago de datos", "data lake", "big data", "interoperabilidad"]
+
     # ═══════════════════════════════════════════════════════════════
     # CLASIFICACIÓN POR PRIORIDAD (usando validación de palabra completa)
     # ═══════════════════════════════════════════════════════════════
@@ -909,6 +929,20 @@ def calcular_dolor(
     tiene_soporte = tiene_keyword(objeto_lower, kw_soporte)
     tiene_cableado = tiene_keyword(objeto_lower, kw_cableado)
     tiene_cpd = tiene_keyword(objeto_lower, kw_cpd)
+
+    # Detección inteligente de Drones/Cartografía
+    tiene_drones_captura = tiene_keyword(objeto_lower, kw_drones_captura)
+    tiene_lidar = tiene_keyword(objeto_lower, kw_lidar_contexto)
+    tiene_contexto_cartografia = tiene_keyword(objeto_lower, kw_contexto_cartografia)
+    tiene_solo_datos = tiene_keyword(objeto_lower, kw_solo_datos)
+
+    # LiDAR + contexto de vuelo/cartografía = Drones/Cartografía
+    # LiDAR + contexto de datos/almacenamiento = NO es Drones (es IT)
+    es_drones_cartografia = (
+        tiene_drones_captura or  # Keywords claras de vuelo/captura
+        tiene_contexto_cartografia or  # Keywords de cartografía/obra
+        (tiene_lidar and not tiene_solo_datos)  # LiDAR sin contexto de "solo datos"
+    )
     tiene_cloud = tiene_keyword(objeto_lower, kw_cloud)
     tiene_ciber = tiene_keyword(objeto_lower, kw_ciber)
     tiene_uc = tiene_keyword(objeto_lower, kw_uc)
@@ -922,6 +956,9 @@ def calcular_dolor(
     if tiene_fotovoltaica or es_cpv_fotovoltaica:
         tipo = TipoOportunidad.FOTOVOLTAICA_ENERGIA
         indicadores.append("☀️ Pilar 6 SRS: Fotovoltaica / Energía")
+    elif es_drones_cartografia:
+        tipo = TipoOportunidad.DRONES_CARTOGRAFIA
+        indicadores.append("🚁 Pilar 7 SRS: Drones / Cartografía")
     elif tiene_health:
         tipo = TipoOportunidad.HEALTHCARE_IT
         indicadores.append("🏥 Pilar SRS: Healthcare IT")

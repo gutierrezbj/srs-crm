@@ -230,6 +230,9 @@ class PliegoAnalyzer:
         "linux", "ubuntu", "redhat", "centos", "debian",
         # Bases de datos
         "oracle", "sql server", "postgresql", "mysql", "mongodb",
+        # Drones y Cartografía
+        "pix4d", "agisoft", "metashape", "dronedeploy", "lidar", "fotogrametría",
+        "qgis", "arcgis", "autocad", "revit", "bim",
     ]
 
     # Keywords de dolor
@@ -241,6 +244,16 @@ class PliegoAnalyzer:
         "certificaciones": ["ens", "iso 27001", "iso27001", "rgpd", "lopd", "certificación"],
         "recursos": ["escasez", "falta de personal", "dificultad para contratar"],
         "multisede": ["multisede", "nacional", "delegaciones", "sedes distribuidas"],
+        # Drones y cartografía
+        "drones": ["dron", "drone", "rpas", "uav", "vehículo no tripulado", "aeronave no tripulada"],
+        "cartografia": ["ortofoto", "fotogrametría", "lidar", "topografía aérea", "nube de puntos",
+                        "modelo digital", "mds", "mdt", "mde", "cartografía", "gemelo digital"],
+        "seguimiento_obra": ["seguimiento de obra", "control de avance", "avance de obra",
+                             "certificación de obra", "as-built", "comparativa bim"],
+        "energia": ["planta fotovoltaica", "parque solar", "parque eólico", "aerogenerador",
+                    "termografía", "hotspot", "inspección de palas", "o&m solar", "o&m eólico"],
+        "mineria": ["cantera", "explotación minera", "volumetría", "stockpile", "acopio",
+                    "movimiento de tierras", "excavación"],
     }
 
     def __init__(self):
@@ -398,18 +411,35 @@ class PliegoAnalyzer:
             logger.error(f"Error extrayendo URL pliego técnico: {e}")
             return None
 
-    def extraer_texto_pdf(self, pdf_bytes: bytes) -> Tuple[str, int]:
-        """Extrae texto de PDF usando pdfplumber"""
+    def extraer_texto_pdf(self, pdf_bytes: bytes, max_paginas: int = 150) -> Tuple[str, int]:
+        """
+        Extrae texto de PDF usando pdfplumber.
+        Limita a max_paginas para evitar timeouts en PDFs muy grandes.
+        Las primeras páginas suelen contener la info más relevante.
+        """
         texto_completo = []
         paginas = 0
+        paginas_procesadas = 0
 
         try:
             with pdfplumber.open(BytesIO(pdf_bytes)) as pdf:
                 paginas = len(pdf.pages)
-                for page in pdf.pages:
+                # Limitar páginas a procesar
+                paginas_a_procesar = min(paginas, max_paginas)
+
+                if paginas > max_paginas:
+                    logger.warning(f"PDF muy grande ({paginas} págs), limitando a {max_paginas} páginas")
+
+                for i, page in enumerate(pdf.pages[:paginas_a_procesar]):
                     texto = page.extract_text()
                     if texto:
                         texto_completo.append(texto)
+                    paginas_procesadas += 1
+
+                    # Log progreso cada 50 páginas
+                    if paginas_procesadas % 50 == 0:
+                        logger.info(f"Extracción PDF: {paginas_procesadas}/{paginas_a_procesar} páginas...")
+
         except Exception as e:
             logger.error(f"Error extrayendo texto PDF: {e}")
 
@@ -740,13 +770,21 @@ RESPONDE SOLO JSON, sin explicaciones adicionales."""
         """Análisis básico sin IA (fallback)"""
         texto_lower = texto.lower()
 
-        # Detectar si tiene IT
+        # Detectar si tiene IT (incluye drones/cartografía)
         keywords_it = ["informátic", "software", "hardware", "sistemas", "red", "comunicaciones",
                        "soporte técnico", "helpdesk", "cpd", "servidor", "cloud", "nube"]
+        keywords_drones = ["dron", "rpas", "uav", "fotogrametría", "lidar", "ortofoto",
+                           "topografía aérea", "nube de puntos", "seguimiento de obra",
+                           "termografía", "aerogenerador", "planta fotovoltaica", "parque eólico",
+                           "volumetría", "gemelo digital", "bim", "as-built"]
         tiene_it = any(kw in texto_lower for kw in keywords_it)
+        tiene_drones = any(kw in texto_lower for kw in keywords_drones)
+        tiene_servicios_srs = tiene_it or tiene_drones
 
         # Calcular pain_score básico
-        pain_score = 30 if tiene_it else 10
+        pain_score = 30 if tiene_servicios_srs else 10
+        if tiene_drones:
+            pain_score += 20  # Drones/cartografía es línea estratégica
 
         for categoria, keywords in self.KEYWORDS_DOLOR.items():
             for kw in keywords:
@@ -772,16 +810,19 @@ RESPONDE SOLO JSON, sin explicaciones adicionales."""
         else:
             nivel = "bajo"
 
+        # Determinar tipo de servicio detectado
+        tipo_servicio = "IT" if tiene_it else ("drones/cartografía" if tiene_drones else "")
+
         return {
-            "tiene_it": tiene_it,
+            "tiene_it": tiene_servicios_srs,  # True si tiene IT o drones
             "pain_score": pain_score,
             "nivel_urgencia": nivel,
-            "dolor_principal": f"Necesidad de servicios IT detectada en: {objeto[:100]}",
+            "dolor_principal": f"Necesidad de servicios {tipo_servicio} detectada en: {objeto[:100]}" if tipo_servicio else f"Análisis de: {objeto[:100]}",
             "dolores": [],
             "componentes_it": [],
             "gancho_inicial": f"He visto su licitación de {objeto[:50]}... y creo que podemos ayudarles.",
             "puntos_dolor_email": [
-                "Detectada necesidad de servicios IT",
+                f"Detectada necesidad de servicios {tipo_servicio}" if tipo_servicio else "Análisis pendiente",
                 f"Importe: {importe:,.0f}€" if importe else "Importe por determinar"
             ],
             "preguntas_cualificacion": [
@@ -790,7 +831,7 @@ RESPONDE SOLO JSON, sin explicaciones adicionales."""
             ],
             "alertas": ["Análisis básico - se recomienda revisión manual del pliego"],
             "competidores_potenciales": [],
-            "nivel_oportunidad": "bronce" if tiene_it else "descartar",
+            "nivel_oportunidad": "plata" if tiene_drones else ("bronce" if tiene_it else "descartar"),
             "confianza_analisis": "baja",
             "tecnologias_detectadas": tecnologias,
             "certificaciones_detectadas": certificaciones,
@@ -808,26 +849,29 @@ RESPONDE SOLO JSON, sin explicaciones adicionales."""
         Descarga, extrae texto, analiza con IA.
         SIN restricciones de tiempo.
         """
+        import time as _time
+        _start = _time.time()
         inicio = datetime.now()
 
-        logger.info(f"Iniciando análisis exhaustivo de pliego: {oportunidad_id}")
-        logger.info(f"URL inicial: {url_pliego}")
+        logger.info(f"[PLIEGO] Iniciando análisis exhaustivo: {oportunidad_id}")
+        logger.info(f"[PLIEGO] URL inicial: {url_pliego[:80]}...")
 
         # 0. Si la URL es la página de detalle de PLACSP (no un PDF directo),
         #    intentar extraer la URL del pliego técnico real
         url_final = url_pliego
         if 'detalle_licitacion' in url_pliego or 'deeplink' in url_pliego:
-            logger.info("URL es página de detalle PLACSP, buscando pliego técnico...")
+            logger.info(f"[PLIEGO] [{_time.time()-_start:.1f}s] URL es página PLACSP, buscando pliego técnico...")
             url_pliego_tecnico = await self.extraer_url_pliego_tecnico(url_pliego)
             if url_pliego_tecnico:
-                logger.info(f"Pliego técnico encontrado: {url_pliego_tecnico}")
+                logger.info(f"[PLIEGO] [{_time.time()-_start:.1f}s] Pliego técnico encontrado: {url_pliego_tecnico[:60]}...")
                 url_final = url_pliego_tecnico
             else:
-                logger.warning("No se encontró pliego técnico, usando página de detalle")
+                logger.warning(f"[PLIEGO] [{_time.time()-_start:.1f}s] No se encontró pliego técnico")
 
         # 1. Descargar documento
-        logger.info(f"Descargando documento desde: {url_final}")
+        logger.info(f"[PLIEGO] [{_time.time()-_start:.1f}s] Descargando documento...")
         contenido, tipo_doc = await self.descargar_documento(url_final)
+        logger.info(f"[PLIEGO] [{_time.time()-_start:.1f}s] Descarga completada: {tipo_doc}, {len(contenido) if contenido else 0} bytes")
 
         if not contenido:
             return AnalisisPliego(
@@ -864,7 +908,7 @@ RESPONDE SOLO JSON, sin explicaciones adicionales."""
             )
 
         # 2. Extraer texto
-        logger.info(f"Extrayendo texto de {tipo_doc}...")
+        logger.info(f"[PLIEGO] [{_time.time()-_start:.1f}s] Extrayendo texto de {tipo_doc}...")
         if tipo_doc == "pdf":
             texto, paginas = self.extraer_texto_pdf(contenido)
         else:
@@ -872,7 +916,7 @@ RESPONDE SOLO JSON, sin explicaciones adicionales."""
             paginas = 1
 
         palabras = len(texto.split())
-        logger.info(f"Extraídas {palabras} palabras de {paginas} páginas")
+        logger.info(f"[PLIEGO] [{_time.time()-_start:.1f}s] Extraídas {palabras} palabras de {paginas} páginas")
 
         if not texto or len(texto) < 100:
             return AnalisisPliego(
@@ -909,33 +953,37 @@ RESPONDE SOLO JSON, sin explicaciones adicionales."""
             )
 
         # 3. Analizar con IA (Gemini primero, luego OpenAI, luego Anthropic)
-        logger.info("Analizando con IA (esto puede tardar 30-60 segundos)...")
+        logger.info(f"[PLIEGO] [{_time.time()-_start:.1f}s] Iniciando análisis IA...")
         resultado_ia = None
         proveedor = "basico"
 
         # Intentar Gemini primero (PRINCIPAL - rápido y económico)
         if self.gemini_model:
+            logger.info(f"[PLIEGO] [{_time.time()-_start:.1f}s] Probando Gemini...")
             resultado_ia = await self._analizar_con_gemini(texto, objeto, importe)
             if resultado_ia:
                 proveedor = "gemini"
+                logger.info(f"[PLIEGO] [{_time.time()-_start:.1f}s] Gemini OK")
 
         # Fallback a OpenAI si Gemini falla
         if not resultado_ia and self.openai_client:
-            logger.info("Gemini falló, intentando con OpenAI...")
+            logger.info(f"[PLIEGO] [{_time.time()-_start:.1f}s] Gemini falló, probando OpenAI...")
             resultado_ia = await self._analizar_con_openai(texto, objeto, importe)
             if resultado_ia:
                 proveedor = "openai"
+                logger.info(f"[PLIEGO] [{_time.time()-_start:.1f}s] OpenAI OK")
 
         # Fallback a Anthropic Claude si OpenAI también falla
         if not resultado_ia and self.anthropic_client:
-            logger.info("OpenAI falló, intentando con Anthropic Claude...")
+            logger.info(f"[PLIEGO] [{_time.time()-_start:.1f}s] OpenAI falló, probando Anthropic...")
             resultado_ia = await self._analizar_con_anthropic(texto, objeto, importe)
             if resultado_ia:
                 proveedor = "anthropic"
+                logger.info(f"[PLIEGO] [{_time.time()-_start:.1f}s] Anthropic OK")
 
         # Último recurso: análisis básico
         if not resultado_ia:
-            logger.warning("Fallback a análisis básico (sin IA)")
+            logger.warning(f"[PLIEGO] [{_time.time()-_start:.1f}s] Fallback a análisis básico")
             resultado_ia = self._analisis_basico(texto, objeto, importe)
 
         # 4. Detectar tecnologías y certificaciones (adicional)
