@@ -266,43 +266,36 @@ class OportunidadSpotterImport(BaseModel):
 
 # ============== AUTH HELPERS ==============
 
+# Google OAuth token verification
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_requests
+
+async def verify_google_token(token: str) -> dict:
+    """Verify Google OAuth token and return user info"""
+    try:
+        google_client_id = os.environ.get('GOOGLE_CLIENT_ID')
+        if not google_client_id:
+            raise HTTPException(status_code=500, detail="GOOGLE_CLIENT_ID not configured")
+
+        idinfo = id_token.verify_oauth2_token(
+            token,
+            google_requests.Request(),
+            google_client_id
+        )
+        return idinfo
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=f"Invalid Google token: {str(e)}")
+
 async def get_current_user(request: Request) -> UserResponse:
-    """Get current user from session token cookie or Authorization header"""
-    session_token = request.cookies.get("session_token")
-    
-    if not session_token:
-        auth_header = request.headers.get("Authorization")
-        if auth_header and auth_header.startswith("Bearer "):
-            session_token = auth_header.split(" ")[1]
-    
-    if not session_token:
-        raise HTTPException(status_code=401, detail="No autenticado")
-    
-    session = await db.user_sessions.find_one(
-        {"session_token": session_token},
-        {"_id": 0}
+    """Return dev user - no auth required in development mode"""
+    # Dev mode: return a default admin user without authentication
+    return UserResponse(
+        user_id="dev_user",
+        email="dev@systemrapidsolutions.com",
+        name="Developer",
+        role="admin",
+        picture=None
     )
-    
-    if not session:
-        raise HTTPException(status_code=401, detail="Sesión inválida")
-    
-    expires_at = session["expires_at"]
-    if isinstance(expires_at, str):
-        expires_at = datetime.fromisoformat(expires_at)
-    if expires_at.tzinfo is None:
-        expires_at = expires_at.replace(tzinfo=timezone.utc)
-    if expires_at < datetime.now(timezone.utc):
-        raise HTTPException(status_code=401, detail="Sesión expirada")
-    
-    user = await db.users.find_one(
-        {"user_id": session["user_id"]},
-        {"_id": 0}
-    )
-    
-    if not user:
-        raise HTTPException(status_code=401, detail="Usuario no encontrado")
-    
-    return UserResponse(**user)
 
 # ============== AUTH ROUTES ==============
 
@@ -402,10 +395,192 @@ async def create_session(request: Request, response: Response):
     user = await db.users.find_one({"user_id": user_id}, {"_id": 0})
     return UserResponse(**user)
 
+class GoogleAuthRequest(BaseModel):
+    credential: str  # Google ID token from frontend
+
+@api_router.post("/auth/google")
+async def google_auth(request: GoogleAuthRequest, response: Response):
+    """Authenticate with Google OAuth token - for local development and production"""
+    print(f"=== Google Auth Request ===")
+    print(f"Credential length: {len(request.credential)}")
+
+    # Verify the Google token
+    try:
+        idinfo = await verify_google_token(request.credential)
+        print(f"Token verified. Email: {idinfo.get('email')}")
+    except Exception as e:
+        print(f"Token verification failed: {e}")
+        raise
+
+    email = idinfo.get("email", "").lower()
+    name = idinfo.get("name", email.split("@")[0])
+    picture = idinfo.get("picture")
+
+    # In DEV_MODE, allow any email. In production, restrict to @systemrapidsolutions.com
+    if not DEV_MODE:
+        if not email.endswith("@systemrapidsolutions.com"):
+            raise HTTPException(
+                status_code=403,
+                detail="Solo cuentas @systemrapidsolutions.com permitidas"
+            )
+
+        allowed_user = ALLOWED_USERS.get(email)
+        if not allowed_user:
+            raise HTTPException(
+                status_code=403,
+                detail="Usuario no autorizado. Contacte al administrador."
+            )
+        user_role = allowed_user["role"]
+        user_name = name or allowed_user["name"]
+    else:
+        user_role = "admin"
+        user_name = name
+
+    # Create or update user
+    existing_user = await db.users.find_one({"email": email}, {"_id": 0})
+
+    if existing_user:
+        user_id = existing_user["user_id"]
+        await db.users.update_one(
+            {"email": email},
+            {"$set": {
+                "name": user_name,
+                "picture": picture,
+                "role": user_role
+            }}
+        )
+    else:
+        user_id = f"user_{uuid.uuid4().hex[:12]}"
+        new_user = {
+            "user_id": user_id,
+            "email": email,
+            "name": user_name,
+            "picture": picture,
+            "role": user_role,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        await db.users.insert_one(new_user)
+
+    # Create session token
+    session_token = f"session_{uuid.uuid4().hex}"
+    expires_at = datetime.now(timezone.utc) + timedelta(days=7)
+
+    # Delete old sessions and create new one
+    await db.user_sessions.delete_many({"user_id": user_id})
+    await db.user_sessions.insert_one({
+        "user_id": user_id,
+        "session_token": session_token,
+        "expires_at": expires_at.isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat()
+    })
+
+    # Set cookie - use secure=False for localhost
+    is_localhost = os.environ.get('ENVIRONMENT', 'development') == 'development'
+    response.set_cookie(
+        key="session_token",
+        value=session_token,
+        httponly=True,
+        secure=not is_localhost,  # False for localhost, True for production
+        samesite="lax" if is_localhost else "none",  # lax for localhost, none for cross-site
+        max_age=7 * 24 * 60 * 60,
+        path="/"
+    )
+
+    user = await db.users.find_one({"user_id": user_id}, {"_id": 0})
+    return {
+        "user": UserResponse(**user),
+        "token": session_token  # Also return token for localStorage fallback
+    }
+
 @api_router.get("/auth/me", response_model=UserResponse)
 async def get_me(current_user: UserResponse = Depends(get_current_user)):
     """Get current authenticated user"""
     return current_user
+
+@api_router.post("/auth/google-redirect")
+async def google_auth_redirect(request: Request):
+    """Handle Google OAuth redirect flow - receives form data from Google"""
+    from starlette.responses import RedirectResponse
+
+    form_data = await request.form()
+    credential = form_data.get("credential")
+
+    if not credential:
+        print("No credential in redirect form data")
+        return RedirectResponse(url="http://localhost:3001/login?error=no_credential", status_code=302)
+
+    print(f"=== Google Auth Redirect ===")
+    print(f"Credential length: {len(credential)}")
+
+    try:
+        idinfo = await verify_google_token(credential)
+        print(f"Token verified. Email: {idinfo.get('email')}")
+    except Exception as e:
+        print(f"Token verification failed: {e}")
+        return RedirectResponse(url=f"http://localhost:3001/login?error=invalid_token", status_code=302)
+
+    email = idinfo.get("email", "").lower()
+    name = idinfo.get("name", email.split("@")[0])
+    picture = idinfo.get("picture")
+
+    if not DEV_MODE:
+        if not email.endswith("@systemrapidsolutions.com"):
+            return RedirectResponse(url="http://localhost:3001/login?error=unauthorized_domain", status_code=302)
+
+        allowed_user = ALLOWED_USERS.get(email)
+        if not allowed_user:
+            return RedirectResponse(url="http://localhost:3001/login?error=unauthorized_user", status_code=302)
+        user_role = allowed_user["role"]
+        user_name = name or allowed_user["name"]
+    else:
+        user_role = "admin"
+        user_name = name
+
+    existing_user = await db.users.find_one({"email": email}, {"_id": 0})
+
+    if existing_user:
+        user_id = existing_user["user_id"]
+        await db.users.update_one(
+            {"email": email},
+            {"$set": {"name": user_name, "picture": picture, "role": user_role}}
+        )
+    else:
+        user_id = f"user_{uuid.uuid4().hex[:12]}"
+        new_user = {
+            "user_id": user_id,
+            "email": email,
+            "name": user_name,
+            "picture": picture,
+            "role": user_role,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        await db.users.insert_one(new_user)
+
+    session_token = f"session_{uuid.uuid4().hex}"
+    expires_at = datetime.now(timezone.utc) + timedelta(days=7)
+
+    await db.user_sessions.delete_many({"user_id": user_id})
+    await db.user_sessions.insert_one({
+        "user_id": user_id,
+        "session_token": session_token,
+        "expires_at": expires_at.isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat()
+    })
+
+    response = RedirectResponse(url=f"http://localhost:3001/dashboard?token={session_token}", status_code=302)
+
+    is_localhost = os.environ.get('ENVIRONMENT', 'development') == 'development'
+    response.set_cookie(
+        key="session_token",
+        value=session_token,
+        httponly=True,
+        secure=not is_localhost,
+        samesite="lax" if is_localhost else "none",
+        max_age=7 * 24 * 60 * 60,
+        path="/"
+    )
+
+    return response
 
 @api_router.post("/auth/logout")
 async def logout(request: Request, response: Response):
@@ -2873,10 +3048,12 @@ async def analizar_licitaciones_batch(
 # Include the router
 app.include_router(api_router)
 
+# CORS configuration - must specify exact origins when using credentials
+cors_origins = os.environ.get('CORS_ORIGINS', 'http://localhost:3001').split(',')
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
+    allow_origins=cors_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )

@@ -219,12 +219,12 @@ export default function LicitacionesDrones({ user }) {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div>
             <label className="text-xs theme-text-muted mb-1 block">Score minimo</label>
-            <Select value={scoreMin} onValueChange={setScoreMin}>
+            <Select value={scoreMin || "all"} onValueChange={(v) => setScoreMin(v === "all" ? "" : v)}>
               <SelectTrigger className="w-full theme-bg border-slate-600">
                 <SelectValue placeholder="Todos" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Todos</SelectItem>
+                <SelectItem value="all">Todos</SelectItem>
                 <SelectItem value="80">80+ (Alta)</SelectItem>
                 <SelectItem value="60">60+ (Media)</SelectItem>
                 <SelectItem value="40">40+ (Baja)</SelectItem>
@@ -234,12 +234,12 @@ export default function LicitacionesDrones({ user }) {
           </div>
           <div>
             <label className="text-xs theme-text-muted mb-1 block">Dias restantes</label>
-            <Select value={diasRestantes} onValueChange={setDiasRestantes}>
+            <Select value={diasRestantes || "all"} onValueChange={(v) => setDiasRestantes(v === "all" ? "" : v)}>
               <SelectTrigger className="w-full theme-bg border-slate-600">
                 <SelectValue placeholder="Todos" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Todos</SelectItem>
+                <SelectItem value="all">Todos</SelectItem>
                 <SelectItem value="7">7 dias o menos</SelectItem>
                 <SelectItem value="15">15 dias o menos</SelectItem>
                 <SelectItem value="30">30 dias o menos</SelectItem>
@@ -249,12 +249,12 @@ export default function LicitacionesDrones({ user }) {
           </div>
           <div>
             <label className="text-xs theme-text-muted mb-1 block">Categoria</label>
-            <Select value={categoriaFilter} onValueChange={setCategoriaFilter}>
+            <Select value={categoriaFilter || "all"} onValueChange={(v) => setCategoriaFilter(v === "all" ? "" : v)}>
               <SelectTrigger className="w-full theme-bg border-slate-600">
                 <SelectValue placeholder="Todas" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Todas</SelectItem>
+                <SelectItem value="all">Todas</SelectItem>
                 {categorias.map(cat => (
                   <SelectItem key={cat} value={cat}>{cat}</SelectItem>
                 ))}
@@ -263,12 +263,12 @@ export default function LicitacionesDrones({ user }) {
           </div>
           <div>
             <label className="text-xs theme-text-muted mb-1 block">Estado</label>
-            <Select value={estadoFilter} onValueChange={setEstadoFilter}>
+            <Select value={estadoFilter || "all"} onValueChange={(v) => setEstadoFilter(v === "all" ? "" : v)}>
               <SelectTrigger className="w-full theme-bg border-slate-600">
                 <SelectValue placeholder="Todos" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Todos</SelectItem>
+                <SelectItem value="all">Todos</SelectItem>
                 {ESTADOS.map(e => (
                   <SelectItem key={e.value} value={e.value}>{e.label}</SelectItem>
                 ))}
