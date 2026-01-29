@@ -3,7 +3,7 @@
 # Configuration
 SERVER_IP="72.62.41.234"
 USER="root"
-REMOTE_PATH="/var/www/srs-crm"
+REMOTE_PATH="/opt/apps/srs-crm"
 
 echo "🚀 Iniciando despliegue manual a $SERVER_IP..."
 
