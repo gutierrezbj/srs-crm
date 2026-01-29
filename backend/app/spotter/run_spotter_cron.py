@@ -17,7 +17,7 @@ from app.spotter.spotter_srs import (
     NivelDolor
 )
 
-CRM_API_URL = "http://localhost:8000/api/oportunidades/spotter-internal"
+CRM_API_URL = "http://172.17.0.1:8000/api/oportunidades/spotter-internal"
 PLACSP_FEED_URL = "https://contrataciondelestado.es/sindicacion/sindicacion_643/licitacionesPerfilesContratanteCompleto3.atom"
 
 CERT_DIR = "/var/www/srs-crm/backend/certs"

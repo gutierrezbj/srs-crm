@@ -37,26 +37,6 @@ import pdfplumber
 
 logger = logging.getLogger(__name__)
 
-def limpiar_html_nombre(texto):
-    """Elimina tags HTML y limpia el nombre de empresa."""
-    if not texto:
-        return texto
-    # Eliminar tags HTML
-    texto = re.sub(r'<[^>]+>', ' ', texto)
-    # Limpiar espacios multiples  
-    texto = re.sub(r'\s+', ' ', texto).strip()
-    # Si quedo vacio o solo tiene caracteres especiales, retornar None
-    if not texto or len(texto) < 3:
-        return None
-    # Detectar si es texto basura (contiene patrones de HTML residual)
-    patrones_basura = ['adjudicatario es una', 'noremarca', 'PYME :', '& ']
-    for patron in patrones_basura:
-        if patron.lower() in texto.lower():
-            return None
-    return texto
-
-
-
 
 @dataclass
 class DatosAdjudicatario:
@@ -2082,7 +2062,7 @@ class AdjudicatarioEnricher:
                                         if nif_found != nif_ganador_upper:
                                             competidor = {
                                                 'nif': nif_found,
-                                                'nombre': limpiar_html_nombre(nombre_found),
+                                                'nombre': nombre_found,
                                                 'puntuacion': puntuacion_found
                                             }
                                             # Evitar duplicados
@@ -2143,7 +2123,7 @@ class AdjudicatarioEnricher:
                                     if not any(c['nif'] == nif for c in competidores):
                                         competidores.append({
                                             'nif': nif,
-                                            'nombre': limpiar_html_nombre(nombre),
+                                            'nombre': nombre,
                                             'importe_oferta': importe,
                                             'puntuacion': None
                                         })
@@ -2171,7 +2151,7 @@ class AdjudicatarioEnricher:
                                         if not any(c['nif'] == nif for c in competidores):
                                             competidores.append({
                                                 'nif': nif,
-                                                'nombre': limpiar_html_nombre(nombre),
+                                                'nombre': nombre,
                                                 'importe_oferta': importe,
                                                 'puntuacion': None
                                             })
@@ -2198,7 +2178,7 @@ class AdjudicatarioEnricher:
                                         if not any(c.get('nombre', '').upper().replace(' ', '').replace(',', '').replace('.', '') == nombre_norm for c in competidores):
                                             competidores.append({
                                                 'nif': None,  # No disponible en este formato
-                                                'nombre': limpiar_html_nombre(nombre),
+                                                'nombre': nombre,
                                                 'importe_oferta': importe,
                                                 'puntuacion': None
                                             })
@@ -2218,7 +2198,7 @@ class AdjudicatarioEnricher:
                                         if not any(c.get('nombre', '').upper().replace(' ', '').replace(',', '').replace('.', '') == nombre_norm for c in competidores):
                                             competidores.append({
                                                 'nif': None,
-                                                'nombre': limpiar_html_nombre(nombre),
+                                                'nombre': nombre,
                                                 'importe_oferta': importe,
                                                 'puntuacion': None
                                             })
@@ -2319,7 +2299,7 @@ class AdjudicatarioEnricher:
                             # Lo que queda y tiene más de 5 caracteres es probablemente el nombre
                             if len(cell_text) > 5 and not nombre_found:
                                 # Verificar que no sea header o NIF
-                                if cell_text.upper() not in ['CIF', 'NIF', 'NOMBRE', 'PUNTUACIÓN', 'PUNTUACION', 'EMPRESA', 'LICITADOR', 'OFERTANTE', 'ADMITIDO', 'ADMITIDA', 'EXCLUIDO', 'EXCLUIDA', 'RECHAZADO', 'RECHAZADA', 'PENDIENTE', 'DESISTIDO', 'DESISTIDA']:
+                                if cell_text.upper() not in ['CIF', 'NIF', 'NOMBRE', 'PUNTUACIÓN', 'PUNTUACION', 'EMPRESA', 'LICITADOR', 'OFERTANTE']:
                                     if not re.match(r'^[A-Z]\d{8}$', cell_text, re.I):
                                         nombre_found = cell_text
 
@@ -2328,7 +2308,7 @@ class AdjudicatarioEnricher:
                             if nif_found != nif_ganador_upper:
                                 competidor = {
                                     'nif': nif_found,
-                                    'nombre': limpiar_html_nombre(nombre_found),
+                                    'nombre': nombre_found,
                                     'puntuacion': puntuacion_found
                                 }
                                 # Evitar duplicados
@@ -2377,7 +2357,7 @@ class AdjudicatarioEnricher:
                             if not any(c['nif'] == nif for c in competidores):
                                 competidores.append({
                                     'nif': nif,
-                                    'nombre': limpiar_html_nombre(nombre),
+                                    'nombre': nombre,
                                     'puntuacion': puntuacion
                                 })
                                 logger.info(f"Competidor (texto): {nombre} ({nif})")
@@ -2421,7 +2401,7 @@ class AdjudicatarioEnricher:
                             if nombre and not any(c['nif'] == nif for c in competidores):
                                 competidores.append({
                                     'nif': nif,
-                                    'nombre': limpiar_html_nombre(nombre),
+                                    'nombre': nombre,
                                     'puntuacion': puntuacion
                                 })
                                 logger.info(f"Competidor (línea): {nombre} ({nif})")
