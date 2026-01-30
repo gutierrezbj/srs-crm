@@ -9,7 +9,7 @@ import json
 import requests
 from datetime import datetime
 
-sys.path.insert(0, '/var/www/srs-crm/backend')
+sys.path.insert(0, '/app')
 
 from app.spotter.spotter_srs import (
     procesar_feed, 
@@ -20,11 +20,11 @@ from app.spotter.spotter_srs import (
 CRM_API_URL = "http://172.17.0.1:8000/api/oportunidades/spotter-internal"
 PLACSP_FEED_URL = "https://contrataciondelestado.es/sindicacion/sindicacion_643/licitacionesPerfilesContratanteCompleto3.atom"
 
-CERT_DIR = "/var/www/srs-crm/backend/certs"
+CERT_DIR = "/app/certs"
 CLIENT_CERT = os.path.join(CERT_DIR, "client_cert.pem")
 CLIENT_KEY = os.path.join(CERT_DIR, "client_key_nopass.pem")
 
-LOG_DIR = "/var/www/srs-crm/backend/logs"
+LOG_DIR = "/app/logs"
 
 def log(msg):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
