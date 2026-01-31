@@ -2,12 +2,34 @@
 """
 Wrapper para ejecutar SpotterSRS y enviar resultados al CRM
 Diseñado para ejecución via cron
+
+Mejoras v2.1:
+- Validación de certificados al inicio
+- Logging estructurado
+- Soporte para variables de entorno
+- Detección automática de rutas
 """
 import sys
 import os
 import json
 import requests
+import logging
 from datetime import datetime
+from pathlib import Path
+
+# Configurar logging ANTES de cualquier import del proyecto
+LOG_DIR = os.getenv("LOG_DIR", "/app/logs")
+os.makedirs(LOG_DIR, exist_ok=True)
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler(os.path.join(LOG_DIR, f"spotter_{datetime.now().strftime('%Y%m%d')}.log")),
+        logging.StreamHandler(sys.stdout)
+    ]
+)
+logger = logging.getLogger(__name__)
 
 sys.path.insert(0, '/app')
 
@@ -17,36 +39,114 @@ from app.spotter.spotter_srs import (
     NivelDolor
 )
 
-CRM_API_URL = "http://172.17.0.1:8000/api/oportunidades/spotter-internal"
-PLACSP_FEED_URL = "https://contrataciondelestado.es/sindicacion/sindicacion_643/licitacionesPerfilesContratanteCompleto3.atom"
+# Configuración con soporte para variables de entorno
+CRM_API_URL = os.getenv("CRM_API_URL", "http://172.17.0.1:8000/api/oportunidades/spotter-internal")
+PLACSP_FEED_URL = os.getenv(
+    "PLACSP_FEED_URL",
+    "https://contrataciondelestado.es/sindicacion/sindicacion_643/licitacionesPerfilesContratanteCompleto3.atom"
+)
 
-CERT_DIR = "/app/certs"
+# Auto-detectar directorio de certificados
+CERT_DIR = os.getenv("CERT_DIR")
+if not CERT_DIR:
+    # Intentar detectar automáticamente
+    possible_paths = [
+        "/app/certs",
+        "/opt/apps/srs-crm/backend/certs",
+        "/var/www/srs-crm/backend/certs"
+    ]
+    for path in possible_paths:
+        if os.path.exists(path):
+            CERT_DIR = path
+            logger.info(f"Auto-detected certificate directory: {CERT_DIR}")
+            break
+    
+    if not CERT_DIR:
+        CERT_DIR = "/app/certs"  # Default
+
 CLIENT_CERT = os.path.join(CERT_DIR, "client_cert.pem")
 CLIENT_KEY = os.path.join(CERT_DIR, "client_key_nopass.pem")
 
-LOG_DIR = "/app/logs"
-
-def log(msg):
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print(f"[{timestamp}] {msg}")
-    os.makedirs(LOG_DIR, exist_ok=True)
-    log_file = os.path.join(LOG_DIR, f"spotter_{datetime.now().strftime('%Y%m%d')}.log")
-    with open(log_file, "a") as f:
-        f.write(f"[{timestamp}] {msg}\n")
+def validate_certificates():
+    """Validar que los certificados existen antes de ejecutar."""
+    logger.info("Validating SSL certificates...")
+    logger.info(f"Certificate directory: {CERT_DIR}")
+    logger.info(f"Certificate file: {CLIENT_CERT}")
+    logger.info(f"Key file: {CLIENT_KEY}")
+    
+    if not os.path.exists(CERT_DIR):
+        logger.error(f"❌ Certificate directory does not exist: {CERT_DIR}")
+        logger.error("Please ensure certificates are mounted correctly in Docker.")
+        return False
+    
+    if not os.path.exists(CLIENT_CERT):
+        logger.error(f"❌ Certificate file not found: {CLIENT_CERT}")
+        logger.error("Available files in cert directory:")
+        try:
+            for f in os.listdir(CERT_DIR):
+                logger.error(f"  - {f}")
+        except Exception as e:
+            logger.error(f"  Could not list directory: {e}")
+        return False
+    
+    if not os.path.exists(CLIENT_KEY):
+        logger.error(f"❌ Private key file not found: {CLIENT_KEY}")
+        return False
+    
+    # Verificar permisos de lectura
+    if not os.access(CLIENT_CERT, os.R_OK):
+        logger.error(f"❌ Cannot read certificate file: {CLIENT_CERT}")
+        return False
+    
+    if not os.access(CLIENT_KEY, os.R_OK):
+        logger.error(f"❌ Cannot read key file: {CLIENT_KEY}")
+        return False
+    
+    logger.info("✅ SSL certificates validated successfully")
+    return True
 
 def fetch_placsp_feed():
-    log("Descargando feed Atom de PLACSP con certificado...")
+    """Descargar feed PLACSP usando certificados SSL."""
+    logger.info("Descargando feed Atom de PLACSP con certificado...")
+    logger.info(f"URL: {PLACSP_FEED_URL}")
+    logger.info(f"Using certificate: {CLIENT_CERT}")
+    
     try:
         response = requests.get(
             PLACSP_FEED_URL,
             cert=(CLIENT_CERT, CLIENT_KEY),
-            timeout=120
+            timeout=120,
+            verify=True
         )
         response.raise_for_status()
-        log(f"Feed descargado: {len(response.text)} bytes")
+        logger.info(f"✅ Feed descargado: {len(response.text)} bytes")
+        
+        # Verificar que el feed no esté vacío
+        if len(response.text) < 100:
+            logger.warning(f"⚠️ Feed seems too small: {len(response.text)} bytes")
+            logger.warning(f"Response preview: {response.text[:200]}")
+        
         return response.text
+    except requests.exceptions.SSLError as e:
+        logger.error(f"❌ SSL Error: {e}")
+        logger.error("This usually means:")
+        logger.error("  1. Certificate is invalid or expired")
+        logger.error("  2. Certificate doesn't match the private key")
+        logger.error("  3. Certificate is not authorized for this feed")
+        return None
+    except requests.exceptions.HTTPError as e:
+        logger.error(f"❌ HTTP Error {e.response.status_code}: {e}")
+        logger.error(f"Response body: {e.response.text[:500]}")
+        return None
+    except requests.exceptions.ConnectionError as e:
+        logger.error(f"❌ Connection Error: {e}")
+        return None
+    except requests.exceptions.Timeout:
+        logger.error("❌ Request timed out after 120 seconds")
+        return None
     except Exception as e:
-        log(f"ERROR descargando feed: {e}")
+        logger.error(f"❌ ERROR descargando feed: {e}")
+        logger.exception("Full traceback:")
         return None
 
 def transform_to_crm_format(json_str):
@@ -94,49 +194,87 @@ def transform_to_crm_format(json_str):
     return {"oportunidades": crm_oportunidades}
 
 def send_to_crm(data):
-    log(f"Enviando {len(data['oportunidades'])} oportunidades al CRM...")
+    """Enviar oportunidades al CRM vía API interna."""
+    logger.info(f"Enviando {len(data['oportunidades'])} oportunidades al CRM...")
+    logger.info(f"API URL: {CRM_API_URL}")
+    
     try:
-        response = requests.post(CRM_API_URL, json=data, headers={"Content-Type": "application/json"}, timeout=30)
+        response = requests.post(
+            CRM_API_URL,
+            json=data,
+            headers={"Content-Type": "application/json"},
+            timeout=30
+        )
         response.raise_for_status()
         result = response.json()
-        log(f"Resultado: {result}")
+        logger.info(f"✅ Resultado: {result}")
         return result
+    except requests.exceptions.HTTPError as e:
+        logger.error(f"❌ HTTP Error {e.response.status_code}: {e}")
+        logger.error(f"Response: {e.response.text[:500]}")
+        return None
+    except requests.exceptions.ConnectionError as e:
+        logger.error(f"❌ Cannot connect to CRM API at {CRM_API_URL}")
+        logger.error(f"Error: {e}")
+        return None
     except Exception as e:
-        log(f"ERROR enviando al CRM: {e}")
+        logger.error(f"❌ ERROR enviando al CRM: {e}")
+        logger.exception("Full traceback:")
         return None
 
 def main():
-    log("=" * 60)
-    log("SPOTTER SRS - Ejecucion Cron")
-    log("=" * 60)
-    os.makedirs(LOG_DIR, exist_ok=True)
+    """Función principal del SpotterSRS cron job."""
+    logger.info("=" * 60)
+    logger.info("   SPOTTER SRS - Ejecución Cron")
+    logger.info("=" * 60)
+    logger.info(f"Timestamp: {datetime.now().isoformat()}")
+    logger.info(f"Log directory: {LOG_DIR}")
+    logger.info(f"Certificate directory: {CERT_DIR}")
+    logger.info(f"CRM API URL: {CRM_API_URL}")
+    logger.info("=" * 60)
     
-    xml_content = fetch_placsp_feed()
-    if not xml_content:
-        log("Abortando: no se pudo obtener el feed")
+    # Validar certificados antes de continuar
+    if not validate_certificates():
+        logger.error("❌ Certificate validation failed. Aborting.")
         sys.exit(1)
     
-    log("Procesando feed (filtrando ADJ y RES)...")
+    # Descargar feed
+    xml_content = fetch_placsp_feed()
+    if not xml_content:
+        logger.error("❌ Abortando: no se pudo obtener el feed")
+        sys.exit(1)
+    
+    # Procesar feed
+    logger.info("Procesando feed (filtrando ADJ y RES)...")
     try:
         adjudicaciones = procesar_feed(xml_content)
-        log(f"Detectadas {len(adjudicaciones)} oportunidades relevantes")
+        logger.info(f"✅ Detectadas {len(adjudicaciones)} oportunidades relevantes")
     except Exception as e:
-        log(f"ERROR procesando feed: {e}")
+        logger.error(f"❌ ERROR procesando feed: {e}")
+        logger.exception("Full traceback:")
         sys.exit(1)
     
     if not adjudicaciones:
-        log("No se encontraron oportunidades relevantes")
+        logger.info("ℹ️  No se encontraron oportunidades relevantes en este ciclo")
         sys.exit(0)
     
-    json_str = generar_json_crm(adjudicaciones)
-    crm_data = transform_to_crm_format(json_str)
-    result = send_to_crm(crm_data)
+    # Transformar y enviar al CRM
+    try:
+        json_str = generar_json_crm(adjudicaciones)
+        crm_data = transform_to_crm_format(json_str)
+        result = send_to_crm(crm_data)
+        
+        if result:
+            logger.info(f"✅ Importadas: {result.get('imported', 0)}, Duplicadas: {result.get('duplicates', 0)}")
+        else:
+            logger.warning("⚠️ No se pudo enviar al CRM, pero el proceso continuó")
+    except Exception as e:
+        logger.error(f"❌ ERROR en transformación/envío: {e}")
+        logger.exception("Full traceback:")
+        sys.exit(1)
     
-    if result:
-        log(f"Importadas: {result.get('imported', 0)}, Duplicadas: {result.get('duplicates', 0)}")
-    
-    log("Ejecucion completada")
-    log("=" * 60)
+    logger.info("✅ Ejecución completada exitosamente")
+    logger.info("=" * 60)
 
 if __name__ == "__main__":
     main()
